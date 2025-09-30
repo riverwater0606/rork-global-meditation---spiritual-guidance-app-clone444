@@ -8,7 +8,10 @@ import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
+SplashScreen.preventAutoHideAsync()
+  .then(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - done'))
+  .catch(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - already prevented or failed'));
 
 const queryClient = new QueryClient();
 
@@ -39,13 +42,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.state.hasError) {
       return (
         <View style={errorStyles.container}>
-          <Text style={errorStyles.title}>Something went wrong</Text>
+          <Text style={errorStyles.title}>Failed to load, please retry</Text>
           <Text style={errorStyles.message}>{this.state.error?.message}</Text>
           <TouchableOpacity
             style={errorStyles.button}
             onPress={() => this.setState({ hasError: false, error: null })}
           >
-            <Text style={errorStyles.buttonText}>Try Again</Text>
+            <Text style={errorStyles.buttonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       );
@@ -108,8 +111,11 @@ export default function RootLayout() {
   useEffect(() => {
     const hide = async () => {
       try {
+        console.log('[WorldID] SplashScreen.hideAsync() - start');
       } finally {
-        await SplashScreen.hideAsync().catch(() => {});
+        await SplashScreen.hideAsync()
+          .then(() => console.log('[WorldID] SplashScreen.hideAsync() - done'))
+          .catch(() => console.log('[WorldID] SplashScreen.hideAsync() - failed'));
       }
     };
     void hide();

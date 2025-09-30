@@ -141,6 +141,7 @@ export default function HomeScreen() {
         return;
       }
 
+      console.log('[WorldID] Calling MiniKit.commandsAsync.verify with action, signal, verification_level=orb');
       const { finalPayload } = await verifyFn({
         action,
         signal: 'user_signal',
@@ -155,6 +156,7 @@ export default function HomeScreen() {
         setWorldError(finalPayload.error_code ?? 'Verification failed');
         return;
       }
+      console.log('[WorldID] Verification success, preparing redirect to callback');
 
       try {
         const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
