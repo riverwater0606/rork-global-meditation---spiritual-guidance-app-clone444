@@ -17,7 +17,8 @@ import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
-import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
+// MiniKit is injected by World App on web. Avoid bundling '@worldcoin/minikit-js' to prevent module issues.
+// Access via window.MiniKit with type-safe guards.
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -53,7 +54,7 @@ export default function HomeScreen() {
         console.log('[WorldID] onLoad - isWeb:', isWeb);
         if (isWeb) {
           try {
-            const installed = MiniKit.isInstalled();
+            const installed = (typeof window !== 'undefined' && (window as any)?.MiniKit?.isInstalled?.()) ?? false;
             console.log('[WorldID] MiniKit.isInstalled():', installed);
           } catch (e) {
             console.warn('[WorldID] MiniKit.isInstalled() check failed:', e);
@@ -97,7 +98,8 @@ export default function HomeScreen() {
 
       let installed = false as boolean;
       try {
-        installed = typeof MiniKit?.isInstalled === 'function' ? MiniKit.isInstalled() : false;
+        const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
+        installed = typeof mk?.isInstalled === 'function' ? mk.isInstalled() : false;
       } catch (err) {
         console.warn('[WorldID] MiniKit.isInstalled() threw:', err);
         installed = false;
@@ -113,7 +115,8 @@ export default function HomeScreen() {
       console.log('[WorldID] Environment OK. Starting verification...');
       const action = process.env.WORLD_ID_ACTION_ID ?? 'psig';
 
-      const verifyFn = (MiniKit as any)?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
+      const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
+      const verifyFn = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
         console.error('[WorldID] commandsAsync.verify not available');
         setIsVerifying(false);
@@ -124,7 +127,7 @@ export default function HomeScreen() {
       const { finalPayload } = await verifyFn({
         action,
         signal: 'user_signal',
-        verification_level: VerificationLevel.Orb,
+        verification_level: 'orb',
         enableTelemetry: true,
       });
       console.log('[WorldID] Verify response:', JSON.stringify(finalPayload, null, 2));
