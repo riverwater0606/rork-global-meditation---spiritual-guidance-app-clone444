@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useSegments, router, usePathname } from "expo-router";
+import { Stack, useSegments, router, usePathname, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -94,14 +94,21 @@ const errorStyles = StyleSheet.create({
 function AuthGate({ children }: { children: ReactNode }) {
   const segments = useSegments();
   const pathname = usePathname();
+  const rootState = useRootNavigationState();
   const { isVerified } = useUser();
 
   useEffect(() => {
+    if (!rootState?.key) return;
     const inAuthFlow = pathname === '/sign-in' || pathname === '/callback';
     if (!isVerified && !inAuthFlow) {
+      console.log('[AuthGate] Redirecting to /sign-in');
       router.replace('/sign-in');
     }
-  }, [isVerified, pathname, segments]);
+  }, [isVerified, pathname, segments, rootState?.key]);
+
+  if (!rootState?.key) {
+    return null;
+  }
 
   return <>{children}</>;
 }
