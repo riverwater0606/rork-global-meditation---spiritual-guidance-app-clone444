@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router, useRootNavigationState } from "expo-router";
+import { Stack, useRootNavigationState, Redirect } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -103,8 +103,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       const currentName: string | undefined = routes[index]?.name;
       const inAuthFlow = currentName === 'sign-in' || currentName === 'callback';
       if (!isVerified && !inAuthFlow) {
-        console.log('[AuthGate] Redirecting to /sign-in');
-        router.replace('/sign-in');
+        console.log('[AuthGate] Not verified. Will render <Redirect /> to /sign-in');
       }
     } catch (e) {
       console.warn('[AuthGate] Failed to inspect navigation state', e);
@@ -113,6 +112,10 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   if (!rootState?.key) {
     return null;
+  }
+
+  if (!isVerified) {
+    return <Redirect href="/sign-in" />;
   }
 
   return <>{children}</>;
