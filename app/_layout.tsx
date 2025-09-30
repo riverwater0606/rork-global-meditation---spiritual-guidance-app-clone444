@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useSegments, router, usePathname, useRootNavigationState } from "expo-router";
+import { Stack, router, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -92,19 +92,24 @@ const errorStyles = StyleSheet.create({
 });
 
 function AuthGate({ children }: { children: ReactNode }) {
-  const segments = useSegments();
-  const pathname = usePathname();
   const rootState = useRootNavigationState();
   const { isVerified } = useUser();
 
   useEffect(() => {
     if (!rootState?.key) return;
-    const inAuthFlow = pathname === '/sign-in' || pathname === '/callback';
-    if (!isVerified && !inAuthFlow) {
-      console.log('[AuthGate] Redirecting to /sign-in');
-      router.replace('/sign-in');
+    try {
+      const index = (rootState as any)?.index ?? 0;
+      const routes = (rootState as any)?.routes ?? [];
+      const currentName: string | undefined = routes[index]?.name;
+      const inAuthFlow = currentName === 'sign-in' || currentName === 'callback';
+      if (!isVerified && !inAuthFlow) {
+        console.log('[AuthGate] Redirecting to /sign-in');
+        router.replace('/sign-in');
+      }
+    } catch (e) {
+      console.warn('[AuthGate] Failed to inspect navigation state', e);
     }
-  }, [isVerified, pathname, segments, rootState?.key]);
+  }, [isVerified, rootState?.key, (rootState as any)?.index]);
 
   if (!rootState?.key) {
     return null;
