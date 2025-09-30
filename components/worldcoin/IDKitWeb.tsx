@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MiniKit as MiniKitModule } from '@worldcoin/minikit-js';
 
 interface VerifyButtonProps {
   appId: string;
@@ -17,6 +18,8 @@ function getMiniKit(): any | undefined {
   if (typeof window === 'undefined') return undefined;
   const w = window as unknown as any;
   const mk =
+    // Prefer library import if available
+    (MiniKitModule as any) ??
     w.MiniKit ??
     w.miniKit ??
     w.worldApp?.miniKit ??
@@ -32,11 +35,11 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
   if (Platform.OS !== 'web') return undefined;
 
   const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-  const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin)/i.test(ua);
+  const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
 
-  // Poll for injected MiniKit when inside World App instead of injecting a script
+  // Poll longer for injected MiniKit when inside World App
   if (isWorldAppUA) {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 150; i++) {
       await new Promise((r) => setTimeout(r, 100));
       mk = getMiniKit();
       if (mk) return mk;
@@ -70,9 +73,9 @@ async function isMiniKitInstalled(mk: any): Promise<boolean> {
   try {
     if (!mk) return false;
     const val = typeof mk.isInstalled === 'function' ? mk.isInstalled() : mk.isInstalled;
-    const resolved = typeof val?.then === 'function' ? await val : val;
+    const resolved = typeof (val as any)?.then === 'function' ? await (val as Promise<any>) : val;
     if (resolved != null) return Boolean(resolved);
-    const hasApi = Boolean(mk?.commandsAsync || mk?.commands || mk?.actions);
+    const hasApi = Boolean(mk?.commandsAsync || mk?.commands || mk?.actions || mk?.verify);
     return hasApi;
   } catch (e) {
     console.log('[WorldIDVerifyButton] isInstalled check failed', e);
@@ -95,9 +98,9 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       if (!mk) {
         // Last-ditch UA re-check and longer poll
         const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-        const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin)/i.test(ua);
+        const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
         if (isWorldAppUA) {
-          for (let i = 0; i < 50; i++) {
+          for (let i = 0; i < 150; i++) {
             await new Promise((r) => setTimeout(r, 100));
             mk = getMiniKit();
             if (mk) break;
@@ -117,7 +120,8 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         mk?.commandsAsync?.verify ||
         mk?.commands?.verify ||
         mk?.actions?.verify ||
-        mk?.verify
+        mk?.verify ||
+        (MiniKitModule as any)?.commandsAsync?.verify
       ) as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
         setError('Verification API unavailable');
