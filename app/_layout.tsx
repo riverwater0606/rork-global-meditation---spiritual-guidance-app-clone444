@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useSegments, router, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
+import { useUser } from "@/providers/UserProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
 SplashScreen.preventAutoHideAsync()
@@ -90,6 +91,21 @@ const errorStyles = StyleSheet.create({
   },
 });
 
+function AuthGate({ children }: { children: ReactNode }) {
+  const segments = useSegments();
+  const pathname = usePathname();
+  const { isVerified } = useUser();
+
+  useEffect(() => {
+    const inAuthFlow = pathname === '/sign-in' || pathname === '/callback';
+    if (!isVerified && !inAuthFlow) {
+      router.replace('/sign-in');
+    }
+  }, [isVerified, pathname, segments]);
+
+  return <>{children}</>;
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -103,6 +119,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings/language" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/privacy" options={{ presentation: "modal" }} />
       <Stack.Screen name="callback" options={{ presentation: "modal" }} />
+      <Stack.Screen name="sign-in" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }
@@ -127,7 +144,9 @@ export default function RootLayout() {
           <SettingsProvider>
             <UserProvider>
               <MeditationProvider>
-                <RootLayoutNav />
+                <AuthGate>
+                  <RootLayoutNav />
+                </AuthGate>
               </MeditationProvider>
             </UserProvider>
           </SettingsProvider>

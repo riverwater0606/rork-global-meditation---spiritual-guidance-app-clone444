@@ -8,12 +8,21 @@ interface UserProfile {
   avatarUrl?: string;
 }
 
+interface VerificationPayload {
+  nullifier_hash?: string;
+  merkle_root?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
 export const [UserProvider, useUser] = createContextHook(() => {
   const [profile, setProfile] = useState<UserProfile>({
     name: "",
     email: "",
   });
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [verification, setVerification] = useState<VerificationPayload | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -23,6 +32,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
     try {
       const savedProfile = await AsyncStorage.getItem("userProfile");
       const savedWallet = await AsyncStorage.getItem("walletAddress");
+      const savedVerified = await AsyncStorage.getItem("isVerified");
+      const savedVerification = await AsyncStorage.getItem("verificationPayload");
       
       if (savedProfile) {
         setProfile(JSON.parse(savedProfile));
@@ -30,6 +41,18 @@ export const [UserProvider, useUser] = createContextHook(() => {
       
       if (savedWallet) {
         setWalletAddress(savedWallet);
+      }
+
+      if (savedVerified) {
+        setIsVerified(savedVerified === 'true');
+      }
+
+      if (savedVerification) {
+        try {
+          setVerification(JSON.parse(savedVerification));
+        } catch (e) {
+          console.log('[UserProvider] Failed to parse verification payload');
+        }
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -43,8 +66,6 @@ export const [UserProvider, useUser] = createContextHook(() => {
   };
 
   const connectWallet = async () => {
-    // Simulate wallet connection
-    // In production, this would integrate with Web3 providers
     const mockAddress = "0x" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     setWalletAddress(mockAddress);
     await AsyncStorage.setItem("walletAddress", mockAddress);
@@ -56,11 +77,29 @@ export const [UserProvider, useUser] = createContextHook(() => {
     await AsyncStorage.removeItem("walletAddress");
   };
 
+  const setVerified = async (payload: VerificationPayload) => {
+    setIsVerified(true);
+    setVerification(payload);
+    await AsyncStorage.setItem('isVerified', 'true');
+    await AsyncStorage.setItem('verificationPayload', JSON.stringify(payload));
+  };
+
+  const logout = async () => {
+    setIsVerified(false);
+    setVerification(null);
+    await AsyncStorage.removeItem('isVerified');
+    await AsyncStorage.removeItem('verificationPayload');
+  };
+
   return {
     profile,
     walletAddress,
+    isVerified,
+    verification,
     updateProfile,
     connectWallet,
     disconnectWallet,
+    setVerified,
+    logout,
   };
 });

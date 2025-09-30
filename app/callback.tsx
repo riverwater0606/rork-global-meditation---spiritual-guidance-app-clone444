@@ -2,28 +2,38 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useSettings } from '@/providers/SettingsProvider';
+import { useUser } from '@/providers/UserProvider';
 
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
   const { currentTheme, settings } = useSettings();
   const [parsed, setParsed] = useState<any>(null);
+  const { setVerified } = useUser();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      if (typeof params.result === 'string') {
-        const decoded = decodeURIComponent(params.result);
-        const obj = JSON.parse(decoded);
-        setParsed(obj);
-        console.log('[Callback] Parsed result', obj);
-      } else {
-        setError('No result provided');
+    const run = async () => {
+      try {
+        if (typeof params.result === 'string') {
+          const decoded = decodeURIComponent(params.result);
+          const obj = JSON.parse(decoded);
+          setParsed(obj);
+          try {
+            await setVerified(obj as any);
+          } catch (e) {
+            console.log('[Callback] setVerified failed');
+          }
+          console.log('[Callback] Parsed result', obj);
+        } else {
+          setError('No result provided');
+        }
+      } catch (e) {
+        console.error('[Callback] parse error', e);
+        setError((e as Error).message);
       }
-    } catch (e) {
-      console.error('[Callback] parse error', e);
-      setError((e as Error).message);
-    }
-  }, [params.result]);
+    };
+    void run();
+  }, [params.result, setVerified]);
 
   const lang = settings.language;
 
