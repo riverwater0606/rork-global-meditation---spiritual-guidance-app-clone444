@@ -1,5 +1,5 @@
 {
-  "buildCommand": "expo export --platform web",
+  "buildCommand": "npm run export",
   "outputDirectory": "dist",
   "env": {
     "WORLD_ID_APP_ID": "app_346b0844d114f6bac06f1d35eb9f3d1d",
