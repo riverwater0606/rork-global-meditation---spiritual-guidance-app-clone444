@@ -32,11 +32,11 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
   if (Platform.OS !== 'web') return undefined;
 
   const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-  const isWorldAppUA = /WorldApp/i.test(ua) || /WorldCoin/i.test(ua);
+  const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin)/i.test(ua);
 
   // Poll for injected MiniKit when inside World App instead of injecting a script
   if (isWorldAppUA) {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 50; i++) {
       await new Promise((r) => setTimeout(r, 100));
       mk = getMiniKit();
       if (mk) return mk;
@@ -53,7 +53,7 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js@0.0.9/dist/minikit.umd.js';
+      script.src = 'https://cdn.worldcoin.org/minikit/v1/minikit.js';
       script.async = true;
       script.defer = true;
       script.setAttribute('data-minikit', 'true');
@@ -92,6 +92,18 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
     }
     try {
       let mk = await ensureMiniKitLoaded();
+      if (!mk) {
+        // Last-ditch UA re-check and longer poll
+        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
+        const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin)/i.test(ua);
+        if (isWorldAppUA) {
+          for (let i = 0; i < 50; i++) {
+            await new Promise((r) => setTimeout(r, 100));
+            mk = getMiniKit();
+            if (mk) break;
+          }
+        }
+      }
       if (!mk) {
         setError('MiniKit not detected. Open inside World App');
         return;
