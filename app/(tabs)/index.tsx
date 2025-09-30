@@ -30,16 +30,33 @@ export default function HomeScreen() {
   const [worldError, setWorldError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const isWeb = Platform.OS === 'web';
-  const isWorldEnv = useMemo(() => {
-    if (!isWeb) return false;
-    try {
-      const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-      const w = typeof window !== 'undefined' ? (window as any) : {};
-      return ua.includes('WorldApp') || !!w.MiniKit || !!w.miniwallet;
-    } catch (e) {
-      console.error('[WorldID] Error detecting World App environment:', e);
-      return false;
+  const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
+  useEffect(() => {
+    if (!isWeb) return;
+    let mounted = true;
+    const detect = () => {
+      try {
+        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
+        const w = typeof window !== 'undefined' ? (window as any) : {};
+        const detected = ua.includes('WorldApp') || !!w.MiniKit || !!w.miniwallet;
+        if (mounted) setIsWorldEnv(detected);
+      } catch (e) {
+        console.error('[WorldID] Error detecting World App environment:', e);
+      }
+    };
+    detect();
+    const id = setInterval(detect, 500);
+    const onMk = () => detect();
+    if (typeof window !== 'undefined') {
+      (window as any).addEventListener?.('MiniKitLoaded', onMk);
     }
+    return () => {
+      mounted = false;
+      clearInterval(id);
+      if (typeof window !== 'undefined') {
+        (window as any).removeEventListener?.('MiniKitLoaded', onMk);
+      }
+    };
   }, [isWeb]);
   const lang = settings.language;
 
