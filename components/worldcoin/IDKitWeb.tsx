@@ -16,7 +16,13 @@ export function IDKitWeb() {
 function getMiniKit(): any | undefined {
   if (typeof window === 'undefined') return undefined;
   const w = window as unknown as any;
-  const mk = w.MiniKit ?? w.miniKit ?? w.worldApp?.miniKit ?? w.WorldApp?.miniKit;
+  const mk =
+    w.MiniKit ??
+    w.miniKit ??
+    w.worldApp?.miniKit ??
+    w.WorldApp?.miniKit ??
+    w.WorldApp?.MiniKit ??
+    w.worldApp?.MiniKit;
   return mk;
 }
 
@@ -24,8 +30,22 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
   let mk = getMiniKit();
   if (mk) return mk;
   if (Platform.OS !== 'web') return undefined;
+
+  const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
+  const isWorldAppUA = /WorldApp/i.test(ua) || /WorldCoin/i.test(ua);
+
+  // Poll for injected MiniKit when inside World App instead of injecting a script
+  if (isWorldAppUA) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      mk = getMiniKit();
+      if (mk) return mk;
+    }
+    return undefined;
+  }
+
   try {
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       const existing = document.querySelector('script[data-minikit]') as HTMLScriptElement | null;
       if (existing) {
         existing.addEventListener('load', () => resolve());
@@ -33,7 +53,7 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js@latest/dist/minikit.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/@worldcoin/minikit-js@0.0.9/dist/minikit.umd.js';
       script.async = true;
       script.defer = true;
       script.setAttribute('data-minikit', 'true');
@@ -51,7 +71,9 @@ async function isMiniKitInstalled(mk: any): Promise<boolean> {
     if (!mk) return false;
     const val = typeof mk.isInstalled === 'function' ? mk.isInstalled() : mk.isInstalled;
     const resolved = typeof val?.then === 'function' ? await val : val;
-    return Boolean(resolved);
+    if (resolved != null) return Boolean(resolved);
+    const hasApi = Boolean(mk?.commandsAsync || mk?.commands || mk?.actions);
+    return hasApi;
   } catch (e) {
     console.log('[WorldIDVerifyButton] isInstalled check failed', e);
     return false;
@@ -79,20 +101,26 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         setError('MiniKit not detected. Open inside World App');
         return;
       }
-      const verifyFn = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
+      const verifyFn = (
+        mk?.commandsAsync?.verify ||
+        mk?.commands?.verify ||
+        mk?.actions?.verify ||
+        mk?.verify
+      ) as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
         setError('Verification API unavailable');
         return;
       }
       setBusy(true);
       const actionId = action || 'psig';
-      const { finalPayload } = await verifyFn({
+      const result: any = await verifyFn({
         action: actionId,
         signal: 'user_signal',
         verification_level: 'orb',
         enableTelemetry: true,
         app_id: appId,
       });
+      const finalPayload = (result?.finalPayload ?? result) as any;
       setBusy(false);
       if (finalPayload?.status === 'error') {
         setError(finalPayload.error_code ?? 'Verification failed');
