@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MiniKit as MiniKitModule } from '@worldcoin/minikit-js';
 
 interface VerifyButtonProps {
   appId: string;
@@ -18,8 +17,6 @@ function getMiniKit(): any | undefined {
   if (typeof window === 'undefined') return undefined;
   const w = window as unknown as any;
   const mk =
-    // Prefer library import if available
-    (MiniKitModule as any) ??
     w.MiniKit ??
     w.miniKit ??
     w.worldApp?.miniKit ??
@@ -120,8 +117,7 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         mk?.commandsAsync?.verify ||
         mk?.commands?.verify ||
         mk?.actions?.verify ||
-        mk?.verify ||
-        (MiniKitModule as any)?.commandsAsync?.verify
+        mk?.verify
       ) as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
         setError('Verification API unavailable');
