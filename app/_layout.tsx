@@ -48,6 +48,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <TouchableOpacity
             style={errorStyles.button}
             onPress={() => this.setState({ hasError: false, error: null })}
+            testID="error-retry"
           >
             <Text style={errorStyles.buttonText}>Retry</Text>
           </TouchableOpacity>
@@ -94,22 +95,34 @@ const errorStyles = StyleSheet.create({
 function AuthGate({ children }: { children: ReactNode }) {
   const rootState = useRootNavigationState();
   const { isVerified } = useUser();
+  const navReady = !!rootState?.key;
 
   useEffect(() => {
-    if (!rootState?.key) return;
+    if (!navReady) return;
     try {
       const index = (rootState as any)?.index ?? 0;
       const routes = (rootState as any)?.routes ?? [];
       const currentName: string | undefined = routes[index]?.name;
       const inAuthFlow = currentName === 'sign-in' || currentName === 'callback';
       if (!isVerified && !inAuthFlow) {
-        console.log('[AuthGate] Not verified. Replacing to /sign-in');
-        router.replace('/sign-in');
+        console.log('[AuthGate] Not verified. Scheduling replace to /sign-in');
+        const id = setTimeout(() => {
+          try {
+            router.replace('/sign-in');
+          } catch (e) {
+            console.warn('[AuthGate] router.replace failed (likely not mounted yet)', e);
+          }
+        }, 0);
+        return () => clearTimeout(id);
       }
     } catch (e) {
       console.warn('[AuthGate] Failed to inspect navigation state', e);
     }
-  }, [isVerified, rootState?.key, (rootState as any)?.index]);
+  }, [isVerified, navReady, (rootState as any)?.index]);
+
+  if (!navReady) {
+    return <View style={{ flex: 1 }} testID="authgate-loading" />;
+  }
 
   return <>{children}</>;
 }
