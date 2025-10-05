@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,8 +10,49 @@ export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
   const { isVerified } = useUser();
   const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [isMiniApp, setIsMiniApp] = useState<boolean>(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const isWeb = Platform.OS === 'web';
   const lang = settings.language;
+
+  const APP_ID = 'app_346b0844d114f6bac06f1d35eb9f3d1d' as const;
+  const ACTION_ID = 'psig' as const;
+
+  useEffect(() => {
+    if (!isWeb) return;
+    try {
+      const w: any = typeof window !== 'undefined' ? window : undefined;
+      if (!w) return;
+      if (!w.__MINI_APP_METADATA) {
+        w.__MINI_APP_METADATA = { app_id: APP_ID };
+        console.log('[WorldID] Injected __MINI_APP_METADATA', w.__MINI_APP_METADATA);
+      }
+      const mk = w.MiniKit;
+      if (mk?.init) {
+        Promise.resolve(mk.init({ app_id: APP_ID }))
+          .then(() => {
+            console.log('[WorldID] MiniKit.init resolved');
+            try {
+              const installed = typeof mk.isInstalled === 'function' ? mk.isInstalled() : !!mk;
+              setIsMiniApp(!!installed);
+            } catch (e) {
+              console.log('[WorldID] isInstalled check failed, assuming mini browser', e);
+              setIsMiniApp(true);
+            }
+          })
+          .catch((e: unknown) => {
+            console.log('[WorldID] MiniKit.init failed', e);
+            setInitError('MiniKit initialization failed');
+            setIsMiniApp(!!mk);
+          });
+      } else {
+        setIsMiniApp(!!mk);
+      }
+    } catch (e) {
+      console.log('[WorldID] init error', e);
+      setInitError((e as Error)?.message ?? 'Unknown error');
+    }
+  }, [isWeb]);
 
   const texts = useMemo(() => ({
     title: lang === 'zh' ? '登入' : 'Sign In',
@@ -30,13 +71,13 @@ export default function SignInScreen() {
         return;
       }
       const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
-      const installed = typeof mk?.isInstalled === 'function' ? mk.isInstalled() : false;
+      const installed = typeof mk?.isInstalled === 'function' ? mk.isInstalled() : !!mk;
       console.log('[WorldID] Sign-in pressed. isInstalled =', installed);
       if (!installed) {
         alert(texts.openWorld);
         return;
       }
-      const action = 'psig';
+      const action = ACTION_ID;
       const verify = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
       if (!verify) {
         alert('MiniKit not ready.');
@@ -47,7 +88,6 @@ export default function SignInScreen() {
         alert(finalPayload.error_code ?? 'Verification failed');
         return;
       }
-      // store verification via provider callback on callback screen; redirect there
       const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
         ? 'http://localhost:3000/callback'
         : 'https://444-two.vercel.app/callback';
@@ -70,31 +110,31 @@ export default function SignInScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <View style={styles.badge}>
-            <ShieldCheck size={28} color="#10B981" />
-          </View>
-          <Text style={styles.cardTitle}>{texts.cta}</Text>
-          <Text style={styles.cardSubtitle}>{texts.openWorld}</Text>
-
-          <TouchableOpacity style={styles.signInButton} onPress={handleSignIn} testID="btn-worldid-signin" disabled={isChecking}>
-            {isChecking ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.signInText}>{texts.cta}</Text>
-                <ChevronRight size={18} color="#fff" />
-              </>
-            )}
-          </TouchableOpacity>
-
-          {isVerified && (
-            <View style={styles.verifiedPill}>
-              <Text style={styles.verifiedText}>{texts.proceed}</Text>
+      <View style={styles.centerWrap}>
+        <View style={styles.logoCircle}>
+          <ShieldCheck size={36} color="#10B981" />
+        </View>
+        {initError ? (
+          <Text style={styles.initError} testID="minikit-init-error">{initError}</Text>
+        ) : null}
+        {!isMiniApp && isWeb ? (
+          <Text style={styles.hint} testID="hint-open-world">{texts.openWorld}</Text>
+        ) : null}
+        <TouchableOpacity style={styles.primaryBtn} onPress={handleSignIn} testID="btn-worldid-signin" disabled={isChecking}>
+          {isChecking ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <View style={styles.btnInner}>
+              <Text style={styles.primaryLabel}>{texts.cta}</Text>
+              <ChevronRight size={18} color="#fff" />
             </View>
           )}
-        </View>
+        </TouchableOpacity>
+        {isVerified ? (
+          <View style={styles.verifiedPill}>
+            <Text style={styles.verifiedText}>{texts.proceed}</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -105,13 +145,13 @@ const styles = StyleSheet.create({
   header: { paddingBottom: 24 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#fff', paddingHorizontal: 20, marginTop: 16 },
   subtitle: { fontSize: 14, color: '#E0E7FF', paddingHorizontal: 20, marginTop: 6 },
-  content: { padding: 20 },
-  card: { backgroundColor: '#111827', padding: 20, borderRadius: 16 },
-  badge: { backgroundColor: '#ECFDF5', width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  cardTitle: { color: '#F9FAFB', fontSize: 18, fontWeight: '700' },
-  cardSubtitle: { color: '#9CA3AF', fontSize: 12, marginTop: 6 },
-  signInButton: { marginTop: 14, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  signInText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  verifiedPill: { marginTop: 12, backgroundColor: '#065F46', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, alignSelf: 'flex-start' },
+  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  logoCircle: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  hint: { color: '#6B7280', fontSize: 12, marginBottom: 10 },
+  initError: { color: '#EF4444', fontSize: 12, marginBottom: 8 },
+  primaryBtn: { marginTop: 6, backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, alignSelf: 'stretch' },
+  btnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  primaryLabel: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  verifiedPill: { marginTop: 14, backgroundColor: '#065F46', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
   verifiedText: { color: '#D1FAE5', fontSize: 12, fontWeight: '600' },
 });
