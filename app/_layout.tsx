@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRootNavigationState, router } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -7,7 +7,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
-import { useUser } from "@/providers/UserProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
 SplashScreen.preventAutoHideAsync()
@@ -92,40 +91,6 @@ const errorStyles = StyleSheet.create({
   },
 });
 
-function AuthGate({ children }: { children: ReactNode }) {
-  const rootState = useRootNavigationState();
-  const { isVerified } = useUser();
-  const navReady = !!rootState?.key;
-
-  useEffect(() => {
-    if (!navReady) return;
-    try {
-      const index = (rootState as any)?.index ?? 0;
-      const routes = (rootState as any)?.routes ?? [];
-      const currentName: string | undefined = routes[index]?.name;
-      const inAuthFlow = currentName === 'sign-in' || currentName === 'callback';
-      if (!isVerified && !inAuthFlow) {
-        console.log('[AuthGate] Not verified. Scheduling replace to /sign-in');
-        const id = setTimeout(() => {
-          try {
-            router.replace('/sign-in');
-          } catch (e) {
-            console.warn('[AuthGate] router.replace failed (likely not mounted yet)', e);
-          }
-        }, 0);
-        return () => clearTimeout(id);
-      }
-    } catch (e) {
-      console.warn('[AuthGate] Failed to inspect navigation state', e);
-    }
-  }, [isVerified, navReady, (rootState as any)?.index]);
-
-  if (!navReady) {
-    return <View style={{ flex: 1 }} testID="authgate-loading" />;
-  }
-
-  return <>{children}</>;
-}
 
 function RootLayoutNav() {
   return (
@@ -165,9 +130,7 @@ export default function RootLayout() {
           <SettingsProvider>
             <UserProvider>
               <MeditationProvider>
-                <AuthGate>
-                  <RootLayoutNav />
-                </AuthGate>
+                <RootLayoutNav />
               </MeditationProvider>
             </UserProvider>
           </SettingsProvider>
