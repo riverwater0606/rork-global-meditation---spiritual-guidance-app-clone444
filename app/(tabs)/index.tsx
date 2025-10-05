@@ -130,7 +130,7 @@ export default function HomeScreen() {
 
       setIsVerifying(true);
       console.log('[WorldID] Environment OK. Starting verification...');
-      const action = process.env.WORLD_ID_ACTION_ID ?? 'psig';
+      const action = 'psig';
 
       const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
       const verifyFn = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
@@ -161,7 +161,7 @@ export default function HomeScreen() {
       try {
         const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
           ? 'http://localhost:3000/callback'
-          : (process.env.WORLD_ID_CALLBACK_URL ?? 'https://444-two.vercel.app/callback');
+          : 'https://444-two.vercel.app/callback';
         console.log('[WorldID] Redirecting to callback:', callbackUrl);
         const url = new URL(callbackUrl);
         url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));

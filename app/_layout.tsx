@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, Redirect } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
-import { UserProvider } from "@/providers/UserProvider";
+import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
@@ -93,6 +93,10 @@ const errorStyles = StyleSheet.create({
 
 
 function RootLayoutNav() {
+  const { isVerified } = useUser();
+  if (!isVerified) {
+    return <Redirect href="/sign-in" />;
+  }
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

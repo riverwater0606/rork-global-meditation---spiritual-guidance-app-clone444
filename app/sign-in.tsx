@@ -36,7 +36,7 @@ export default function SignInScreen() {
         alert(texts.openWorld);
         return;
       }
-      const action = (process.env.WORLD_ID_ACTION_ID as string) ?? 'psig';
+      const action = 'psig';
       const verify = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
       if (!verify) {
         alert('MiniKit not ready.');
@@ -50,7 +50,7 @@ export default function SignInScreen() {
       // store verification via provider callback on callback screen; redirect there
       const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
         ? 'http://localhost:3000/callback'
-        : (process.env.WORLD_ID_CALLBACK_URL ?? 'https://444-two.vercel.app/callback');
+        : 'https://444-two.vercel.app/callback';
       const url = new URL(callbackUrl);
       url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
       window.location.href = url.toString();
