@@ -40,7 +40,7 @@ export default function SignInScreen() {
     const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
 
     if (isWorldAppUA) {
-      for (let i = 0; i < 150; i++) {
+      for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 100));
         mk = getMiniKit();
         if (mk) return mk;
@@ -119,6 +119,12 @@ export default function SignInScreen() {
   }), [lang]);
 
   const handleSignIn = useCallback(async () => {
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      setIsChecking(false);
+      alert(texts.openWorld);
+    }, 8000);
     try {
       setIsChecking(true);
       if (!isWeb) {
@@ -127,11 +133,13 @@ export default function SignInScreen() {
         return;
       }
       let mk = await ensureMiniKitLoaded();
+      if (timedOut) return;
       if (!mk) {
         alert(texts.openWorld);
         return;
       }
       const installed = await isMiniKitInstalled(mk);
+      if (timedOut) return;
       console.log('[WorldID] Sign-in pressed. installed =', installed);
       if (!installed) {
         alert(texts.openWorld);
@@ -154,6 +162,7 @@ export default function SignInScreen() {
         enableTelemetry: true,
         app_id: APP_ID,
       });
+      if (timedOut) return;
       const finalPayload = (result?.finalPayload ?? result) as any;
       if (finalPayload?.status === 'error') {
         alert(finalPayload.error_code ?? 'Verification failed');
@@ -167,7 +176,9 @@ export default function SignInScreen() {
       window.location.href = url.toString();
     } catch (e) {
       console.error('[WorldID] handleSignIn error', e);
+      alert('Sign-in failed, please try again.');
     } finally {
+      clearTimeout(timeout);
       setIsChecking(false);
     }
   }, [isWeb, texts]);
@@ -190,6 +201,9 @@ export default function SignInScreen() {
         ) : null}
         {!isMiniApp && isWeb ? (
           <Text style={styles.hint} testID="hint-open-world">{texts.openWorld}</Text>
+        ) : null}
+        {isChecking ? (
+          <Text style={styles.hint} testID="hint-loading">{texts.checking}</Text>
         ) : null}
         <TouchableOpacity style={styles.primaryBtn} onPress={handleSignIn} testID="btn-worldid-signin" disabled={isChecking}>
           {isChecking ? (
