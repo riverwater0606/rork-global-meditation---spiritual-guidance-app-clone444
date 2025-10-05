@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, Redirect } from "expo-router";
+import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -94,7 +94,9 @@ const errorStyles = StyleSheet.create({
 
 function RootLayoutNav() {
   const { isVerified } = useUser();
-  if (!isVerified) {
+  const pathname = usePathname();
+  const onAuthScreen = pathname === "/sign-in" || pathname === "/callback";
+  if (!isVerified && !onAuthScreen) {
     return <Redirect href="/sign-in" />;
   }
   return (

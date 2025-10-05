@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useSettings } from '@/providers/SettingsProvider';
@@ -11,7 +11,11 @@ export default function CallbackScreen() {
   const { setVerified } = useUser();
   const [error, setError] = useState<string | null>(null);
 
+  const hasRunRef = useRef<boolean>(false);
+
   useEffect(() => {
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
     const run = async () => {
       try {
         if (typeof params.result === 'string') {
@@ -33,7 +37,7 @@ export default function CallbackScreen() {
       }
     };
     void run();
-  }, [params.result, setVerified]);
+  }, [params.result]);
 
   const lang = settings.language;
 
