@@ -40,7 +40,7 @@ export default function SignInScreen() {
     const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
 
     if (isWorldAppUA) {
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 150; i++) {
         await new Promise((r) => setTimeout(r, 100));
         mk = getMiniKit();
         if (mk) return mk;
@@ -73,6 +73,12 @@ export default function SignInScreen() {
   async function isMiniKitInstalled(mk: any): Promise<boolean> {
     try {
       if (!mk) return false;
+      // Ensure init was called with our app id
+      try {
+        if (typeof mk.init === 'function') {
+          await Promise.resolve(mk.init({ app_id: APP_ID }));
+        }
+      } catch {}
       const val = typeof mk.isInstalled === 'function' ? mk.isInstalled() : mk.isInstalled;
       const resolved = typeof (val as any)?.then === 'function' ? await (val as Promise<any>) : val;
       if (resolved != null) return Boolean(resolved);
@@ -123,26 +129,32 @@ export default function SignInScreen() {
     const timeout = setTimeout(() => {
       timedOut = true;
       setIsChecking(false);
-      alert(texts.openWorld);
-    }, 8000);
+    }, 15000);
     try {
       setIsChecking(true);
       if (!isWeb) {
         console.log('[WorldID] Native platform: ask user to open in World App');
-        alert(texts.openWorld);
+        setInitError(texts.openWorld);
         return;
+      }
+      const w: any = typeof window !== 'undefined' ? window : undefined;
+      if (w && !w.__MINI_APP_METADATA) {
+        w.__MINI_APP_METADATA = { app_id: APP_ID };
       }
       let mk = await ensureMiniKitLoaded();
       if (timedOut) return;
       if (!mk) {
-        alert(texts.openWorld);
+        setInitError(texts.openWorld);
         return;
       }
+      try {
+        if (mk?.init) await Promise.resolve(mk.init({ app_id: APP_ID }));
+      } catch {}
       const installed = await isMiniKitInstalled(mk);
       if (timedOut) return;
       console.log('[WorldID] Sign-in pressed. installed =', installed);
       if (!installed) {
-        alert(texts.openWorld);
+        setInitError(texts.openWorld);
         return;
       }
       const verifyFn = (
@@ -152,7 +164,7 @@ export default function SignInScreen() {
         mk?.verify
       ) as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
-        alert('MiniKit not ready.');
+        setInitError('MiniKit not ready.');
         return;
       }
       const result: any = await verifyFn({
@@ -165,7 +177,7 @@ export default function SignInScreen() {
       if (timedOut) return;
       const finalPayload = (result?.finalPayload ?? result) as any;
       if (finalPayload?.status === 'error') {
-        alert(finalPayload.error_code ?? 'Verification failed');
+        setInitError(finalPayload.error_code ?? 'Verification failed');
         return;
       }
       const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
@@ -176,7 +188,7 @@ export default function SignInScreen() {
       window.location.href = url.toString();
     } catch (e) {
       console.error('[WorldID] handleSignIn error', e);
-      alert('Sign-in failed, please try again.');
+      setInitError('Sign-in failed, please try again.');
     } finally {
       clearTimeout(timeout);
       setIsChecking(false);
