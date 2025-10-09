@@ -13,7 +13,7 @@ export function IDKitWeb() {
   return null;
 }
 
-function getMiniKit(): any | undefined {
+export function getMiniKit(): any | undefined {
   if (typeof window === 'undefined') return undefined;
   const w = window as unknown as any;
   const mk =
@@ -26,7 +26,7 @@ function getMiniKit(): any | undefined {
   return mk;
 }
 
-async function ensureMiniKitLoaded(): Promise<any | undefined> {
+export async function ensureMiniKitLoaded(): Promise<any | undefined> {
   let mk = getMiniKit();
   if (mk) return mk;
   if (Platform.OS !== 'web') return undefined;
@@ -66,7 +66,7 @@ async function ensureMiniKitLoaded(): Promise<any | undefined> {
   return mk;
 }
 
-async function isMiniKitInstalled(mk: any): Promise<boolean> {
+export async function isMiniKitInstalled(mk: any): Promise<boolean> {
   try {
     if (!mk) return false;
     const val = typeof mk.isInstalled === 'function' ? mk.isInstalled() : mk.isInstalled;
@@ -181,6 +181,18 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       </TouchableOpacity>
     </View>
   );
+}
+
+export async function runWorldVerify({ mk, action }: { mk: any; action: string }) {
+  const fn = (
+    mk?.commandsAsync?.verify ||
+    mk?.commands?.verify ||
+    mk?.actions?.verify ||
+    mk?.verify
+  ) as undefined | ((args: any) => Promise<any>);
+  if (!fn) throw new Error('Verification API unavailable');
+  const res: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
+  return res?.finalPayload ?? res;
 }
 
 const styles = StyleSheet.create({
