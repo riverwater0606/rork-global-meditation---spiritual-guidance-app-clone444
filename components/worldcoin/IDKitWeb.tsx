@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface VerifyButtonProps {
   appId: string;
@@ -84,33 +84,37 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
   const [busy, setBusy] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const uaMemo = useMemo(() => (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '', []);
+  const isWorldAppUA = useMemo(() => /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(uaMemo), [uaMemo]);
+
   const onPress = useCallback(async () => {
     setError(null);
+    console.log('[WorldIDVerifyButton] Pressed. Platform:', Platform.OS);
     if (Platform.OS !== 'web') {
-      setError('Please open in World App browser');
+      setError('Please open inside World App');
       return;
     }
     try {
+      setBusy(true);
       let mk = await ensureMiniKitLoaded();
-      if (!mk) {
-        // Last-ditch UA re-check and longer poll
-        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-        const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
-        if (isWorldAppUA) {
-          for (let i = 0; i < 150; i++) {
-            await new Promise((r) => setTimeout(r, 100));
-            mk = getMiniKit();
-            if (mk) break;
-          }
+      if (!mk && isWorldAppUA) {
+        for (let i = 0; i < 150; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          mk = getMiniKit();
+          if (mk) break;
         }
       }
       if (!mk) {
-        setError('MiniKit not detected. Open inside World App');
+        console.log('[WorldIDVerifyButton] MiniKit not found after load attempt');
+        setError('請在 World App 中開啟 | Please open inside World App');
+        setBusy(false);
         return;
       }
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
-        setError('MiniKit not detected. Open inside World App');
+        console.log('[WorldIDVerifyButton] mk.isInstalled returned false');
+        setError('請在 World App 中開啟 | Please open inside World App');
+        setBusy(false);
         return;
       }
       const verifyFn = (
@@ -121,43 +125,59 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       ) as undefined | ((args: any) => Promise<any>);
       if (!verifyFn) {
         setError('Verification API unavailable');
+        setBusy(false);
         return;
       }
-      setBusy(true);
       const actionId = action || 'psig';
+      console.log('[WorldIDVerifyButton] Calling verify with action:', actionId);
       const result: any = await verifyFn({
         action: actionId,
-        signal: 'user_signal',
+        signal: '0x12312',
         verification_level: 'orb',
-        enableTelemetry: true,
-        app_id: appId,
       });
       const finalPayload = (result?.finalPayload ?? result) as any;
-      setBusy(false);
+      console.log('[WorldIDVerifyButton] verify result:', finalPayload?.status);
       if (finalPayload?.status === 'error') {
-        setError(finalPayload.error_code ?? 'Verification failed');
+        setBusy(false);
+        setError(finalPayload?.error_code ?? 'Verification failed');
         return;
       }
+      try {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.setItem('worldid:result', JSON.stringify(finalPayload));
+        }
+      } catch {}
       const url = new URL(callbackUrl);
       url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
-      window.location.href = url.toString();
+      if (typeof window !== 'undefined') {
+        window.location.assign(url.toString());
+      }
+      setBusy(false);
     } catch (e: any) {
       console.error('[WorldIDVerifyButton] error:', e);
       setBusy(false);
       setError(e?.message ?? 'Failed to verify');
     }
-  }, [appId, action, callbackUrl]);
+  }, [action, callbackUrl, isWorldAppUA]);
 
   return (
     <View>
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Text style={styles.errorText} testID={testID ? `${testID}-error` : undefined}>{error}</Text>}
       <TouchableOpacity
         style={[styles.button, busy && styles.buttonBusy]}
         onPress={onPress}
         disabled={busy}
         testID={testID}
+        accessibilityRole="button"
       >
-        <Text style={styles.buttonText}>{busy ? 'Verifying...' : (label ?? 'Connect with World ID')}</Text>
+        {busy ? (
+          <View style={styles.row}>
+            <ActivityIndicator color="#FFFFFF" size="small" />
+            <Text style={[styles.buttonText, { marginLeft: 8 }]}>Verifying…</Text>
+          </View>
+        ) : (
+          <Text style={styles.buttonText}>{label ?? 'Sign in with World ID'}</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -166,10 +186,13 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
 const styles = StyleSheet.create({
   button: {
     backgroundColor: '#10B981',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignSelf: 'stretch',
+    minWidth: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonBusy: {
     opacity: 0.7,
@@ -182,6 +205,8 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#FCA5A5',
     fontSize: 12,
-    marginBottom: 6,
+    marginBottom: 8,
+    textAlign: 'center',
   },
+  row: { flexDirection: 'row', alignItems: 'center' },
 });
