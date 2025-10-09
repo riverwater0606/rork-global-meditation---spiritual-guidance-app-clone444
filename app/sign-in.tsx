@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSettings } from '@/providers/SettingsProvider';
-import { MiniKit, VerifyCommandInput, VerificationLevel, ISuccessResult } from '@worldcoin/minikit-js';
 
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
@@ -30,21 +29,22 @@ export default function SignInScreen() {
         return;
       }
 
+      const { MiniKit, VerificationLevel } = await import('@worldcoin/minikit-js');
       const installed = await Promise.resolve(MiniKit?.isInstalled?.());
       if (!installed) {
         setInitError(texts.openWorld);
         return;
       }
 
-      const verifyPayload: VerifyCommandInput = {
+      const verifyPayload: { action: string; signal?: string; verification_level?: any } = {
         action: ACTION_ID,
         signal: '0x12312',
         verification_level: VerificationLevel.Orb,
       };
 
-      const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
-      if (finalPayload.status === 'error') {
-        setInitError(finalPayload.error_code ?? 'Verification failed');
+      const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload as any);
+      if ((finalPayload as any).status === 'error') {
+        setInitError((finalPayload as any).error_code ?? 'Verification failed');
         return;
       }
 
@@ -52,7 +52,7 @@ export default function SignInScreen() {
         ? 'http://localhost:3000/callback'
         : 'https://444-two.vercel.app/callback';
       const url = new URL(callbackUrl);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload as ISuccessResult)));
+      url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
       window.location.href = url.toString();
     } catch (e) {
       console.error('[WorldID] handleSignIn error', e);
