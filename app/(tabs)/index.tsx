@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const isWeb = Platform.OS === 'web';
   const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
+  const [autoTried, setAutoTried] = useState<boolean>(false);
   useEffect(() => {
     if (!isWeb) return;
     let mounted = true;
@@ -38,8 +39,10 @@ export default function HomeScreen() {
       try {
         const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
         const w = typeof window !== 'undefined' ? (window as any) : {};
-        const detected = ua.includes('WorldApp') || !!w.MiniKit || !!w.miniwallet;
+        const mkInstalled = typeof w?.MiniKit?.isInstalled === 'function' ? !!w.MiniKit.isInstalled() : false;
+        const detected = ua.includes('WorldApp') || mkInstalled || !!w.MiniKit || !!w.miniwallet;
         if (mounted) setIsWorldEnv(detected);
+        console.log('[WorldID] detect: UA has WorldApp?', ua.includes('WorldApp'), 'MiniKit.isInstalled()', mkInstalled, 'MiniKit present?', !!w.MiniKit);
       } catch (e) {
         console.error('[WorldID] Error detecting World App environment:', e);
       }
@@ -117,14 +120,16 @@ export default function HomeScreen() {
       try {
         const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
         installed = typeof mk?.isInstalled === 'function' ? mk.isInstalled() : false;
+        console.log('[WorldID] isInstalled() result:', installed);
       } catch (err) {
         console.warn('[WorldID] MiniKit.isInstalled() threw:', err);
         installed = false;
       }
 
-      if (!installed) {
-        console.error('[WorldID] MiniKit not installed - aborting verify.');
-        setWorldError("MiniKit is not installed. Make sure you're running the application inside of World App");
+      const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
+      if (!installed && !uaHasWorldApp && !isWorldEnv) {
+        console.error('[WorldID] MiniKit not installed and UA not WorldApp - aborting verify.');
+        setWorldError("Please open inside World App (use the in-app scanner), then try again");
         return;
       }
 
@@ -177,6 +182,24 @@ export default function HomeScreen() {
       setIsVerifying(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isWeb || autoTried) return;
+    const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
+    const w: any = typeof window !== 'undefined' ? (window as any) : {};
+    const mkInstalled = typeof w?.MiniKit?.isInstalled === 'function' ? !!w.MiniKit.isInstalled() : false;
+
+    const shouldAuto = uaHasWorldApp || isWorldEnv || mkInstalled;
+    if (!shouldAuto) return;
+
+    const id = setTimeout(() => {
+      console.log('[WorldID] Auto verify after delay (500ms). UA?', uaHasWorldApp, 'isWorldEnv?', isWorldEnv, 'MiniKitInstalled?', mkInstalled);
+      setAutoTried(true);
+      onConnectPress().catch(err => console.warn('[WorldID] auto verify press error', err));
+    }, 500);
+
+    return () => clearTimeout(id);
+  }, [isWeb, isWorldEnv, autoTried, onConnectPress]);
 
   if (isWeb && isWorldEnv && isVerifying) {
     return (
@@ -236,6 +259,7 @@ export default function HomeScreen() {
                   onPress={onConnectPress}
                   disabled={isVerifying}
                   testID="connect-worldid"
+                  accessibilityLabel="Connect World ID"
                 >
                   <Text style={styles.connectButtonText}>{isVerifying ? (lang === 'zh' ? '驗證中...' : 'Verifying...') : (lang === 'zh' ? '使用 World ID 連接' : 'Connect with World ID')}</Text>
                 </TouchableOpacity>
