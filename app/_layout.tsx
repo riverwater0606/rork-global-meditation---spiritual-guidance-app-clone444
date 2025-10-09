@@ -142,7 +142,8 @@ export default function RootLayout() {
         <MiniKitProvider
           appId={APP_ID}
           action={ACTION_ID}
-          signal="0x12312"
+          signal="user_signal"
+          groupId="1"
           callbackUrl={callbackUrl}
           verificationLevel="orb"
         >
