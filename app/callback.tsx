@@ -16,11 +16,30 @@ export default function CallbackScreen() {
   useEffect(() => {
     if (hasRunRef.current) return;
     hasRunRef.current = true;
+
     const run = async () => {
       try {
+        let obj: any | null = null;
+
         if (typeof params.result === 'string') {
-          const decoded = decodeURIComponent(params.result);
-          const obj = JSON.parse(decoded);
+          try {
+            const decoded = decodeURIComponent(params.result);
+            obj = JSON.parse(decoded);
+          } catch (err) {
+            console.log('[Callback] query parse failed, trying sessionStorage');
+          }
+        }
+
+        if (!obj && typeof window !== 'undefined') {
+          try {
+            const fromSession = window.sessionStorage?.getItem('worldid:result');
+            if (fromSession) {
+              obj = JSON.parse(fromSession);
+            }
+          } catch {}
+        }
+
+        if (obj) {
           setParsed(obj);
           try {
             await setVerified(obj as any);
@@ -36,6 +55,7 @@ export default function CallbackScreen() {
         setError((e as Error).message);
       }
     };
+
     void run();
   }, [params.result]);
 

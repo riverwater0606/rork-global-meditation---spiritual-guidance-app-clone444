@@ -15,7 +15,8 @@ export default function SignInScreen() {
     () => ({
       cta: lang === 'zh' ? '使用 World ID 登入' : 'Sign in with World ID',
       openWorld: lang === 'zh' ? '請在 World App 中開啟' : 'Please open inside World App',
-      checking: lang === 'zh' ? '驗證中...' : 'Verifying...'
+      checking: lang === 'zh' ? '驗證中...' : 'Verifying...',
+      failed: lang === 'zh' ? '登入失敗，請再試一次。' : 'Sign-in failed, please try again.'
     }),
     [lang]
   );
@@ -24,6 +25,7 @@ export default function SignInScreen() {
     setInitError(null);
     try {
       setIsChecking(true);
+
       if (!isWeb) {
         setInitError(texts.openWorld);
         return;
@@ -48,15 +50,20 @@ export default function SignInScreen() {
         return;
       }
 
-      const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
-        ? 'http://localhost:3000/callback'
-        : 'https://444-two.vercel.app/callback';
-      const url = new URL(callbackUrl);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
-      window.location.href = url.toString();
+      if (typeof window !== 'undefined') {
+        try {
+          const payloadStr = JSON.stringify(finalPayload);
+          window.sessionStorage?.setItem('worldid:result', payloadStr);
+        } catch {}
+
+        const callbackUrl = (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
+          ? 'http://localhost:3000/callback'
+          : 'https://444-two.vercel.app/callback';
+        window.location.href = callbackUrl;
+      }
     } catch (e) {
       console.error('[WorldID] handleSignIn error', e);
-      setInitError('Sign-in failed, please try again.');
+      setInitError(texts.failed);
     } finally {
       setIsChecking(false);
     }
