@@ -78,7 +78,7 @@ export function WorldIDVerifyButton({ testID, label }: VerifyButtonProps) {
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#FF69B4',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,

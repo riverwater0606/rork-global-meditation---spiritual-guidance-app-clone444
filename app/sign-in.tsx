@@ -9,7 +9,7 @@ export default function SignInScreen() {
 
   const texts = useMemo(
     () => ({
-      cta: lang === 'zh' ? '使用 World ID 登入' : 'Sign in with World ID',
+      cta: lang === 'zh' ? '(V3) 按這裡登入' : '(V3) Sign In Here',
     }),
     [lang]
   );
