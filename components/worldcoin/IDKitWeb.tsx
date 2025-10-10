@@ -18,6 +18,8 @@ export function WorldIDVerifyButton({ testID, label }: VerifyButtonProps) {
     console.log('[WorldIDVerifyButton] Pressed.');
 
     try {
+      // The `verify` method is now called without any parameters,
+      // as all configuration is handled by the MiniKitProvider.
       const result = await minikit.verify();
       console.log('[WorldIDVerifyButton] verify result:', result);
 
