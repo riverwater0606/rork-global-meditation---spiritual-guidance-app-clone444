@@ -48,7 +48,7 @@ export function WorldIDVerifyButton({ testID, label }: VerifyButtonProps) {
       setBusy(false);
     } catch (e: any) {
       console.error('[WorldIDVerifyButton] error:', e);
-      setError(e?.message ?? 'Failed to verify');
+      setError("DIAGNOSTIC TEST: MiniKit failed to load. If you see this, the new code is running.");
       setBusy(false);
     }
   }, [minikit, config]);
