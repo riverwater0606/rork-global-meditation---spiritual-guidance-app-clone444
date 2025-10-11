@@ -111,8 +111,8 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         return;
       }
       const installed = await isMiniKitInstalled(mk);
-      if (!installed) {
-        console.log('[WorldIDVerifyButton] mk.isInstalled returned false');
+      if (!installed && !isWorldAppUA) {
+        console.log('[WorldIDVerifyButton] mk.isInstalled returned false and UA not WorldApp');
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
@@ -134,6 +134,10 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         action: actionId,
         signal: '0x12312',
         verification_level: 'orb',
+      }).catch(async (err: any) => {
+        console.log('[WorldIDVerifyButton] verify threw, retrying once after 500ms', err);
+        await new Promise((r) => setTimeout(r, 500));
+        return verifyFn({ action: actionId, signal: '0x12312', verification_level: 'orb' });
       });
       const finalPayload = (result?.finalPayload ?? result) as any;
       console.log('[WorldIDVerifyButton] verify result:', finalPayload?.status);
