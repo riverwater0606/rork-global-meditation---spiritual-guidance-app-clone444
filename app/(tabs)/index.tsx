@@ -17,8 +17,7 @@ import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
-// MiniKit is injected by World App on web. Avoid bundling '@worldcoin/minikit-js' to prevent module issues.
-// Access via window.MiniKit with type-safe guards.
+import { ensureMiniKitLoaded, isMiniKitInstalled, getMiniKit, runWorldVerify } from "@/components/worldcoin/IDKitWeb";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -112,65 +111,58 @@ export default function HomeScreen() {
       console.log('[WorldID] Connect button pressed. Starting environment checks...');
 
       if (Platform.OS !== 'web') {
-        setWorldError('Please open in World App browser on mobile to verify');
+        setWorldError('請在 World App 中開啟 | Please open in World App');
         return;
       }
 
-      let installed = false as boolean;
-      try {
-        const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
-        installed = typeof mk?.isInstalled === 'function' ? mk.isInstalled() : false;
-        console.log('[WorldID] isInstalled() result:', installed);
-      } catch (err) {
-        console.warn('[WorldID] MiniKit.isInstalled() threw:', err);
-        installed = false;
+      console.log('[WorldID] Ensuring MiniKit is loaded...');
+      let mk: any | undefined = await ensureMiniKitLoaded();
+      if (!mk) {
+        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
+        const uaHasWorld = /(WorldApp|World App|WorldAppWebView)/i.test(ua);
+        if (uaHasWorld) {
+          for (let i = 0; i < 20 && !mk; i++) {
+            await new Promise((r) => setTimeout(r, 100));
+            mk = getMiniKit();
+          }
+        }
       }
 
+      if (!mk) {
+        console.error('[WorldID] MiniKit not found in window');
+        setWorldError('請在 World App 中開啟 | Please open inside World App');
+        return;
+      }
+
+      const installed = await isMiniKitInstalled(mk);
+      console.log('[WorldID] isInstalled result:', installed);
       const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
       if (!installed && !uaHasWorldApp && !isWorldEnv) {
-        console.error('[WorldID] MiniKit not installed and UA not WorldApp - aborting verify.');
-        setWorldError("Please open inside World App (use the in-app scanner), then try again");
+        console.error('[WorldID] Environment not recognized as World App');
+        setWorldError('請使用 World App 內置掃描器打開 | Use the in-app scanner in World App');
         return;
       }
 
       setIsVerifying(true);
-      console.log('[WorldID] Environment OK. Starting verification...');
+      console.log('[WorldID] Starting verification...');
       const action = 'psig';
 
-      const mk = (typeof window !== 'undefined' ? (window as any).MiniKit : undefined);
-      const verifyFn = mk?.commandsAsync?.verify as undefined | ((args: any) => Promise<any>);
-      if (!verifyFn) {
-        console.error('[WorldID] commandsAsync.verify not available');
-        setIsVerifying(false);
-        setWorldError('Verification API unavailable in this environment');
-        return;
-      }
-
-      console.log('[WorldID] Calling MiniKit.commandsAsync.verify with action, signal, verification_level=orb');
-      const { finalPayload } = await verifyFn({
-        action,
-        signal: 'user_signal',
-        verification_level: 'orb',
-        enableTelemetry: true,
-      });
-      console.log('[WorldID] Verify response:', JSON.stringify(finalPayload, null, 2));
+      const payload: any = await runWorldVerify({ mk, action });
+      console.log('[WorldID] Verify payload status:', payload?.status);
       setIsVerifying(false);
 
-      if (finalPayload?.status === 'error') {
-        console.error('[WorldID] Verification error:', finalPayload);
-        setWorldError(finalPayload.error_code ?? 'Verification failed');
+      if (payload?.status === 'error') {
+        console.error('[WorldID] Verification error:', payload);
+        setWorldError(payload?.error_code ?? 'Verification failed');
         return;
       }
-      console.log('[WorldID] Verification success, preparing redirect to callback');
 
       try {
         const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
           ? 'http://localhost:3000/callback'
           : 'https://444-two.vercel.app/callback';
-        console.log('[WorldID] Redirecting to callback:', callbackUrl);
         const url = new URL(callbackUrl);
-        url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
-        console.log('[WorldID] Final redirect URL:', url.toString());
+        url.searchParams.set('result', encodeURIComponent(JSON.stringify(payload)));
         window.location.href = url.toString();
       } catch (e: any) {
         console.error('[WorldID] Callback redirect error:', e);
@@ -181,22 +173,22 @@ export default function HomeScreen() {
       setWorldError(e?.message ?? 'Verification failed, please retry');
       setIsVerifying(false);
     }
-  }, []);
+  }, [isWorldEnv]);
 
   useEffect(() => {
     if (!isWeb || autoTried) return;
     const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
     const w: any = typeof window !== 'undefined' ? (window as any) : {};
-    const mkInstalled = typeof w?.MiniKit?.isInstalled === 'function' ? !!w.MiniKit.isInstalled() : false;
+    const mkPresent = !!getMiniKit();
 
-    const shouldAuto = uaHasWorldApp || isWorldEnv || mkInstalled;
+    const shouldAuto = uaHasWorldApp || isWorldEnv || mkPresent;
     if (!shouldAuto) return;
 
     const id = setTimeout(() => {
-      console.log('[WorldID] Auto verify after delay (500ms). UA?', uaHasWorldApp, 'isWorldEnv?', isWorldEnv, 'MiniKitInstalled?', mkInstalled);
+      console.log('[WorldID] Auto verify after delay (700ms). UA?', uaHasWorldApp, 'isWorldEnv?', isWorldEnv, 'mkPresent?', mkPresent);
       setAutoTried(true);
       onConnectPress().catch(err => console.warn('[WorldID] auto verify press error', err));
-    }, 500);
+    }, 700);
 
     return () => clearTimeout(id);
   }, [isWeb, isWorldEnv, autoTried, onConnectPress]);
@@ -248,25 +240,24 @@ export default function HomeScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isWeb && (
           <View style={styles.worldBanner}>
-            {isWorldEnv ? (
-              <View>
-                <Text style={styles.worldBannerTitle}>{lang === 'zh' ? '連接 World ID' : 'Connect World ID'}</Text>
-                {!!worldError && (
-                  <Text style={styles.worldBannerError} testID="worldid-error">{worldError}</Text>
-                )}
-                <TouchableOpacity
-                  style={styles.connectButton}
-                  onPress={onConnectPress}
-                  disabled={isVerifying}
-                  testID="connect-worldid"
-                  accessibilityLabel="Connect World ID"
-                >
-                  <Text style={styles.connectButtonText}>{isVerifying ? (lang === 'zh' ? '驗證中...' : 'Verifying...') : (lang === 'zh' ? '使用 World ID 連接' : 'Connect with World ID')}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <Text style={styles.worldBannerTitle}>{lang === 'zh' ? '請使用 World App 掃描 QR 以連接' : 'Please use World App to connect'}</Text>
-            )}
+            <View>
+              <Text style={styles.worldBannerTitle}>{lang === 'zh' ? '連接 World ID' : 'Connect World ID'}</Text>
+              {!!worldError && (
+                <Text style={styles.worldBannerError} testID="worldid-error">{worldError}</Text>
+              )}
+              <TouchableOpacity
+                style={styles.connectButton}
+                onPress={onConnectPress}
+                disabled={isVerifying}
+                testID="connect-worldid"
+                accessibilityLabel="Connect World ID"
+              >
+                <Text style={styles.connectButtonText}>{isVerifying ? (lang === 'zh' ? '驗證中...' : 'Verifying...') : (lang === 'zh' ? '使用 World ID 連接' : 'Connect with World ID')}</Text>
+              </TouchableOpacity>
+              {!isWorldEnv && (
+                <Text style={[styles.worldBannerError, { marginTop: 8 }]}> {lang === 'zh' ? '提示：請用 World App 內建掃描器打開 QR，或清除 World App 快取後重試' : 'Tip: Use World App built-in scanner, or clear World App cache and retry'} </Text>
+              )}
+            </View>
           </View>
         )}
         {/* Daily Affirmation */}
