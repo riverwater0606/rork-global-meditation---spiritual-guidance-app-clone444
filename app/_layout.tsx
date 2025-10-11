@@ -2,13 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
-import { MiniKitProvider } from "@worldcoin/minikit-js";
 import { SettingsProvider } from "@/providers/SettingsProvider";
-import { ACTION_ID, APP_ID } from "@/constants/world";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
 SplashScreen.preventAutoHideAsync()
@@ -131,32 +129,19 @@ export default function RootLayout() {
     };
     void hide();
   }, []);
-  const callbackUrl =
-    typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
-      ? 'http://localhost:3000/callback'
-      : 'https://444-two.vercel.app/callback';
 
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <MiniKitProvider
-          appId={APP_ID}
-          action={ACTION_ID}
-          signal="user_signal"
-          groupId="1"
-          callbackUrl={callbackUrl}
-          verificationLevel="orb"
-        >
-          <GestureHandlerRootView style={styles.container}>
-            <SettingsProvider>
-              <UserProvider>
-                <MeditationProvider>
-                  <RootLayoutNav />
-                </MeditationProvider>
-              </UserProvider>
-            </SettingsProvider>
-          </GestureHandlerRootView>
-        </MiniKitProvider>
+        <GestureHandlerRootView style={styles.container}>
+          <SettingsProvider>
+            <UserProvider>
+              <MeditationProvider>
+                <RootLayoutNav />
+              </MeditationProvider>
+            </UserProvider>
+          </SettingsProvider>
+        </GestureHandlerRootView>
       </QueryClientProvider>
     </ErrorBoundary>
   );
