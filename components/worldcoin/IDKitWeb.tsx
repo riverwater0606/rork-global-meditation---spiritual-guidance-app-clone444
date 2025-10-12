@@ -34,14 +34,44 @@ export async function ensureMiniKitLoaded(): Promise<any | undefined> {
   const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
   const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
 
-  // Poll longer for injected MiniKit when inside World App
+  // Poll for injected MiniKit when inside World App, then fallback to CDN injection
   if (isWorldAppUA) {
     for (let i = 0; i < 150; i++) {
       await new Promise((r) => setTimeout(r, 100));
       mk = getMiniKit();
       if (mk) return mk;
     }
-    return undefined;
+    // Fallback: try injecting CDN script even inside World App
+    try {
+      await new Promise<void>((resolve) => {
+        const existing = document.querySelector('script[data-minikit]') as HTMLScriptElement | null;
+        if (existing) {
+          existing.addEventListener('load', () => resolve());
+          existing.addEventListener('error', () => resolve());
+          return;
+        }
+        const script = document.createElement('script');
+        // Primary + fallback hosts via onerror swap
+        script.src = 'https://idkit.worldcoin.org/minikit/v1/minikit.js';
+        script.async = true;
+        script.defer = true;
+        script.setAttribute('data-minikit', 'true');
+        script.onerror = () => {
+          const fallback = document.createElement('script');
+          fallback.src = 'https://cdn.worldcoin.org/minikit/v1/minikit.js';
+          fallback.async = true;
+          fallback.defer = true;
+          fallback.setAttribute('data-minikit', 'true');
+          fallback.onload = () => resolve();
+          fallback.onerror = () => resolve();
+          document.head.appendChild(fallback);
+        };
+        script.onload = () => resolve();
+        document.head.appendChild(script);
+      });
+    } catch {}
+    mk = getMiniKit();
+    return mk;
   }
 
   try {
@@ -53,12 +83,22 @@ export async function ensureMiniKitLoaded(): Promise<any | undefined> {
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://cdn.worldcoin.org/minikit/v1/minikit.js';
+      // Primary + fallback
+      script.src = 'https://idkit.worldcoin.org/minikit/v1/minikit.js';
       script.async = true;
       script.defer = true;
       script.setAttribute('data-minikit', 'true');
+      script.onerror = () => {
+        const fallback = document.createElement('script');
+        fallback.src = 'https://cdn.worldcoin.org/minikit/v1/minikit.js';
+        fallback.async = true;
+        fallback.defer = true;
+        fallback.setAttribute('data-minikit', 'true');
+        fallback.onload = () => resolve();
+        fallback.onerror = () => resolve();
+        document.head.appendChild(fallback);
+      };
       script.onload = () => resolve();
-      script.onerror = () => resolve();
       document.head.appendChild(script);
     });
   } catch {}
@@ -195,8 +235,14 @@ export async function runWorldVerify({ mk, action }: { mk: any; action: string }
     mk?.verify
   ) as undefined | ((args: any) => Promise<any>);
   if (!fn) throw new Error('Verification API unavailable');
-  const res: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
-  return res?.finalPayload ?? res;
+  try {
+    const res: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
+    return res?.finalPayload ?? res;
+  } catch (e) {
+    await new Promise((r) => setTimeout(r, 500));
+    const res2: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
+    return res2?.finalPayload ?? res2;
+  }
 }
 
 const styles = StyleSheet.create({

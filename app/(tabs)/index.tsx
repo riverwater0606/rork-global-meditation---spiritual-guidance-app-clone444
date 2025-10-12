@@ -38,10 +38,12 @@ export default function HomeScreen() {
       try {
         const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
         const w = typeof window !== 'undefined' ? (window as any) : {};
+        const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
+        const forceParam = (sp?.get('worldapp') ?? '') === '1';
         const mkInstalled = typeof w?.MiniKit?.isInstalled === 'function' ? !!w.MiniKit.isInstalled() : false;
-        const detected = ua.includes('WorldApp') || mkInstalled || !!w.MiniKit || !!w.miniwallet;
+        const detected = forceParam || ua.includes('WorldApp') || mkInstalled || !!w.MiniKit || !!w.miniwallet;
         if (mounted) setIsWorldEnv(detected);
-        console.log('[WorldID] detect: UA has WorldApp?', ua.includes('WorldApp'), 'MiniKit.isInstalled()', mkInstalled, 'MiniKit present?', !!w.MiniKit);
+        console.log('[WorldID] detect: forceParam?', forceParam, 'UA has WorldApp?', ua.includes('WorldApp'), 'MiniKit.isInstalled()', mkInstalled, 'MiniKit present?', !!w.MiniKit);
       } catch (e) {
         console.error('[WorldID] Error detecting World App environment:', e);
       }
