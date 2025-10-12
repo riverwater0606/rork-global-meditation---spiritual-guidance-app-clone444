@@ -52,12 +52,20 @@ export default function SignInScreen() {
   useEffect(() => {
     const u = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
     setUa(u);
-    const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
-    const forceParam = (sp?.get('worldapp') ?? '') === '1';
-    const detected = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(u) || forceParam;
+    const detected = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(u);
     setIsWorldEnv(detected);
-    console.log('[SignIn] UA:', u, 'forceParam', forceParam, 'detectedWorldEnv', detected);
-  }, []);
+    console.log('[SignIn] UA:', u, 'detectedWorldEnv', detected);
+
+    if (Platform.OS === 'web' && !detected) {
+      const id = setTimeout(() => {
+        try {
+          console.log('[SignIn] Not World App, auto-redirect to universal link');
+          window.location.assign(links.universal);
+        } catch {}
+      }, 400);
+      return () => clearTimeout(id);
+    }
+  }, [links.universal]);
 
   const openWorldApp = useCallback(() => {
     if (Platform.OS !== 'web') {
@@ -131,9 +139,9 @@ export default function SignInScreen() {
     if (!isWorldEnv) return;
     const id = setTimeout(() => {
       autoTriedRef.current = true;
-      console.log('[SignIn] Auto-start verify');
+      console.log('[SignIn] Auto-start verify inside World App');
       void verifyInsideWorldApp();
-    }, 700);
+    }, 400);
     return () => clearTimeout(id);
   }, [isWorldEnv, verifyInsideWorldApp]);
 
