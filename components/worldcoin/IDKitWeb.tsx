@@ -146,6 +146,23 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       }
       if (!mk) {
         console.log('[WorldIDVerifyButton] MiniKit not found after load attempt');
+        // Try deep-linking to World App as a fallback
+        try {
+          const actionId = action || 'psig';
+          const signal = '0x12312';
+          const verification = 'orb';
+          const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
+          const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
+          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link');
+          // Attempt deep link, then fallback to universal link
+          window.location.assign(deeplink);
+          setTimeout(() => {
+            try { window.location.assign(universal); } catch {}
+          }, 800);
+          return;
+        } catch (e) {
+          console.log('[WorldIDVerifyButton] Deep link failed', e);
+        }
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
@@ -153,6 +170,22 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       const installed = await isMiniKitInstalled(mk);
       if (!installed && !isWorldAppUA) {
         console.log('[WorldIDVerifyButton] mk.isInstalled returned false and UA not WorldApp');
+        // Try deep-linking to World App
+        try {
+          const actionId = action || 'psig';
+          const signal = '0x12312';
+          const verification = 'orb';
+          const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
+          const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
+          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link (not installed)');
+          window.location.assign(deeplink);
+          setTimeout(() => {
+            try { window.location.assign(universal); } catch {}
+          }, 800);
+          return;
+        } catch (e) {
+          console.log('[WorldIDVerifyButton] Deep link (not installed) failed', e);
+        }
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
