@@ -23,7 +23,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
   const { stats } = useMeditation();
-  const { profile } = useUser();
+  const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
   const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
   const [worldError, setWorldError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export default function HomeScreen() {
   const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
   const [autoTried, setAutoTried] = useState<boolean>(false);
   useEffect(() => {
-    if (!isWeb) return;
+    if (!isWeb || isVerified) return;
     let mounted = true;
     const detect = () => {
       try {
@@ -61,7 +61,7 @@ export default function HomeScreen() {
         (window as any).removeEventListener?.('MiniKitLoaded', onMk);
       }
     };
-  }, [isWeb]);
+  }, [isWeb, isVerified]);
   const lang = settings.language;
 
   useEffect(() => {
@@ -72,8 +72,8 @@ export default function HomeScreen() {
   useEffect(() => {
     async function onLoad() {
       try {
-        console.log('[WorldID] onLoad - isWeb:', isWeb);
-        if (isWeb) {
+        console.log('[WorldID] onLoad - isWeb:', isWeb, 'isVerified:', isVerified);
+        if (isWeb && !isVerified) {
           try {
             const installed = (typeof window !== 'undefined' && (window as any)?.MiniKit?.isInstalled?.()) ?? false;
             console.log('[WorldID] MiniKit.isInstalled():', installed);
@@ -86,7 +86,7 @@ export default function HomeScreen() {
       }
     }
     void onLoad();
-  }, [isWeb]);
+  }, [isWeb, isVerified]);
 
   const quickActions = [
     { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
@@ -112,6 +112,9 @@ export default function HomeScreen() {
       setWorldError(null);
       console.log('[WorldID] Connect button pressed. Starting environment checks...');
 
+      if (isVerified) {
+        return;
+      }
       if (Platform.OS !== 'web') {
         setWorldError('請在 World App 中開啟 | Please open in World App');
         return;
@@ -175,10 +178,10 @@ export default function HomeScreen() {
       setWorldError(e?.message ?? 'Verification failed, please retry');
       setIsVerifying(false);
     }
-  }, [isWorldEnv]);
+  }, [isWorldEnv, isVerified]);
 
   useEffect(() => {
-    if (!isWeb || autoTried) return;
+    if (!isWeb || autoTried || isVerified) return;
     const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
     const w: any = typeof window !== 'undefined' ? (window as any) : {};
     const mkPresent = !!getMiniKit();
@@ -193,9 +196,9 @@ export default function HomeScreen() {
     }, 700);
 
     return () => clearTimeout(id);
-  }, [isWeb, isWorldEnv, autoTried, onConnectPress]);
+  }, [isWeb, isWorldEnv, autoTried, isVerified, onConnectPress]);
 
-  if (isWeb && isWorldEnv && isVerifying) {
+  if (!isVerified && isWeb && isWorldEnv && isVerifying) {
     return (
       <View style={[styles.container, styles.verifyingContainer, { backgroundColor: currentTheme.background }]}>
         <View style={styles.verifyingContent}>
@@ -240,7 +243,7 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {isWeb && (
+        {(!isVerified && isWeb) && (
           <View style={styles.worldBanner}>
             <View>
               <Text style={styles.worldBannerTitle}>{lang === 'zh' ? '連接 World ID' : 'Connect World ID'}</Text>

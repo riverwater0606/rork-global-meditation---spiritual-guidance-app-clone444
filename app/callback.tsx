@@ -47,6 +47,10 @@ export default function CallbackScreen() {
             console.log('[Callback] setVerified failed');
           }
           console.log('[Callback] Parsed result', obj);
+          try {
+            router.replace('/(tabs)/profile');
+          } catch {}
+
         } else {
           setError('No result provided');
         }
