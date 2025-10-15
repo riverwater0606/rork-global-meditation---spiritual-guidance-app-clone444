@@ -28,7 +28,7 @@ import { router } from "expo-router";
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, connectWallet, walletAddress } = useUser();
+  const { profile, updateProfile, connectWallet, walletAddress, logout } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -53,6 +53,32 @@ export default function ProfileScreen() {
         lang === "zh" ? "連接錢包失敗。請重試。" : "Failed to connect wallet. Please try again."
       );
     }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      lang === "zh" ? "登出" : "Sign Out",
+      lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?",
+      [
+        { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
+        {
+          text: lang === "zh" ? "登出" : "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace("/sign-in");
+            } catch (error) {
+              console.error("[ProfileScreen] Logout error:", error);
+              Alert.alert(
+                lang === "zh" ? "錯誤" : "Error",
+                lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getThemeSubtitle = () => {
@@ -343,14 +369,8 @@ export default function ProfileScreen() {
         {/* Sign Out */}
         <TouchableOpacity
           style={[styles.signOutButton, { backgroundColor: isDarkMode ? "#7F1D1D" : "#FEE2E2" }]}
-          onPress={() => Alert.alert(
-            lang === "zh" ? "登出" : "Sign Out", 
-            lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?", 
-            [
-              { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
-              { text: lang === "zh" ? "登出" : "Sign Out", style: "destructive", onPress: () => console.log("Sign out") }
-            ]
-          )}
+          onPress={handleSignOut}
+          testID="sign-out-button"
         >
           <LogOut size={20} color="#EF4444" />
           <Text style={styles.signOutText}>
