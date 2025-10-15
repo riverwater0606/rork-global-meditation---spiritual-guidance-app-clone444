@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldCheck, ScanLine, RefreshCw, ExternalLink } from 'lucide-react-native';
+import { ShieldCheck, ScanLine, RefreshCw } from 'lucide-react-native';
 import { useSettings } from '@/providers/SettingsProvider';
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWorldVerify } from '@/components/worldcoin/IDKitWeb';
 
@@ -17,36 +17,20 @@ export default function SignInScreen() {
   const lang = settings.language;
 
   const ACTION_ID = 'psig' as const;
-  const APP_ID = 'app_346b0844d114f6bac06f1d35eb9f3d1d' as const;
   const CALLBACK_URL = typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
     ? 'http://localhost:3000/callback'
     : 'https://444-two.vercel.app/callback';
 
-  const { texts, links } = useMemo(() => {
+  const texts = useMemo(() => {
     const zh = lang === 'zh';
-    const t = {
+    return {
       title: zh ? '登入以繼續' : 'Sign in to continue',
       subtitle: zh ? '使用 World ID 確認你是真人' : 'Use World ID to confirm you are human',
-      ctaWorld: zh ? '在 World App 打開' : 'Open in World App',
       ctaVerify: zh ? '我已在 World App 內，開始驗證' : "I'm inside World App, verify",
       openWorld: zh ? '請在 World App 中開啟' : 'Please open inside World App',
       helper: zh ? '請用 World App 內置掃描器開啟此頁面（或掃描 QR），不要用系統瀏覽器。' : 'Open with World App’s built‑in scanner (or scan the QR), not the system browser.',
       verifying: zh ? '驗證中…' : 'Verifying…',
     } as const;
-    const params = new URLSearchParams({
-      app_id: APP_ID,
-      action: ACTION_ID,
-      signal: '0x12312',
-      verification_level: 'orb',
-      callback_url: CALLBACK_URL,
-    });
-    return {
-      texts: t,
-      links: {
-        deeplink: `worldapp://v1/verify?${params.toString()}`,
-        universal: `https://app.worldcoin.org/verify?${params.toString()}`,
-      } as const,
-    };
   }, [lang]);
 
   useEffect(() => {
@@ -55,33 +39,7 @@ export default function SignInScreen() {
     const detected = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(u);
     setIsWorldEnv(detected);
     console.log('[SignIn] UA:', u, 'detectedWorldEnv', detected);
-
-    if (Platform.OS === 'web' && !detected) {
-      const id = setTimeout(() => {
-        try {
-          console.log('[SignIn] Not World App, auto-redirect to universal link');
-          window.location.assign(links.universal);
-        } catch {}
-      }, 400);
-      return () => clearTimeout(id);
-    }
-  }, [links.universal]);
-
-  const openWorldApp = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      setError(texts.openWorld);
-      return;
-    }
-    try {
-      console.log('[SignIn] Deep linking to World App');
-      window.location.assign(links.deeplink);
-      setTimeout(() => {
-        try { window.location.assign(links.universal); } catch {}
-      }, 800);
-    } catch (e) {
-      setError(texts.openWorld);
-    }
-  }, [links.deeplink, links.universal, texts.openWorld]);
+  }, []);
 
   const verifyInsideWorldApp = useCallback(async () => {
     if (Platform.OS !== 'web') {
@@ -104,7 +62,7 @@ export default function SignInScreen() {
         return;
       }
       const installed = await isMiniKitInstalled(mk);
-      if (!installed && !isWorldEnv) {
+      if (!installed) {
         setError(texts.openWorld);
         setBusy(false);
         return;
@@ -131,7 +89,7 @@ export default function SignInScreen() {
       setError(e?.message ?? 'Failed to verify');
       setBusy(false);
     }
-  }, [ACTION_ID, CALLBACK_URL, isWorldEnv, texts.openWorld, ua]);
+  }, [ACTION_ID, CALLBACK_URL, isWorldEnv, texts.openWorld, ua, texts.verifying]);
 
   useEffect(() => {
     if (autoTriedRef.current) return;
@@ -163,18 +121,6 @@ export default function SignInScreen() {
           )}
 
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.worldBtn]}
-              onPress={openWorldApp}
-              testID="btn-open-worldapp"
-              accessibilityRole="button"
-            >
-              <View style={styles.rowCenter}>
-                <ExternalLink size={16} color="#0F172A" />
-                <Text style={[styles.worldBtnText, { marginLeft: 6 }]}>{texts.ctaWorld}</Text>
-              </View>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.verifyBtn, busy && styles.btnDisabled]}
               onPress={verifyInsideWorldApp}
@@ -217,8 +163,6 @@ const styles = StyleSheet.create({
   actions: { marginTop: 24, paddingHorizontal: 24, gap: 12 } as const,
   errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 10, marginHorizontal: 24, marginTop: 16 },
   errorText: { color: '#B91C1C', fontSize: 12 },
-  worldBtn: { backgroundColor: '#E5E7EB', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  worldBtnText: { color: '#0F172A', fontSize: 14, fontWeight: '700' },
   verifyBtn: { backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   btnDisabled: { opacity: 0.7 },
   verifyText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
