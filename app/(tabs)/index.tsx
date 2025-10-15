@@ -64,10 +64,6 @@ export default function HomeScreen() {
       router.push("/breathing");
     } else if (actionId === "timer") {
       router.push("/timer");
-    } else if (actionId === "sleep") {
-      router.push("/sleep-meditation");
-    } else if (actionId === "focus") {
-      router.push("/focus-meditation");
     } else {
       router.push("/meditate");
     }
