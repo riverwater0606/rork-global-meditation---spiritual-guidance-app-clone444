@@ -31,7 +31,7 @@ import { Platform } from "react-native";
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, connectWallet, walletAddress } = useUser();
+  const { profile, updateProfile, connectWallet, walletAddress, isVerified } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -315,7 +315,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         {/* World ID Verification */}
-        {Platform.OS === "web" && (
+        {Platform.OS === "web" && !isVerified && (
           <View style={styles.worldIDSection}>
             <Text style={themedStyles.sectionTitle}>
               {lang === "zh" ? "World ID 驗證" : "World ID Verification"}
