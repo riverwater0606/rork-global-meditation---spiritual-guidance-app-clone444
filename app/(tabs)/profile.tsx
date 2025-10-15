@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -55,30 +56,51 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    Alert.alert(
-      lang === "zh" ? "登出" : "Sign Out",
-      lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?",
-      [
-        { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
-        {
-          text: lang === "zh" ? "登出" : "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace("/sign-in");
-            } catch (error) {
-              console.error("[ProfileScreen] Logout error:", error);
-              Alert.alert(
-                lang === "zh" ? "錯誤" : "Error",
-                lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
-              );
-            }
+  const handleSignOut = async () => {
+    if (Platform.OS === "web") {
+      const confirmed = confirm(
+        lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?"
+      );
+      if (!confirmed) return;
+      
+      try {
+        console.log("[ProfileScreen] Logging out...");
+        await logout();
+        console.log("[ProfileScreen] Logout successful, redirecting...");
+        router.replace("/sign-in");
+      } catch (error) {
+        console.error("[ProfileScreen] Logout error:", error);
+        alert(
+          lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
+        );
+      }
+    } else {
+      Alert.alert(
+        lang === "zh" ? "登出" : "Sign Out",
+        lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?",
+        [
+          { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
+          {
+            text: lang === "zh" ? "登出" : "Sign Out",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                console.log("[ProfileScreen] Logging out...");
+                await logout();
+                console.log("[ProfileScreen] Logout successful, redirecting...");
+                router.replace("/sign-in");
+              } catch (error) {
+                console.error("[ProfileScreen] Logout error:", error);
+                Alert.alert(
+                  lang === "zh" ? "錯誤" : "Error",
+                  lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
+                );
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const getThemeSubtitle = () => {

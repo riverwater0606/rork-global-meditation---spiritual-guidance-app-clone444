@@ -85,10 +85,14 @@ export const [UserProvider, useUser] = createContextHook(() => {
   };
 
   const logout = async () => {
+    console.log('[UserProvider] Logging out - clearing all verification data');
     setIsVerified(false);
     setVerification(null);
+    setWalletAddress(null);
     await AsyncStorage.removeItem('isVerified');
     await AsyncStorage.removeItem('verificationPayload');
+    await AsyncStorage.removeItem('walletAddress');
+    console.log('[UserProvider] Logout complete');
   };
 
   return {
