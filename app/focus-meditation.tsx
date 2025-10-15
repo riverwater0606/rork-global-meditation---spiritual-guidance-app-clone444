@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#FFFFFF",
     marginBottom: 8,
   },
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     marginBottom: 16,
   },
   sessionsList: {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   },
   sessionTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#FFFFFF",
     marginBottom: 8,
   },

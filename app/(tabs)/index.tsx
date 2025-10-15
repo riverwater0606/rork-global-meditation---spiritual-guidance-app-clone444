@@ -65,9 +65,9 @@ export default function HomeScreen() {
     } else if (actionId === "timer") {
       router.push("/timer");
     } else if (actionId === "sleep") {
-      router.push("/sleepMeditation");
+      router.push("/sleep-meditation");
     } else if (actionId === "focus") {
-      router.push("/focusMeditation");
+      router.push("/focus-meditation");
     } else {
       router.push("/meditate");
     }

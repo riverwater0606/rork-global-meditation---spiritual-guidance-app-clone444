@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,8 +12,6 @@ import { router, Stack } from "expo-router";
 import { Moon, Clock, Play, Star } from "lucide-react-native";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
-
-const { width } = Dimensions.get("window");
 
 const TRANSLATIONS = {
   en: {
@@ -143,7 +140,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#FFFFFF",
     marginBottom: 8,
   },
@@ -161,7 +158,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     marginBottom: 16,
   },
   sessionsList: {
@@ -189,7 +186,7 @@ const styles = StyleSheet.create({
   },
   sessionTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     color: "#FFFFFF",
     marginBottom: 8,
   },
