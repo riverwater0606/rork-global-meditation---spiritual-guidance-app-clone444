@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,31 +9,27 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Clock, Heart, Moon, Brain, Zap } from "lucide-react-native";
+import { Play, Clock, Heart, Moon, Brain, Zap, RefreshCw } from "lucide-react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
-import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
+
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
-  const { stats } = useMeditation();
+  const { stats, dailyAffirmation, isGeneratingAffirmation, refreshAffirmation } = useMeditation();
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
-  const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
   const isWeb = Platform.OS === 'web';
 
   const lang = settings.language;
 
-  useEffect(() => {
-    const today = new Date().getDay();
-    setAffirmation(DAILY_AFFIRMATIONS[today % DAILY_AFFIRMATIONS.length]);
-  }, []);
+
 
   useEffect(() => {
     async function onLoad() {
@@ -108,15 +104,36 @@ export default function HomeScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Daily Affirmation */}
         <View style={[styles.affirmationCard, { backgroundColor: currentTheme.card }]}>
-          <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
-            {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
-          </Text>
-          <Text style={[styles.affirmationText, { color: currentTheme.text }]}>
-            {affirmation.text}
-          </Text>
-          <Text style={[styles.affirmationAuthor, { color: currentTheme.textSecondary }]}>
-            - {affirmation.author}
-          </Text>
+          <View style={styles.affirmationHeader}>
+            <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
+              {lang === "zh" ? "今日肯定語 (AI 生成)" : "Today's Affirmation (AI Generated)"}
+            </Text>
+            <TouchableOpacity 
+              onPress={refreshAffirmation}
+              disabled={isGeneratingAffirmation}
+              style={styles.refreshButton}
+            >
+              <RefreshCw 
+                size={16} 
+                color={currentTheme.primary} 
+                style={isGeneratingAffirmation ? styles.spinning : undefined}
+              />
+            </TouchableOpacity>
+          </View>
+          {dailyAffirmation ? (
+            <>
+              <Text style={[styles.affirmationText, { color: currentTheme.text }]}>
+                {dailyAffirmation.text}
+              </Text>
+              <Text style={[styles.affirmationAuthor, { color: currentTheme.textSecondary }]}>
+                - {dailyAffirmation.author}
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.affirmationText, { color: currentTheme.textSecondary }]}>
+              {lang === "zh" ? "正在生成今日肯定語..." : "Generating today's affirmation..."}
+            </Text>
+          )}
         </View>
 
         {/* Quick Actions */}
@@ -460,5 +477,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  affirmationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  refreshButton: {
+    padding: 4,
+  },
+  spinning: {
+    opacity: 0.5,
   },
 });
