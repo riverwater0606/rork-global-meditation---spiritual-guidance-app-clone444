@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
+import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
 SplashScreen.preventAutoHideAsync()
@@ -134,13 +135,15 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={styles.container}>
-          <SettingsProvider>
-            <UserProvider>
-              <MeditationProvider>
-                <RootLayoutNav />
-              </MeditationProvider>
-            </UserProvider>
-          </SettingsProvider>
+          <MiniKitProvider>
+            <SettingsProvider>
+              <UserProvider>
+                <MeditationProvider>
+                  <RootLayoutNav />
+                </MeditationProvider>
+              </UserProvider>
+            </SettingsProvider>
+          </MiniKitProvider>
         </GestureHandlerRootView>
       </QueryClientProvider>
     </ErrorBoundary>
