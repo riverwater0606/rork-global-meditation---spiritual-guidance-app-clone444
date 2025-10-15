@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { 
   User, 
-  Wallet, 
+
   Bell, 
   Moon, 
   Globe, 
@@ -29,7 +29,7 @@ import { router } from "expo-router";
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, connectWallet, walletAddress, logout } = useUser();
+  const { profile, updateProfile, logout } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -39,21 +39,6 @@ export default function ProfileScreen() {
   const handleSave = () => {
     updateProfile({ name });
     setIsEditing(false);
-  };
-
-  const handleConnectWallet = async () => {
-    try {
-      await connectWallet();
-      Alert.alert(
-        lang === "zh" ? "成功" : "Success", 
-        lang === "zh" ? "錢包連接成功！" : "Wallet connected successfully!"
-      );
-    } catch {
-      Alert.alert(
-        lang === "zh" ? "錯誤" : "Error", 
-        lang === "zh" ? "連接錢包失敗。請重試。" : "Failed to connect wallet. Please try again."
-      );
-    }
   };
 
   const handleSignOut = async () => {
@@ -328,38 +313,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Web3 Wallet */}
-        <TouchableOpacity
-          style={styles.walletCard}
-          onPress={handleConnectWallet}
-          testID="connect-wallet"
-        >
-          <LinearGradient
-            colors={["#F59E0B", "#EF4444"]}
-            style={styles.walletGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Wallet size={24} color="#FFFFFF" />
-            <View style={styles.walletInfo}>
-              <Text style={styles.walletTitle}>
-                {walletAddress 
-                  ? (lang === "zh" ? "錢包已連接" : "Wallet Connected")
-                  : (lang === "zh" ? "連接 Web3 錢包" : "Connect Web3 Wallet")
-                }
-              </Text>
-              <Text style={styles.walletSubtitle}>
-                {walletAddress 
-                  ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-                  : (lang === "zh" ? "解鎖區塊鏈功能" : "Unlock blockchain features")
-                }
-              </Text>
-            </View>
-            <ChevronRight size={20} color="#FFFFFF" />
-          </LinearGradient>
-        </TouchableOpacity>
-
-
 
         {/* Settings */}
         <View style={styles.settingsContainer}>
@@ -505,31 +458,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  walletCard: {
-    marginHorizontal: 20,
-    marginBottom: 30,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  walletGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-  },
-  walletInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  walletTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-  walletSubtitle: {
-    fontSize: 14,
-    color: "#FEF3C7",
-    marginTop: 2,
-  },
+
   settingsContainer: {
     paddingHorizontal: 20,
   },
