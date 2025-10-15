@@ -5,21 +5,71 @@ import {
   View,
   ScrollView,
   Dimensions,
+  TouchableOpacity,
+  Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { TrendingUp, Calendar, Award, Target } from "lucide-react-native";
+import { TrendingUp, Calendar, Award, Target, Download } from "lucide-react-native";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
 export default function ProgressScreen() {
-  const { currentTheme } = useSettings();
+  const { currentTheme, settings } = useSettings();
   const { stats, achievements } = useMeditation();
+  const lang = settings.language;
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   const currentDay = new Date().getDay();
+
+  const handleExportData = () => {
+    const data = {
+      exportDate: new Date().toISOString(),
+      stats: {
+        totalSessions: stats.totalSessions,
+        totalMinutes: stats.totalMinutes,
+        totalHours: Math.floor(stats.totalMinutes / 60),
+        currentStreak: stats.currentStreak,
+        lastSessionDate: stats.lastSessionDate,
+        weekProgress: stats.weekProgress,
+      },
+      achievements: achievements.map(a => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        unlocked: a.unlocked,
+      })),
+    };
+
+    const jsonString = JSON.stringify(data, null, 2);
+
+    if (Platform.OS === "web") {
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `meditation-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      Alert.alert(
+        lang === "zh" ? "導出成功" : "Export Successful",
+        lang === "zh" ? "您的數據已成功導出" : "Your data has been exported successfully",
+        [{ text: "OK" }]
+      );
+    } else {
+      Alert.alert(
+        lang === "zh" ? "數據導出" : "Data Export",
+        lang === "zh" ? `總課程: ${stats.totalSessions}\n總時間: ${Math.floor(stats.totalMinutes / 60)}小時\n連續天數: ${stats.currentStreak}天` : `Total Sessions: ${stats.totalSessions}\nTotal Time: ${Math.floor(stats.totalMinutes / 60)} hours\nCurrent Streak: ${stats.currentStreak} days`,
+        [{ text: "OK" }]
+      );
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -30,7 +80,21 @@ export default function ProgressScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>Your Progress</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>
+              {lang === "zh" ? "您的進度" : "Your Progress"}
+            </Text>
+            <TouchableOpacity
+              style={styles.exportButton}
+              onPress={handleExportData}
+              testID="export-data-button"
+            >
+              <Download size={20} color="#FFFFFF" />
+              <Text style={styles.exportButtonText}>
+                {lang === "zh" ? "導出" : "Export"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </LinearGradient>
 
@@ -142,12 +206,31 @@ const styles = StyleSheet.create({
   header: {
     paddingBottom: 30,
   },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#FFFFFF",
-    paddingHorizontal: 20,
-    marginTop: 20,
+  },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  exportButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   content: {
     flex: 1,

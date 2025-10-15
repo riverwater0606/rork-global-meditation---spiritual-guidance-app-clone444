@@ -25,8 +25,8 @@ export default function MeditationPlayerScreen() {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
-
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [volume, setVolume] = useState<number>(0.7);
+  const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
 
@@ -137,24 +137,45 @@ export default function MeditationPlayerScreen() {
             <Text style={styles.description}>{session.description}</Text>
           </View>
 
+          {/* Volume Slider */}
+          {showVolumeSlider && Platform.OS === "web" && (
+            <View style={styles.volumeSliderContainer}>
+              <VolumeX size={16} color="#FFFFFF" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={(e) => setVolume(parseFloat((e.target as HTMLInputElement).value))}
+                style={{
+                  flex: 1,
+                  margin: "0 12px",
+                  accentColor: "#8B5CF6",
+                } as React.CSSProperties}
+              />
+              <Volume2 size={16} color="#FFFFFF" />
+            </View>
+          )}
+
           {/* Controls */}
           <View style={styles.controls}>
             <TouchableOpacity 
               style={styles.secondaryButton}
               onPress={() => {
                 if (Platform.OS === "web") {
-                  setIsMuted(!isMuted);
+                  setShowVolumeSlider(!showVolumeSlider);
                 } else {
                   Alert.alert(
-                    "Volume",
-                    "Adjust volume using device volume buttons",
+                    "Volume Control",
+                    "Use device volume buttons to adjust volume",
                     [{ text: "OK" }]
                   );
                 }
               }}
               testID="volume-button"
             >
-              {isMuted ? (
+              {volume === 0 ? (
                 <VolumeX size={24} color="#FFFFFF" />
               ) : (
                 <Volume2 size={24} color="#FFFFFF" />
@@ -283,5 +304,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  volumeSliderContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginBottom: 20,
   },
 });

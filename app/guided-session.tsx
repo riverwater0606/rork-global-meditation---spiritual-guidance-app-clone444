@@ -7,6 +7,8 @@ import {
   ScrollView,
   Animated,
   Dimensions,
+  Platform,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +19,7 @@ import {
   SkipBack,
   X,
   Volume2,
+  VolumeX,
   Globe,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,6 +52,8 @@ export default function GuidedSessionScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [volume, setVolume] = useState<number>(0.7);
+  const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0)).current;
   const progressAnimation = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,10 +199,48 @@ export default function GuidedSessionScreen() {
               },
             ]}
           />
-          <View style={styles.innerCircle}>
-            <Volume2 color="#FFFFFF" size={40} />
-          </View>
+          <TouchableOpacity 
+            style={styles.innerCircle}
+            onPress={() => {
+              if (Platform.OS === "web") {
+                setShowVolumeSlider(!showVolumeSlider);
+              } else {
+                Alert.alert(
+                  "Volume Control",
+                  "Use device volume buttons to adjust volume",
+                  [{ text: "OK" }]
+                );
+              }
+            }}
+          >
+            {volume === 0 ? (
+              <VolumeX color="#FFFFFF" size={40} />
+            ) : (
+              <Volume2 color="#FFFFFF" size={40} />
+            )}
+          </TouchableOpacity>
         </View>
+
+        {/* Volume Slider */}
+        {showVolumeSlider && Platform.OS === "web" && (
+          <View style={styles.volumeSliderContainer}>
+            <VolumeX size={16} color="#FFFFFF" />
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat((e.target as HTMLInputElement).value))}
+              style={{
+                flex: 1,
+                margin: "0 12px",
+                accentColor: "#8B5CF6",
+              } as React.CSSProperties}
+            />
+            <Volume2 size={16} color="#FFFFFF" />
+          </View>
+        )}
 
         <Text style={styles.timer}>{formatTime(timeRemaining)}</Text>
 
@@ -453,5 +496,15 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     textAlign: "center",
     marginTop: 50,
+  },
+  volumeSliderContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginBottom: 20,
+    marginHorizontal: 20,
   },
 });
