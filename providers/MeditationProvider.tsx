@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { Language } from "./SettingsProvider";
 
 interface MeditationStats {
   totalSessions: number;
@@ -69,12 +70,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [dailyAffirmation, setDailyAffirmation] = useState<DailyAffirmation | null>(null);
   const [isGeneratingAffirmation, setIsGeneratingAffirmation] = useState<boolean>(false);
 
-  useEffect(() => {
-    void loadStats();
-    void loadOrGenerateAffirmation();
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const savedStats = await AsyncStorage.getItem("meditationStats");
       const savedAchievements = await AsyncStorage.getItem("achievements");
@@ -91,9 +87,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     } catch (error) {
       console.error("Error loading stats:", error);
     }
-  };
+  }, []);
 
-  const loadOrGenerateAffirmation = async () => {
+  const loadOrGenerateAffirmation = useCallback(async (language: Language = "en") => {
     try {
       const today = new Date().toDateString();
       const savedAffirmation = await AsyncStorage.getItem("dailyAffirmation");
@@ -107,16 +103,35 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         }
       }
       
-      await generateDailyAffirmation();
+      await generateDailyAffirmation(language);
     } catch (error) {
       console.error("Error loading affirmation:", error);
     }
-  };
+  }, []);
 
-  const generateDailyAffirmation = async () => {
+  const generateDailyAffirmation = useCallback(async (language: Language = "en") => {
     try {
       setIsGeneratingAffirmation(true);
       console.log("Generating daily affirmation with AI...");
+      
+      const prompt = language === "zh" 
+        ? `生成一句關於冥想和正念的勵志肯定語句。
+要求：
+- 積極向上並充滿力量
+- 與平和、正念或個人成長相關
+- 15-30個字
+- 使用現在時態
+- 用繁體中文書寫
+
+只回應肯定語句本身，不要其他內容。`
+        : `Generate a single inspirational affirmation for meditation and mindfulness practice. 
+The affirmation should be:
+- Positive and empowering
+- Related to peace, mindfulness, or personal growth
+- Between 15-30 words
+- Written in present tense
+
+Respond with ONLY the affirmation text, nothing else.`;
       
       const response = await fetch("https://toolkit.rork.com/text/llm/", {
         method: "POST",
@@ -127,14 +142,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
           messages: [
             {
               role: "user",
-              content: `Generate a single inspirational affirmation for meditation and mindfulness practice. 
-The affirmation should be:
-- Positive and empowering
-- Related to peace, mindfulness, or personal growth
-- Between 15-30 words
-- Written in present tense
-
-Respond with ONLY the affirmation text, nothing else.`,
+              content: prompt,
             },
           ],
         }),
@@ -144,7 +152,7 @@ Respond with ONLY the affirmation text, nothing else.`,
       
       const affirmation: DailyAffirmation = {
         text: data.completion.trim(),
-        author: "AI Generated",
+        author: language === "zh" ? "每日肯定" : "Daily Inspiration",
         date: new Date().toDateString(),
       };
       
@@ -156,15 +164,17 @@ Respond with ONLY the affirmation text, nothing else.`,
       console.error("Error generating affirmation:", error);
       
       const fallback: DailyAffirmation = {
-        text: "I am at peace with all that has happened, is happening, and will happen.",
-        author: "Buddhist Wisdom",
+        text: language === "zh" 
+          ? "我與過去、現在和未來的一切和平共處。"
+          : "I am at peace with all that has happened, is happening, and will happen.",
+        author: language === "zh" ? "佛教智慧" : "Buddhist Wisdom",
         date: new Date().toDateString(),
       };
       setDailyAffirmation(fallback);
     } finally {
       setIsGeneratingAffirmation(false);
     }
-  };
+  }, []);
 
   const updateWeekProgress = (currentStats: MeditationStats) => {
     const today = new Date().getDay();
@@ -238,6 +248,14 @@ Respond with ONLY the affirmation text, nothing else.`,
     }
   }, [stats, achievements]);
 
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  const initializeAffirmation = useCallback((language: Language) => {
+    void loadOrGenerateAffirmation(language);
+  }, [loadOrGenerateAffirmation]);
+
   return useMemo(
     () => ({
       stats,
@@ -246,7 +264,8 @@ Respond with ONLY the affirmation text, nothing else.`,
       dailyAffirmation,
       isGeneratingAffirmation,
       refreshAffirmation: generateDailyAffirmation,
+      initializeAffirmation,
     }),
-    [stats, achievements, completeMeditation, dailyAffirmation, isGeneratingAffirmation]
+    [stats, achievements, completeMeditation, dailyAffirmation, isGeneratingAffirmation, generateDailyAffirmation, initializeAffirmation]
   );
 });

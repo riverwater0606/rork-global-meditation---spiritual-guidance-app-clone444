@@ -22,7 +22,7 @@ import { MEDITATION_SESSIONS } from "@/constants/meditations";
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
-  const { stats, dailyAffirmation, isGeneratingAffirmation, refreshAffirmation } = useMeditation();
+  const { stats, dailyAffirmation, isGeneratingAffirmation, refreshAffirmation, initializeAffirmation } = useMeditation();
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
   const isWeb = Platform.OS === 'web';
@@ -49,6 +49,10 @@ export default function HomeScreen() {
     }
     void onLoad();
   }, [isWeb, isVerified]);
+
+  useEffect(() => {
+    initializeAffirmation(lang);
+  }, [initializeAffirmation, lang]);
 
   const quickActions = [
     { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
@@ -113,7 +117,7 @@ export default function HomeScreen() {
               {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
             </Text>
             <TouchableOpacity 
-              onPress={refreshAffirmation}
+              onPress={() => refreshAffirmation(lang)}
               disabled={isGeneratingAffirmation}
               style={styles.refreshButton}
             >
