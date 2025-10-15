@@ -82,7 +82,10 @@ export default function AssistantScreen() {
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    const timer = setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   useEffect(() => {
@@ -255,7 +258,7 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
           )}
         </ScrollView>
 
-        {messages.length === 1 && (
+        {(messages.length === 1 || messages.filter(m => m.isUser).length === 0) && (
           <>
             <View style={[styles.guidedMeditationsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
               <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>

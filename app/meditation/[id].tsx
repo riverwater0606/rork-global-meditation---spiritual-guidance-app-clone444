@@ -7,15 +7,16 @@ import {
   Animated,
   Dimensions,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2 } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
@@ -24,6 +25,8 @@ export default function MeditationPlayerScreen() {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
+
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
 
@@ -87,7 +90,7 @@ export default function MeditationPlayerScreen() {
 
   return (
     <LinearGradient
-      colors={session.gradient}
+      colors={session.gradient as any}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -136,8 +139,26 @@ export default function MeditationPlayerScreen() {
 
           {/* Controls */}
           <View style={styles.controls}>
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Volume2 size={24} color="#FFFFFF" />
+            <TouchableOpacity 
+              style={styles.secondaryButton}
+              onPress={() => {
+                if (Platform.OS === "web") {
+                  setIsMuted(!isMuted);
+                } else {
+                  Alert.alert(
+                    "Volume",
+                    "Adjust volume using device volume buttons",
+                    [{ text: "OK" }]
+                  );
+                }
+              }}
+              testID="volume-button"
+            >
+              {isMuted ? (
+                <VolumeX size={24} color="#FFFFFF" />
+              ) : (
+                <Volume2 size={24} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

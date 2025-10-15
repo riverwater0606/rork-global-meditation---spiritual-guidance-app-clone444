@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -17,7 +17,7 @@ import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
-import { ensureMiniKitLoaded, isMiniKitInstalled, getMiniKit, runWorldVerify } from "@/components/worldcoin/IDKitWeb";
+
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -26,42 +26,8 @@ export default function HomeScreen() {
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
   const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
-  const [worldError, setWorldError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const isWeb = Platform.OS === 'web';
-  const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
-  const [autoTried, setAutoTried] = useState<boolean>(false);
-  useEffect(() => {
-    if (!isWeb || isVerified) return;
-    let mounted = true;
-    const detect = () => {
-      try {
-        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-        const w = typeof window !== 'undefined' ? (window as any) : {};
-        const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
-        const forceParam = (sp?.get('worldapp') ?? '') === '1';
-        const mkInstalled = typeof w?.MiniKit?.isInstalled === 'function' ? !!w.MiniKit.isInstalled() : false;
-        const detected = forceParam || ua.includes('WorldApp') || mkInstalled || !!w.MiniKit || !!w.miniwallet;
-        if (mounted) setIsWorldEnv(detected);
-        console.log('[WorldID] detect: forceParam?', forceParam, 'UA has WorldApp?', ua.includes('WorldApp'), 'MiniKit.isInstalled()', mkInstalled, 'MiniKit present?', !!w.MiniKit);
-      } catch (e) {
-        console.error('[WorldID] Error detecting World App environment:', e);
-      }
-    };
-    detect();
-    const id = setInterval(detect, 500);
-    const onMk = () => detect();
-    if (typeof window !== 'undefined') {
-      (window as any).addEventListener?.('MiniKitLoaded', onMk);
-    }
-    return () => {
-      mounted = false;
-      clearInterval(id);
-      if (typeof window !== 'undefined') {
-        (window as any).removeEventListener?.('MiniKitLoaded', onMk);
-      }
-    };
-  }, [isWeb, isVerified]);
+
   const lang = settings.language;
 
   useEffect(() => {
@@ -107,114 +73,11 @@ export default function HomeScreen() {
     }
   };
 
-  const onConnectPress = useCallback(async () => {
-    try {
-      setWorldError(null);
-      console.log('[WorldID] Connect button pressed. Starting environment checks...');
 
-      if (isVerified) {
-        return;
-      }
-      if (Platform.OS !== 'web') {
-        setWorldError('請在 World App 中開啟 | Please open in World App');
-        return;
-      }
 
-      console.log('[WorldID] Ensuring MiniKit is loaded...');
-      let mk: any | undefined = await ensureMiniKitLoaded();
-      if (!mk) {
-        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-        const uaHasWorld = /(WorldApp|World App|WorldAppWebView)/i.test(ua);
-        if (uaHasWorld) {
-          for (let i = 0; i < 20 && !mk; i++) {
-            await new Promise((r) => setTimeout(r, 100));
-            mk = getMiniKit();
-          }
-        }
-      }
 
-      if (!mk) {
-        console.error('[WorldID] MiniKit not found in window');
-        setWorldError('請在 World App 中開啟 | Please open inside World App');
-        return;
-      }
 
-      const installed = await isMiniKitInstalled(mk);
-      console.log('[WorldID] isInstalled result:', installed);
-      const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
-      if (!installed && !uaHasWorldApp && !isWorldEnv) {
-        console.error('[WorldID] Environment not recognized as World App');
-        setWorldError('請使用 World App 內置掃描器打開 | Use the in-app scanner in World App');
-        return;
-      }
 
-      setIsVerifying(true);
-      console.log('[WorldID] Starting verification...');
-      const action = 'psig';
-
-      const payload: any = await runWorldVerify({ mk, action });
-      console.log('[WorldID] Verify payload status:', payload?.status);
-      setIsVerifying(false);
-
-      if (payload?.status === 'error') {
-        console.error('[WorldID] Verification error:', payload);
-        setWorldError(payload?.error_code ?? 'Verification failed');
-        return;
-      }
-
-      try {
-        const callbackUrl = (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1')))
-          ? 'http://localhost:3000/callback'
-          : 'https://444-two.vercel.app/callback';
-        const url = new URL(callbackUrl);
-        url.searchParams.set('result', encodeURIComponent(JSON.stringify(payload)));
-        window.location.href = url.toString();
-      } catch (e: any) {
-        console.error('[WorldID] Callback redirect error:', e);
-        setWorldError('Failed to redirect to callback');
-      }
-    } catch (e: any) {
-      console.error('[WorldID] Verification exception:', e);
-      setWorldError(e?.message ?? 'Verification failed, please retry');
-      setIsVerifying(false);
-    }
-  }, [isWorldEnv, isVerified]);
-
-  useEffect(() => {
-    if (!isWeb || autoTried || isVerified) return;
-    const uaHasWorldApp = (typeof navigator !== 'undefined' ? navigator.userAgent : '')?.includes('WorldApp') ?? false;
-    const w: any = typeof window !== 'undefined' ? (window as any) : {};
-    const mkPresent = !!getMiniKit();
-
-    const shouldAuto = uaHasWorldApp || isWorldEnv || mkPresent;
-    if (!shouldAuto) return;
-
-    const id = setTimeout(() => {
-      console.log('[WorldID] Auto verify after delay (700ms). UA?', uaHasWorldApp, 'isWorldEnv?', isWorldEnv, 'mkPresent?', mkPresent);
-      setAutoTried(true);
-      onConnectPress().catch(err => console.warn('[WorldID] auto verify press error', err));
-    }, 700);
-
-    return () => clearTimeout(id);
-  }, [isWeb, isWorldEnv, autoTried, isVerified, onConnectPress]);
-
-  if (!isVerified && isWeb && isWorldEnv && isVerifying) {
-    return (
-      <View style={[styles.container, styles.verifyingContainer, { backgroundColor: currentTheme.background }]}>
-        <View style={styles.verifyingContent}>
-          <Text style={[styles.verifyingTitle, { color: currentTheme.text }]} testID="verifying-title">
-            {lang === 'zh' ? '驗證中...' : 'Verifying...'}
-          </Text>
-          <Text style={[styles.verifyingSubtitle, { color: currentTheme.textSecondary }]}>
-            {lang === 'zh' ? '請在 World App 中完成驗證' : 'Please complete verification in World App'}
-          </Text>
-          <Text style={[styles.verifyingDebug, { color: currentTheme.textSecondary, marginTop: 20 }]}>
-            {lang === 'zh' ? '如果抽屜未打開，請檢查控制台日誌' : 'If drawer does not open, check console logs'}
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
