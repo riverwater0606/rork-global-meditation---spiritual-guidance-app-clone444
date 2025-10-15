@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { generateText } from "@rork/toolkit-sdk";
 
 interface MeditationStats {
   totalSessions: number;
@@ -119,19 +118,32 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       setIsGeneratingAffirmation(true);
       console.log("Generating daily affirmation with AI...");
       
-      const prompt = `Generate a single inspirational affirmation for meditation and mindfulness practice. 
+      const response = await fetch("https://toolkit.rork.com/text/llm/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content: `Generate a single inspirational affirmation for meditation and mindfulness practice. 
 The affirmation should be:
 - Positive and empowering
 - Related to peace, mindfulness, or personal growth
 - Between 15-30 words
 - Written in present tense
 
-Respond with ONLY the affirmation text, nothing else.`;
-      
-      const text = await generateText(prompt);
+Respond with ONLY the affirmation text, nothing else.`,
+            },
+          ],
+        }),
+      });
+
+      const data = await response.json();
       
       const affirmation: DailyAffirmation = {
-        text: text.trim(),
+        text: data.completion.trim(),
         author: "AI Generated",
         date: new Date().toDateString(),
       };
