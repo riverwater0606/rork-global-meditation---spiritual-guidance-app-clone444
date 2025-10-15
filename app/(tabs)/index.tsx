@@ -106,7 +106,7 @@ export default function HomeScreen() {
         <View style={[styles.affirmationCard, { backgroundColor: currentTheme.card }]}>
           <View style={styles.affirmationHeader}>
             <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
-              {lang === "zh" ? "今日肯定語 (AI 生成)" : "Today's Affirmation (AI Generated)"}
+              {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
             </Text>
             <TouchableOpacity 
               onPress={refreshAffirmation}
