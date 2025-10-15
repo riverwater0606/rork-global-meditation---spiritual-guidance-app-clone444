@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useSettings } from '@/providers/SettingsProvider';
 import { useUser } from '@/providers/UserProvider';
+import { CheckCircle } from 'lucide-react-native';
 
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
@@ -51,7 +52,7 @@ export default function CallbackScreen() {
             try {
               router.replace('/');
             } catch {}
-          }, 1500);
+          }, 800);
 
         } else {
           setError('No result provided');
@@ -69,40 +70,33 @@ export default function CallbackScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
-      <Stack.Screen options={{ headerShown: true, title: lang === 'zh' ? '驗證結果' : 'Verification' }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.content}>
         {error ? (
-          <Text style={[styles.error, { color: '#EF4444' }]} testID="callback-error">{error}</Text>
+          <View style={styles.centerContent}>
+            <Text style={[styles.error, { color: '#EF4444' }]} testID="callback-error">{error}</Text>
+          </View>
         ) : (
-          <View style={[styles.card, { backgroundColor: currentTheme.card }]} testID="callback-result">
-            <Text style={[styles.title, { color: currentTheme.text }]}>
+          <View style={styles.centerContent} testID="callback-result">
+            <CheckCircle size={64} color="#10B981" />
+            <Text style={[styles.title, { color: currentTheme.text, marginTop: 20 }]}>
               {lang === 'zh' ? '驗證成功' : 'Verification Success'}
             </Text>
-            <Text style={{ color: currentTheme.textSecondary, marginTop: 8 }}>
-              {lang === 'zh' ? '我們已收到你的 World ID 驗證回調。' : 'We received your World ID verification callback.'}
+            <Text style={{ color: currentTheme.textSecondary, marginTop: 12, textAlign: 'center' }}>
+              {lang === 'zh' ? '正在跳轉...' : 'Redirecting...'}
             </Text>
-            <View style={[styles.payload, { borderColor: currentTheme.border }]}>
-              <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>
-                {JSON.stringify(parsed, null, 2)}
-              </Text>
-            </View>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: currentTheme.primary }]} onPress={() => router.replace('/(tabs)/profile')} testID="callback-done">
-              <Text style={styles.btnText}>{lang === 'zh' ? '返回個人頁' : 'Back to Profile'}</Text>
-            </TouchableOpacity>
+            <ActivityIndicator size="small" color={currentTheme.primary} style={{ marginTop: 16 }} />
           </View>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20 },
-  card: { padding: 16, borderRadius: 12 },
-  title: { fontSize: 20, fontWeight: '700' },
-  payload: { marginTop: 12, borderWidth: 1, borderRadius: 8, padding: 12 },
-  btn: { marginTop: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: '700' },
-  error: { fontSize: 16 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  centerContent: { alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  error: { fontSize: 16, textAlign: 'center' },
 });
