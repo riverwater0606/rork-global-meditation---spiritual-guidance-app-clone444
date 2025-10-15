@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,13 +24,11 @@ import {
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { router } from "expo-router";
-import { WorldIDVerifyButton } from "@/components/worldcoin/IDKitWeb";
-import { Platform } from "react-native";
 
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, connectWallet, walletAddress, isVerified } = useUser();
+  const { profile, updateProfile, connectWallet, walletAddress } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -50,7 +47,7 @@ export default function ProfileScreen() {
         lang === "zh" ? "成功" : "Success", 
         lang === "zh" ? "錢包連接成功！" : "Wallet connected successfully!"
       );
-    } catch (error) {
+    } catch {
       Alert.alert(
         lang === "zh" ? "錯誤" : "Error", 
         lang === "zh" ? "連接錢包失敗。請重試。" : "Failed to connect wallet. Please try again."
@@ -314,38 +311,7 @@ export default function ProfileScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* World ID Verification */}
-        {Platform.OS === "web" && !isVerified && (
-          <View style={styles.worldIDSection}>
-            <Text style={themedStyles.sectionTitle}>
-              {lang === "zh" ? "World ID 驗證" : "World ID Verification"}
-            </Text>
-            <View style={[themedStyles.settingItem, { marginBottom: 20 }]}>
-              <View style={styles.worldIDContent}>
-                <Text style={themedStyles.settingTitle}>
-                  {lang === "zh" ? "驗證您的身份" : "Verify Your Identity"}
-                </Text>
-                <Text style={themedStyles.settingSubtitle}>
-                  {lang === "zh" ? "使用 World ID 進行鏈上驗證" : "On-chain verification with World ID"}
-                </Text>
-                <View style={{ marginTop: 12 }}>
-                  <WorldIDVerifyButton
-                    appId="app_346b0844d114f6bac06f1d35eb9f3d1d"
-                    action="psig"
-                    callbackUrl={
-                      typeof window !== "undefined" &&
-                      (window.location?.host?.includes("localhost") ||
-                        window.location?.host?.includes("127.0.0.1"))
-                        ? "http://localhost:3000/callback"
-                        : "https://444-two.vercel.app/callback"
-                    }
-                    testID="verify-with-worldid"
-                  />
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
+
 
         {/* Settings */}
         <View style={styles.settingsContainer}>

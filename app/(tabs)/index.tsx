@@ -243,28 +243,6 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {(!isVerified && isWeb) && (
-          <View style={styles.worldBanner}>
-            <View>
-              <Text style={styles.worldBannerTitle}>{lang === 'zh' ? '連接 World ID' : 'Connect World ID'}</Text>
-              {!!worldError && (
-                <Text style={styles.worldBannerError} testID="worldid-error">{worldError}</Text>
-              )}
-              <TouchableOpacity
-                style={styles.connectButton}
-                onPress={onConnectPress}
-                disabled={isVerifying}
-                testID="connect-worldid"
-                accessibilityLabel="Connect World ID"
-              >
-                <Text style={styles.connectButtonText}>{isVerifying ? (lang === 'zh' ? '驗證中...' : 'Verifying...') : (lang === 'zh' ? '使用 World ID 連接' : 'Connect with World ID')}</Text>
-              </TouchableOpacity>
-              {!isWorldEnv && (
-                <Text style={[styles.worldBannerError, { marginTop: 8 }]}> {lang === 'zh' ? '提示：請用 World App 內建掃描器打開 QR，或清除 World App 快取後重試' : 'Tip: Use World App built-in scanner, or clear World App cache and retry'} </Text>
-              )}
-            </View>
-          </View>
-        )}
         {/* Daily Affirmation */}
         <View style={[styles.affirmationCard, { backgroundColor: currentTheme.card }]}>
           <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
