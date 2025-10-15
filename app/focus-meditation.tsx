@@ -8,83 +8,63 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, Stack } from "expo-router";
-import { Brain, Clock, Play, Star } from "lucide-react-native";
+import { Play, ChevronLeft } from "lucide-react-native";
+import { router } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
 
-const TRANSLATIONS = {
-  en: {
-    title: "Focus Meditations",
-    subtitle: "Enhance concentration & clarity",
-    recommended: "Recommended for Focus",
-    min: "min",
-  },
-  zh: {
-    title: "專注冥想",
-    subtitle: "提升專注力與清晰度",
-    recommended: "推薦專注冥想",
-    min: "分鐘",
-  },
-};
-
 export default function FocusMeditationScreen() {
-  const { settings, currentTheme } = useSettings();
+  const { currentTheme, settings } = useSettings();
   const lang = settings.language;
-  const t = TRANSLATIONS[lang];
-
-  const focusSessions = MEDITATION_SESSIONS.filter(
-    (session) => session.category === "focus"
-  );
+  
+  const focusSessions = MEDITATION_SESSIONS.filter(s => s.category === "focus");
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
       <LinearGradient
-        colors={["#43E97B", "#38F9D7"]}
-        style={styles.header}
+        colors={["#43E97B", "#38F9D7"] as any}
+        style={styles.headerGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              testID="back-button"
+            >
+              <ChevronLeft size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>
+              {lang === "zh" ? "專注冥想" : "Focus Meditation"}
+            </Text>
+            <View style={styles.placeholder} />
+          </View>
           <View style={styles.headerContent}>
-            <View>
-              <View style={styles.iconContainer}>
-                <Brain size={32} color="#FFFFFF" />
-              </View>
-              <Text style={styles.title}>{t.title}</Text>
-              <Text style={styles.subtitle}>{t.subtitle}</Text>
-            </View>
+            <Text style={styles.headerSubtitle}>
+              {lang === "zh" 
+                ? "增強專注力，進入心流狀態，提升工作效率" 
+                : "Enhance concentration, enter flow state, and boost productivity"}
+            </Text>
           </View>
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-          {t.recommended}
-        </Text>
-
-        <View style={styles.sessionsList}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.sessionsContainer}>
           {focusSessions.map((session) => (
             <TouchableOpacity
               key={session.id}
               style={styles.sessionCard}
               onPress={() => router.push(`/meditation/${session.id}`)}
-              testID={`focus-session-${session.id}`}
+              testID={`session-${session.id}`}
             >
               <LinearGradient
                 colors={session.gradient as any}
                 style={styles.sessionGradient}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 1, y: 0 }}
               >
                 <View style={styles.sessionContent}>
                   <View style={styles.sessionInfo}>
@@ -93,14 +73,10 @@ export default function FocusMeditationScreen() {
                       {session.description}
                     </Text>
                     <View style={styles.sessionMeta}>
-                      <Clock size={14} color="#E0E7FF" />
                       <Text style={styles.sessionDuration}>
-                        {session.duration} {t.min}
+                        {session.duration} {lang === "zh" ? "分鐘" : "min"}
                       </Text>
-                      <Star size={14} color="#FCD34D" />
-                      <Text style={styles.sessionNarrator}>
-                        {session.narrator}
-                      </Text>
+                      <Text style={styles.sessionNarrator}>• {session.narrator}</Text>
                     </View>
                   </View>
                   <View style={styles.playIconContainer}>
@@ -110,9 +86,18 @@ export default function FocusMeditationScreen() {
               </LinearGradient>
             </TouchableOpacity>
           ))}
+          
+          {focusSessions.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: currentTheme.textSecondary }]}>
+                {lang === "zh" 
+                  ? "目前沒有可用的專注冥想課���" 
+                  : "No focus meditation sessions available"}
+              </Text>
+            </View>
+          )}
         </View>
-
-        <View style={styles.bottomSpacing} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -122,63 +107,66 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingBottom: 40,
+  headerGradient: {
+    paddingBottom: 30,
   },
-  headerContent: {
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold" as const,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
     color: "#FFFFFF",
-    marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    opacity: 0.9,
+  placeholder: {
+    width: 40,
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: "#E0E7FF",
+    textAlign: "center",
+    lineHeight: 24,
   },
   content: {
     flex: 1,
     marginTop: -20,
   },
-  contentContainer: {
+  sessionsContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold" as const,
-    marginBottom: 16,
-  },
-  sessionsList: {
-    gap: 16,
-  },
   sessionCard: {
+    marginBottom: 16,
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sessionGradient: {
     padding: 20,
   },
   sessionContent: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
   sessionInfo: {
@@ -187,42 +175,44 @@ const styles = StyleSheet.create({
   },
   sessionTitle: {
     fontSize: 20,
-    fontWeight: "bold" as const,
+    fontWeight: "bold",
     color: "#FFFFFF",
     marginBottom: 8,
   },
   sessionDescription: {
     fontSize: 14,
-    color: "#FFFFFF",
-    opacity: 0.9,
-    marginBottom: 12,
+    color: "#E0E7FF",
     lineHeight: 20,
+    marginBottom: 12,
   },
   sessionMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
   sessionDuration: {
-    fontSize: 12,
+    fontSize: 14,
     color: "#FFFFFF",
-    opacity: 0.9,
-    marginRight: 12,
+    fontWeight: "600",
   },
   sessionNarrator: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    opacity: 0.9,
+    fontSize: 14,
+    color: "#E0E7FF",
+    marginLeft: 8,
   },
   playIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
-  bottomSpacing: {
-    height: 40,
+  emptyState: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: "center",
   },
 });
