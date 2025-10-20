@@ -65,8 +65,19 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
-    if (Platform.OS === "web" && "speechSynthesis" in window) {
-      setCanSpeak(true);
+    if (Platform.OS === "web") {
+      if ("speechSynthesis" in window) {
+        setCanSpeak(true);
+        console.log("[TTS] Speech synthesis available");
+        
+        if (window.speechSynthesis.getVoices().length === 0) {
+          window.speechSynthesis.addEventListener('voiceschanged', () => {
+            console.log("[TTS] Voices loaded:", window.speechSynthesis.getVoices().length);
+          });
+        }
+      } else {
+        console.log("[TTS] Speech synthesis not available");
+      }
     }
 
     return () => {
@@ -353,7 +364,7 @@ export default function MeditationPlayerScreen() {
               {lang === "zh" ? session.descriptionZh : session.description}
             </Text>
 
-            {/* Script Preview Toggle */}
+            {/* Script Preview Toggle & TTS Controls */}
             {customSession?.script && (
               <View style={styles.scriptControls}>
                 <TouchableOpacity 
@@ -366,7 +377,7 @@ export default function MeditationPlayerScreen() {
                   {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
                 </TouchableOpacity>
                 
-                {canSpeak && (
+                {Platform.OS === "web" && canSpeak && (
                   <TouchableOpacity
                     style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                     onPress={() => {
@@ -380,11 +391,19 @@ export default function MeditationPlayerScreen() {
                     <Volume size={16} color="#FFFFFF" />
                     <Text style={styles.speakButtonText}>
                       {isSpeaking 
-                        ? (lang === "zh" ? "停止朗讀" : "Stop")
-                        : (lang === "zh" ? "AI朗讀" : "AI Read")
+                        ? (lang === "zh" ? "停止朗讀" : "Stop Reading")
+                        : (lang === "zh" ? "AI語音朗讀" : "AI Voice")
                       }
                     </Text>
                   </TouchableOpacity>
+                )}
+                
+                {Platform.OS === "web" && !canSpeak && (
+                  <View style={styles.ttsUnavailable}>
+                    <Text style={styles.ttsUnavailableText}>
+                      {lang === "zh" ? "語音功能不可用" : "Voice unavailable"}
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
@@ -649,6 +668,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#FFFFFF",
     fontWeight: "600" as const,
+  },
+  ttsUnavailable: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 16,
+  },
+  ttsUnavailableText: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontStyle: "italic" as const,
   },
   scriptToggleText: {
     fontSize: 14,
