@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp, Volume } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
@@ -51,9 +51,12 @@ export default function MeditationPlayerScreen() {
   const [soundVolume, setSoundVolume] = useState<number>(0.5);
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [canSpeak, setCanSpeak] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -62,9 +65,16 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
+    if (Platform.OS === "web" && "speechSynthesis" in window) {
+      setCanSpeak(true);
+    }
+
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
+      }
+      if (Platform.OS === "web" && speechSynthRef.current) {
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -215,6 +225,67 @@ export default function MeditationPlayerScreen() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const startSpeaking = () => {
+    if (Platform.OS !== "web" || !customSession?.script) return;
+
+    try {
+      const text = lang === "zh" ? customSession.scriptZh : customSession.script;
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
+      utterance.rate = 0.8;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => 
+        lang === "zh" 
+          ? voice.lang.includes("zh") || voice.lang.includes("ZH")
+          : voice.lang.includes("en") || voice.lang.includes("EN")
+      );
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        console.log("[TTS] Started speaking");
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        console.log("[TTS] Finished speaking");
+      };
+
+      utterance.onerror = (event) => {
+        console.error("[TTS] Error:", event);
+        setIsSpeaking(false);
+      };
+
+      speechSynthRef.current = utterance;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      
+      console.log("[TTS] Speech synthesis started for:", lang);
+    } catch (error) {
+      console.error("[TTS] Error starting speech:", error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (Platform.OS !== "web") return;
+    
+    try {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      console.log("[TTS] Speech stopped");
+    } catch (error) {
+      console.error("[TTS] Error stopping speech:", error);
+    }
+  };
+
   if (!session) {
     return (
       <View style={styles.container}>
@@ -284,15 +355,38 @@ export default function MeditationPlayerScreen() {
 
             {/* Script Preview Toggle */}
             {customSession?.script && (
-              <TouchableOpacity 
-                style={styles.scriptToggle}
-                onPress={() => setShowScript(!showScript)}
-              >
-                <Text style={styles.scriptToggleText}>
-                  {lang === "zh" ? "查看冥想腳本" : "View Script"}
-                </Text>
-                {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
-              </TouchableOpacity>
+              <View style={styles.scriptControls}>
+                <TouchableOpacity 
+                  style={styles.scriptToggle}
+                  onPress={() => setShowScript(!showScript)}
+                >
+                  <Text style={styles.scriptToggleText}>
+                    {lang === "zh" ? "查看冥想腳本" : "View Script"}
+                  </Text>
+                  {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
+                </TouchableOpacity>
+                
+                {canSpeak && (
+                  <TouchableOpacity
+                    style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
+                    onPress={() => {
+                      if (isSpeaking) {
+                        stopSpeaking();
+                      } else {
+                        startSpeaking();
+                      }
+                    }}
+                  >
+                    <Volume size={16} color="#FFFFFF" />
+                    <Text style={styles.speakButtonText}>
+                      {isSpeaking 
+                        ? (lang === "zh" ? "停止朗讀" : "Stop")
+                        : (lang === "zh" ? "AI朗讀" : "AI Read")
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
 
@@ -521,16 +615,40 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center" as const,
   },
-  scriptToggle: {
+  scriptControls: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "center" as const,
     marginTop: 16,
+    gap: 12,
+  },
+  scriptToggle: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 20,
     gap: 8,
+  },
+  speakButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(139, 92, 246, 0.3)",
+    borderRadius: 20,
+    gap: 6,
+  },
+  speakButtonActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
+  },
+  speakButtonText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600" as const,
   },
   scriptToggleText: {
     fontSize: 14,
