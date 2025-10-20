@@ -11,12 +11,13 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from "react-native";
-import { Send, Bot, User, Sparkles, PlayCircle, Mic, StopCircle } from "lucide-react-native";
+import { Send, Bot, User, Sparkles, PlayCircle, Save } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
-import { Audio } from "expo-av";
+import { useMeditation } from "@/providers/MeditationProvider";
+
 
 interface Message {
   id: string;
@@ -68,6 +69,7 @@ const TRANSLATIONS = {
 export default function AssistantScreen() {
   const router = useRouter();
   const { currentTheme, settings } = useSettings();
+  const { addCustomMeditation } = useMeditation();
   const language = settings.language as Language;
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -79,9 +81,9 @@ export default function AssistantScreen() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastAIResponse, setLastAIResponse] = useState<string | null>(null);
+
   const scrollViewRef = useRef<ScrollView>(null);
   const t = TRANSLATIONS[language];
 
@@ -168,6 +170,7 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      setLastAIResponse(data.completion);
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
@@ -186,130 +189,177 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
     setInputText(prompt);
   };
 
-  const startRecording = async () => {
+  const handleGenerateMeditation = async () => {
+    if (isLoading || isSaving) return;
+
+    setIsLoading(true);
+    setLastAIResponse(null);
+
+    const userPrompt = language === "zh" 
+      ? "根據我的需求設計一個冥想練習" 
+      : "Create a meditation practice based on my needs";
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: userPrompt,
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+
     try {
-      console.log("Requesting audio permissions...");
-      const { status } = await Audio.requestPermissionsAsync();
-      
-      if (status !== "granted") {
-        console.log("Audio permission denied");
-        return;
-      }
+      const systemPrompt = language === "zh"
+        ? `你是一個專業的冥想指導AI。請創建一個完整的冥想練習，包括：
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+1. 標題（簡短且吸引人）
+2. 描述（2-3句話說明這個冥想的好處）
+3. 時長（建議的分鐘數：5-30分鐘）
+4. 類別（mindfulness/sleep/anxiety/focus/gratitude/spiritual）
+5. 完整的冥想引導腳本（詳細的步驟和引導詞）
 
-      console.log("Starting recording...");
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync({
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".wav",
-          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: "audio/webm",
-          bitsPerSecond: 128000,
-        },
-      });
+請以JSON格式回應，格式如下：
+{
+  "title": "冥想標題",
+  "description": "冥想描述",
+  "duration": 10,
+  "category": "mindfulness",
+  "script": "詳細的冥想引導腳本..."
+}
 
-      await recording.startAsync();
-      recordingRef.current = recording;
-      setIsRecording(true);
-      console.log("Recording started");
-    } catch (error) {
-      console.error("Failed to start recording:", error);
-    }
-  };
+根據前面的對話內容創建適合用戶的冥想練習。只回應JSON，不要其他內容。`
+        : `You are a professional meditation guide AI. Please create a complete meditation practice including:
 
-  const stopRecording = async () => {
-    try {
-      if (!recordingRef.current) return;
+1. Title (short and engaging)
+2. Description (2-3 sentences about benefits)
+3. Duration (suggested minutes: 5-30)
+4. Category (mindfulness/sleep/anxiety/focus/gratitude/spiritual)
+5. Complete meditation script (detailed steps and guidance)
 
-      console.log("Stopping recording...");
-      setIsRecording(false);
-      await recordingRef.current.stopAndUnloadAsync();
-      
-      if (Platform.OS !== "web") {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-        });
-      }
+Respond in JSON format:
+{
+  "title": "Meditation Title",
+  "description": "Meditation description",
+  "duration": 10,
+  "category": "mindfulness",
+  "script": "Detailed meditation script..."
+}
 
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+Create a meditation suitable for the user based on previous conversation. Only respond with JSON, nothing else.`;
 
-      if (!uri) {
-        console.error("No recording URI");
-        return;
-      }
-
-      console.log("Recording stopped, URI:", uri);
-      await transcribeAudio(uri);
-    } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setIsRecording(false);
-    }
-  };
-
-  const transcribeAudio = async (uri: string) => {
-    try {
-      setIsTranscribing(true);
-      console.log("Transcribing audio...");
-
-      const formData = new FormData();
-      
-      const uriParts = uri.split(".");
-      const fileType = uriParts[uriParts.length - 1];
-
-      if (Platform.OS === "web") {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        formData.append("audio", blob, `recording.${fileType}`);
-      } else {
-        const audioFile = {
-          uri,
-          name: `recording.${fileType}`,
-          type: `audio/${fileType}`,
-        } as any;
-        formData.append("audio", audioFile);
-      }
-
-      formData.append("language", language === "zh" ? "zh" : "en");
-
-      const response = await fetch("https://toolkit.rork.com/stt/transcribe/", {
+      const response = await fetch("https://toolkit.rork.com/text/llm/", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt,
+            },
+            ...messages.slice(1).map((msg) => ({
+              role: msg.isUser ? "user" : "assistant",
+              content: msg.text,
+            })),
+          ],
+        }),
       });
 
       const data = await response.json();
-      console.log("Transcription result:", data);
-
-      if (data.text) {
-        setInputText(data.text);
+      let meditationData;
+      
+      try {
+        const jsonMatch = data.completion.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          meditationData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found");
+        }
+      } catch (parseError) {
+        console.error("Error parsing meditation data:", parseError);
+        throw new Error("Failed to generate meditation");
       }
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: language === "zh"
+          ? `我為你設計了一個冥想練習：\n\n**${meditationData.title}**\n\n${meditationData.description}\n\n時長：${meditationData.duration}分鐘\n\n點擊下方按鈕保存到你的冥想庫。`
+          : `I've created a meditation practice for you:\n\n**${meditationData.title}**\n\n${meditationData.description}\n\nDuration: ${meditationData.duration} minutes\n\nClick the button below to save it to your library.`,
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+      setLastAIResponse(JSON.stringify(meditationData));
     } catch (error) {
-      console.error("Failed to transcribe audio:", error);
+      console.error("Error generating meditation:", error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: t.error,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsTranscribing(false);
+      setIsLoading(false);
     }
   };
+
+  const handleSaveMeditation = async () => {
+    if (!lastAIResponse || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const meditationData = JSON.parse(lastAIResponse);
+      
+      const gradients = [
+        ["#FF6B6B", "#FF8E53"],
+        ["#667EEA", "#764BA2"],
+        ["#4FACFE", "#00F2FE"],
+        ["#43E97B", "#38F9D7"],
+        ["#FA709A", "#FEE140"],
+      ];
+      const randomGradient = gradients[Math.floor(Math.random() * gradients.length)];
+
+      await addCustomMeditation({
+        title: meditationData.title,
+        titleZh: meditationData.title,
+        description: meditationData.description,
+        descriptionZh: meditationData.description,
+        duration: meditationData.duration,
+        script: meditationData.script,
+        scriptZh: meditationData.script,
+        category: meditationData.category,
+        gradient: randomGradient,
+      });
+
+      const successMessage: Message = {
+        id: Date.now().toString(),
+        text: language === "zh"
+          ? "✓ 冥想練習已保存到你的冥想庫！你可以在「冥想」頁面找到它。"
+          : "✓ Meditation saved to your library! You can find it in the Meditate tab.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, successMessage]);
+      setLastAIResponse(null);
+    } catch (error) {
+      console.error("Error saving meditation:", error);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: language === "zh" ? "保存失敗，請重試" : "Failed to save, please try again",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -385,10 +435,40 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
               </Text>
             </View>
           )}
+          {lastAIResponse && (
+            <View style={styles.saveButtonContainer}>
+              <TouchableOpacity
+                style={[styles.saveMeditationButton, { backgroundColor: currentTheme.primary }]}
+                onPress={handleSaveMeditation}
+                disabled={isSaving}
+              >
+                <Save color="#FFFFFF" size={20} />
+                <Text style={styles.saveMeditationText}>
+                  {isSaving
+                    ? (language === "zh" ? "保存中..." : "Saving...")
+                    : (language === "zh" ? "保存到冥想庫" : "Save to Library")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
 
         {(messages.length === 1 || messages.filter(m => m.isUser).length === 0) && (
           <>
+            <View style={[styles.createMeditationContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
+              <TouchableOpacity
+                style={[styles.createMeditationButton, { backgroundColor: currentTheme.primary }]}
+                onPress={handleGenerateMeditation}
+                disabled={isLoading}
+              >
+                <Sparkles color="#FFFFFF" size={20} />
+                <Text style={styles.createMeditationText}>
+                  {language === "zh" ? "AI 設計專屬冥想" : "AI Create Custom Meditation"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            
             <View style={[styles.guidedMeditationsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
               <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
                 {t.guidedMeditations}
@@ -416,7 +496,6 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
                 ))}
               </ScrollView>
             </View>
-
 
           <View style={[styles.promptsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
             <Text style={[styles.promptsTitle, { color: currentTheme.textSecondary }]}>
@@ -448,34 +527,20 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
             style={[styles.input, { backgroundColor: currentTheme.background, color: currentTheme.text }]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={isTranscribing ? (language === "zh" ? "正在轉錄..." : "Transcribing...") : t.inputPlaceholder}
+            placeholder={t.inputPlaceholder}
             placeholderTextColor={currentTheme.textSecondary}
             multiline
             maxLength={500}
-            editable={!isLoading && !isRecording && !isTranscribing}
+            editable={!isLoading}
           />
-          <TouchableOpacity
-            style={[
-              styles.voiceButton,
-              { backgroundColor: isRecording ? "#EF4444" : currentTheme.background },
-            ]}
-            onPress={isRecording ? stopRecording : startRecording}
-            disabled={isLoading || isTranscribing}
-          >
-            {isRecording ? (
-              <StopCircle color="#FFFFFF" size={20} />
-            ) : (
-              <Mic color={currentTheme.primary} size={20} />
-            )}
-          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.sendButton,
               { backgroundColor: currentTheme.primary },
-              (!inputText.trim() || isLoading || isRecording || isTranscribing) && styles.sendButtonDisabled,
+              (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
             ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isLoading || isRecording || isTranscribing}
+            disabled={!inputText.trim() || isLoading}
           >
             <Send color="#FFFFFF" size={20} />
           </TouchableOpacity>
@@ -649,14 +714,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     marginRight: 8,
   },
-  voiceButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
+
   sendButton: {
     width: 40,
     height: 40,
@@ -705,5 +763,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
+  },
+  createMeditationContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  createMeditationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B5CF6",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  createMeditationText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  saveButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  saveMeditationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#10B981",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  saveMeditationText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

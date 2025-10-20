@@ -17,17 +17,31 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { SOUND_EFFECTS } from "@/constants/soundEffects";
-import { useMeditation } from "@/providers/MeditationProvider";
+import { useMeditation, CustomMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
 export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
-  const session = MEDITATION_SESSIONS.find(s => s.id === id);
-  const { completeMeditation } = useMeditation();
+  const { completeMeditation, customMeditations } = useMeditation();
   const { settings } = useSettings();
   const lang = settings.language;
+
+  const customSession = customMeditations.find(c => c.id === id);
+  const presetSession = MEDITATION_SESSIONS.find(s => s.id === id);
+  
+  const session = customSession 
+    ? {
+        id: customSession.id,
+        title: customSession.title,
+        titleZh: customSession.titleZh,
+        description: customSession.description,
+        descriptionZh: customSession.descriptionZh,
+        duration: customSession.duration,
+        gradient: customSession.gradient,
+      }
+    : presetSession;
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);

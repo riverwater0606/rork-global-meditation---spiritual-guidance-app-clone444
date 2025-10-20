@@ -25,6 +25,20 @@ interface DailyAffirmation {
   date: string;
 }
 
+export interface CustomMeditation {
+  id: string;
+  title: string;
+  titleZh: string;
+  description: string;
+  descriptionZh: string;
+  duration: number;
+  script: string;
+  scriptZh: string;
+  category: string;
+  createdAt: string;
+  gradient: string[];
+}
+
 const INITIAL_STATS: MeditationStats = {
   totalSessions: 0,
   totalMinutes: 0,
@@ -69,11 +83,13 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
   const [dailyAffirmation, setDailyAffirmation] = useState<DailyAffirmation | null>(null);
   const [isGeneratingAffirmation, setIsGeneratingAffirmation] = useState<boolean>(false);
+  const [customMeditations, setCustomMeditations] = useState<CustomMeditation[]>([]);
 
   const loadStats = useCallback(async () => {
     try {
       const savedStats = await AsyncStorage.getItem("meditationStats");
       const savedAchievements = await AsyncStorage.getItem("achievements");
+      const savedCustomMeditations = await AsyncStorage.getItem("customMeditations");
       
       if (savedStats) {
         const parsed = JSON.parse(savedStats);
@@ -83,6 +99,10 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       
       if (savedAchievements) {
         setAchievements(JSON.parse(savedAchievements));
+      }
+
+      if (savedCustomMeditations) {
+        setCustomMeditations(JSON.parse(savedCustomMeditations));
       }
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -256,6 +276,28 @@ Respond with ONLY the affirmation text, nothing else.`;
     void loadOrGenerateAffirmation(language);
   }, [loadOrGenerateAffirmation]);
 
+  const addCustomMeditation = useCallback(async (meditation: Omit<CustomMeditation, "id" | "createdAt">) => {
+    const newMeditation: CustomMeditation = {
+      ...meditation,
+      id: `custom-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newMeditation, ...customMeditations];
+    setCustomMeditations(updated);
+    await AsyncStorage.setItem("customMeditations", JSON.stringify(updated));
+    
+    console.log("Custom meditation added:", newMeditation.title);
+    return newMeditation;
+  }, [customMeditations]);
+
+  const deleteCustomMeditation = useCallback(async (id: string) => {
+    const updated = customMeditations.filter(m => m.id !== id);
+    setCustomMeditations(updated);
+    await AsyncStorage.setItem("customMeditations", JSON.stringify(updated));
+    console.log("Custom meditation deleted:", id);
+  }, [customMeditations]);
+
   return useMemo(
     () => ({
       stats,
@@ -265,7 +307,10 @@ Respond with ONLY the affirmation text, nothing else.`;
       isGeneratingAffirmation,
       refreshAffirmation: generateDailyAffirmation,
       initializeAffirmation,
+      customMeditations,
+      addCustomMeditation,
+      deleteCustomMeditation,
     }),
-    [stats, achievements, completeMeditation, dailyAffirmation, isGeneratingAffirmation, generateDailyAffirmation, initializeAffirmation]
+    [stats, achievements, completeMeditation, dailyAffirmation, isGeneratingAffirmation, generateDailyAffirmation, initializeAffirmation, customMeditations, addCustomMeditation, deleteCustomMeditation]
   );
 });
