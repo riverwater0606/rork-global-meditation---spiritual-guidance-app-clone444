@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp, Volume } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
+import * as Speech from "expo-speech";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { SOUND_EFFECTS } from "@/constants/soundEffects";
 import { useMeditation } from "@/providers/MeditationProvider";
@@ -50,12 +51,12 @@ export default function MeditationPlayerScreen() {
   const [soundVolume, setSoundVolume] = useState<number>(0.5);
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
-  const [isAutoReading, setIsAutoReading] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
-  const autoReadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const speechRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -70,9 +71,7 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      if (autoReadTimerRef.current) {
-        clearInterval(autoReadTimerRef.current);
-      }
+      stopSpeaking();
     };
   }, []);
 
@@ -227,41 +226,78 @@ export default function MeditationPlayerScreen() {
     return sentences.map(s => s.trim()).filter(s => s.length > 0);
   };
 
-  const startAutoReading = () => {
+  const startSpeaking = async () => {
     if (!customSession?.script) return;
     
     const text = lang === "zh" ? customSession.scriptZh : customSession.script;
     const sentences = splitIntoSentences(text);
     
-    setIsAutoReading(true);
+    setIsSpeaking(true);
     setCurrentSentenceIndex(0);
     setShowScript(true);
     
-    let index = 0;
-    autoReadTimerRef.current = setInterval(() => {
-      index++;
-      if (index >= sentences.length) {
-        setIsAutoReading(false);
-        setCurrentSentenceIndex(0);
-        if (autoReadTimerRef.current) {
-          clearInterval(autoReadTimerRef.current);
-        }
-      } else {
-        setCurrentSentenceIndex(index);
-      }
-    }, 5000);
+    console.log("[TTS] Starting speech with", sentences.length, "sentences");
+    console.log("[TTS] Language:", lang);
     
-    console.log("[Auto Reading] Started with", sentences.length, "sentences");
+    const speakSentences = async (index: number) => {
+      if (index >= sentences.length) {
+        console.log("[TTS] All sentences completed");
+        setIsSpeaking(false);
+        setCurrentSentenceIndex(0);
+        speechRef.current = null;
+        return;
+      }
+
+      setCurrentSentenceIndex(index);
+      const sentence = sentences[index];
+      console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
+      
+      try {
+        await Speech.speak(sentence, {
+          language: lang === "zh" ? "zh-TW" : "en-US",
+          pitch: 0.95,
+          rate: 0.75,
+          onDone: () => {
+            console.log(`[TTS] Sentence ${index + 1} completed`);
+            speakSentences(index + 1);
+          },
+          onError: (error) => {
+            console.error(`[TTS] Error speaking sentence ${index + 1}:`, error);
+            setIsSpeaking(false);
+            setCurrentSentenceIndex(0);
+            speechRef.current = null;
+          },
+        });
+      } catch (error) {
+        console.error("[TTS] Speak error:", error);
+        setIsSpeaking(false);
+        setCurrentSentenceIndex(0);
+        speechRef.current = null;
+      }
+    };
+    
+    speechRef.current = {
+      stop: () => {
+        console.log("[TTS] Stopping speech");
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentSentenceIndex(0);
+        speechRef.current = null;
+      },
+    };
+    
+    await speakSentences(0);
   };
 
-  const stopAutoReading = () => {
-    setIsAutoReading(false);
-    setCurrentSentenceIndex(0);
-    if (autoReadTimerRef.current) {
-      clearInterval(autoReadTimerRef.current);
-      autoReadTimerRef.current = null;
+  const stopSpeaking = () => {
+    if (speechRef.current) {
+      speechRef.current.stop();
+    } else {
+      Speech.stop();
+      setIsSpeaking(false);
+      setCurrentSentenceIndex(0);
     }
-    console.log("[Auto Reading] Stopped");
+    console.log("[TTS] Speech stopped");
   };
 
   if (!session) {
@@ -334,7 +370,7 @@ export default function MeditationPlayerScreen() {
             {/* Script Preview Toggle & Auto Reading Controls */}
             {customSession?.script && (
               <View style={styles.scriptControls}>
-                {!isAutoReading && (
+                {!isSpeaking && (
                   <TouchableOpacity 
                     style={styles.scriptToggle}
                     onPress={() => setShowScript(!showScript)}
@@ -347,20 +383,20 @@ export default function MeditationPlayerScreen() {
                 )}
                 
                 <TouchableOpacity
-                  style={[styles.speakButton, isAutoReading && styles.speakButtonActive]}
+                  style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                   onPress={() => {
-                    if (isAutoReading) {
-                      stopAutoReading();
+                    if (isSpeaking) {
+                      stopSpeaking();
                     } else {
-                      startAutoReading();
+                      startSpeaking();
                     }
                   }}
                 >
                   <Volume size={16} color="#FFFFFF" />
                   <Text style={styles.speakButtonText}>
-                    {isAutoReading 
-                      ? (lang === "zh" ? "停止自動閱讀" : "Stop Auto Read")
-                      : (lang === "zh" ? "開始自動閱讀" : "Start Auto Read")
+                    {isSpeaking 
+                      ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
+                      : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
                     }
                   </Text>
                 </TouchableOpacity>
@@ -372,7 +408,7 @@ export default function MeditationPlayerScreen() {
           {showScript && customSession?.script && (
             <ScrollView style={styles.scriptContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.scriptContent}>
-                {isAutoReading ? (
+                {isSpeaking ? (
                   splitIntoSentences(lang === "zh" ? customSession.scriptZh : customSession.script).map((sentence, idx) => (
                     <Text 
                       key={idx}
