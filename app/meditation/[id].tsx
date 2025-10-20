@@ -341,17 +341,18 @@ export default function MeditationPlayerScreen() {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          interruptionModeIOS: 1,
-          interruptionModeAndroid: 1,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: false,
+          playThroughEarpieceAndroid: false,
+          interruptionModeIOS: 2,
+          interruptionModeAndroid: 2,
         });
 
         console.log("[TTS Mobile] Creating sound object...");
         const { sound } = await Audio.Sound.createAsync(
           { uri: `data:audio/mp3;base64,${audioBase64}` },
           { 
-            shouldPlay: true, 
+            shouldPlay: false, 
             volume: 1.0,
             isLooping: false,
           },
@@ -384,15 +385,23 @@ export default function MeditationPlayerScreen() {
 
         ttsAudioRef.current = sound;
         
+        console.log("[TTS Mobile] Waiting for sound to load...");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        
         const status = await sound.getStatusAsync();
         console.log("[TTS Mobile] Initial status:", status);
         
-        if (status.isLoaded && !status.isPlaying) {
-          console.log("[TTS Mobile] Sound not playing, manually starting...");
+        if (status.isLoaded) {
+          console.log("[TTS Mobile] Starting playback...");
+          await sound.setVolumeAsync(1.0);
           await sound.playAsync();
           console.log("[TTS Mobile] Play command sent");
-        } else if (status.isLoaded && status.isPlaying) {
-          console.log("[TTS Mobile] Audio is playing successfully");
+          
+          const playingStatus = await sound.getStatusAsync();
+          console.log("[TTS Mobile] Playback status:", {
+            isPlaying: playingStatus.isLoaded ? playingStatus.isPlaying : false,
+            volume: playingStatus.isLoaded ? playingStatus.volume : 0,
+          });
         }
       }
     } catch (error) {
