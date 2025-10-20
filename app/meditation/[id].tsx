@@ -259,6 +259,7 @@ export default function MeditationPlayerScreen() {
       const data = await response.json();
       console.log("[TTS] Audio URL received:", data.audioUrl);
       
+      console.log("[TTS] Setting audio mode for TTS playback");
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -266,6 +267,7 @@ export default function MeditationPlayerScreen() {
         shouldDuckAndroid: false,
         interruptionModeIOS: 2,
         interruptionModeAndroid: 2,
+        playThroughEarpieceAndroid: false,
       });
       
       if (ttsAudioRef.current) {
@@ -274,11 +276,15 @@ export default function MeditationPlayerScreen() {
       }
       
       console.log("[TTS] Loading audio...");
+      console.log("[TTS] Audio URL to load:", data.audioUrl);
+      
       const { sound: ttsSound } = await Audio.Sound.createAsync(
         { uri: data.audioUrl },
         { 
-          shouldPlay: true, 
+          shouldPlay: false,
           volume: 1.0,
+          rate: 1.0,
+          shouldCorrectPitch: true,
         },
         (status) => {
           if (status.isLoaded) {
@@ -305,9 +311,19 @@ export default function MeditationPlayerScreen() {
       );
       
       ttsAudioRef.current = ttsSound;
-      setIsSpeaking(true);
       
-      console.log("[TTS] Audio playback started");
+      const status = await ttsSound.getStatusAsync();
+      console.log("[TTS] Audio loaded, status:", status);
+      
+      if (status.isLoaded) {
+        console.log("[TTS] Starting playback...");
+        await ttsSound.playAsync();
+        setIsSpeaking(true);
+        console.log("[TTS] Playback started successfully");
+      } else {
+        console.error("[TTS] Audio not loaded properly");
+        throw new Error("Audio not loaded");
+      }
     } catch (error) {
       console.error("[TTS] Error:", error);
       setIsSpeaking(false);
