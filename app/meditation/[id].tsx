@@ -9,10 +9,11 @@ import {
   Platform,
   ScrollView,
   Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2, VolumeX, Music } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
@@ -48,6 +49,8 @@ export default function MeditationPlayerScreen() {
   const [showSoundPicker, setShowSoundPicker] = useState<boolean>(false);
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [soundVolume, setSoundVolume] = useState<number>(0.5);
+  const [showScript, setShowScript] = useState<boolean>(false);
+  const [currentPhase, setCurrentPhase] = useState<string>("");
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -91,7 +94,9 @@ export default function MeditationPlayerScreen() {
             completeMeditation(session?.id || "", session?.duration || 10);
             return 0;
           }
-          return prev - 1;
+          const newTime = prev - 1;
+          updatePhase(newTime);
+          return newTime;
         });
       }, 1000);
 
@@ -101,6 +106,26 @@ export default function MeditationPlayerScreen() {
       };
     }
   }, [isPlaying, session]);
+
+  const updatePhase = (remainingSeconds: number) => {
+    if (!session) return;
+    
+    const totalDuration = session.duration * 60;
+    const elapsed = totalDuration - remainingSeconds;
+    const progress = elapsed / totalDuration;
+
+    if (progress < 0.15) {
+      setCurrentPhase(lang === "zh" ? "開始階段 - 放鬆身心" : "Beginning - Relax Your Body");
+    } else if (progress < 0.4) {
+      setCurrentPhase(lang === "zh" ? "呼吸覺知 - 專注呼吸" : "Breath Awareness - Focus on Breathing");
+    } else if (progress < 0.7) {
+      setCurrentPhase(lang === "zh" ? "深度冥想 - 覺察當下" : "Deep Meditation - Present Moment Awareness");
+    } else if (progress < 0.9) {
+      setCurrentPhase(lang === "zh" ? "整合階段 - 感受平靜" : "Integration - Feel the Peace");
+    } else {
+      setCurrentPhase(lang === "zh" ? "結束階段 - 緩慢甦醒" : "Closing - Gently Awaken");
+    }
+  };
 
   useEffect(() => {
     if (selectedSound && isPlaying) {
@@ -237,12 +262,17 @@ export default function MeditationPlayerScreen() {
                 <View style={styles.innerCircle}>
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   {isPlaying && (
-                    <Text style={styles.breathText}>
-                      {lang === "zh" 
-                        ? (Math.floor(timeRemaining % 8) < 4 ? "吸氣" : "呼氣")
-                        : (Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out")
-                      }
-                    </Text>
+                    <>
+                      <Text style={styles.breathText}>
+                        {lang === "zh" 
+                          ? (Math.floor(timeRemaining % 8) < 4 ? "吸氣" : "呼氣")
+                          : (Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out")
+                        }
+                      </Text>
+                      {currentPhase && (
+                        <Text style={styles.phaseText}>{currentPhase}</Text>
+                      )}
+                    </>
                   )}
                 </View>
               </Animated.View>
@@ -251,7 +281,31 @@ export default function MeditationPlayerScreen() {
             <Text style={styles.description}>
               {lang === "zh" ? session.descriptionZh : session.description}
             </Text>
+
+            {/* Script Preview Toggle */}
+            {customSession?.script && (
+              <TouchableOpacity 
+                style={styles.scriptToggle}
+                onPress={() => setShowScript(!showScript)}
+              >
+                <Text style={styles.scriptToggleText}>
+                  {lang === "zh" ? "查看冥想腳本" : "View Script"}
+                </Text>
+                {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Script Content */}
+          {showScript && customSession?.script && (
+            <ScrollView style={styles.scriptContainer} showsVerticalScrollIndicator={false}>
+              <View style={styles.scriptContent}>
+                <Text style={styles.scriptText}>
+                  {lang === "zh" ? customSession.scriptZh : customSession.script}
+                </Text>
+              </View>
+            </ScrollView>
+          )}
 
           {/* Sound Effects Section */}
           {selectedSound && (
@@ -460,6 +514,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#E0E7FF",
     marginTop: 8,
+  },
+  phaseText: {
+    fontSize: 13,
+    color: "rgba(224, 231, 255, 0.8)",
+    marginTop: 6,
+    textAlign: "center" as const,
+  },
+  scriptToggle: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 20,
+    gap: 8,
+  },
+  scriptToggleText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600" as const,
+  },
+  scriptContainer: {
+    maxHeight: 150,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 16,
+    padding: 16,
+  },
+  scriptContent: {
+    paddingBottom: 8,
+  },
+  scriptText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: "#E0E7FF",
   },
   description: {
     fontSize: 16,

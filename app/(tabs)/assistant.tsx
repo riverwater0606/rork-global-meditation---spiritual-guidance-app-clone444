@@ -212,39 +212,123 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
 
     try {
       const systemPrompt = language === "zh"
-        ? `你是一個專業的冥想指導AI。請創建一個完整的冥想練習，包括：
+        ? `你是一個專業的冥想指導AI。請創建一個完整且豐富的冥想練習，包括：
 
-1. 標題（簡短且吸引人）
-2. 描述（2-3句話說明這個冥想的好處）
+1. 標題（簡短且吸引人，中文）
+2. 描述（2-3句話說明這個冥想的好處和適用場景，中文）
 3. 時長（建議的分鐘數：5-30分鐘）
 4. 類別（mindfulness/sleep/anxiety/focus/gratitude/spiritual）
-5. 完整的冥想引導腳本（詳細的步驟和引導詞）
+5. 完整的冥想引導腳本（必須包含以下5個階段的詳細引導）：
 
-請以JSON格式回應，格式如下：
+**冥想腳本結構要求：**
+
+第一階段 - 開始（約15%時間）：
+- 歡迎詞和冥想目的介紹
+- 引導找到舒適的坐姿或躺姿
+- 輕柔地閉上眼睛
+- 初步的身體放鬆引導
+
+第二階段 - 呼吸覺知（約25%時間）：
+- 引導注意力轉向呼吸
+- 深呼吸練習（吸氣4秒，保持2秒，呼氣6秒）
+- 觀察呼吸的自然節奏
+- 用呼吸讓身體更加放鬆
+
+第三階段 - 深度冥想核心練習（約40%時間）：
+- 根據類別進行專門的引導
+  - mindfulness: 身體掃描、當下覺知
+  - sleep: 漸進式肌肉放鬆、視覺化平靜場景
+  - anxiety: 釋放緊張、安全感建立
+  - focus: 集中注意力、心智清明
+  - gratitude: 感恩冥想、正向情緒培養
+  - spiritual: 內在連結、更高意識探索
+
+第四階段 - 整合（約15%時間）：
+- 回顧冥想體驗
+- 感受身心的變化
+- 深化平靜和放鬆的感覺
+- 設定正面意圖
+
+第五階段 - 結束（約5%時間）：
+- 緩慢地深呼吸幾次
+- 輕輕動動手指和腳趾
+- 準備好後慢慢睜開眼睛
+- 結束語和鼓勵
+
+**腳本語言要求：**
+- 使用溫暖、平和、引導性的語氣
+- 每個階段要有清晰的轉換提示
+- 包含具體的時間提示（如「深吸一口氣...保持...慢慢呼出...」）
+- 使用第二人稱（你）來建立連結
+- 腳本長度應至少800-1200字，內容豐富詳細
+
+請以JSON格式回應：
 {
   "title": "冥想標題",
-  "description": "冥想描述",
+  "description": "冥想描述（2-3句話）",
   "duration": 10,
   "category": "mindfulness",
-  "script": "詳細的冥想引導腳本..."
+  "script": "第一階段 - 開始\n\n歡迎來到...（完整的多階段引導腳本，包含所有5個階段的詳細內容）"
 }
 
 根據前面的對話內容創建適合用戶的冥想練習。只回應JSON，不要其他內容。`
-        : `You are a professional meditation guide AI. Please create a complete meditation practice including:
+        : `You are a professional meditation guide AI. Please create a complete and rich meditation practice including:
 
-1. Title (short and engaging)
-2. Description (2-3 sentences about benefits)
+1. Title (short and engaging, in English)
+2. Description (2-3 sentences about benefits and use cases, in English)
 3. Duration (suggested minutes: 5-30)
 4. Category (mindfulness/sleep/anxiety/focus/gratitude/spiritual)
-5. Complete meditation script (detailed steps and guidance)
+5. Complete meditation guidance script (MUST include all 5 phases with detailed guidance):
+
+**Script Structure Requirements:**
+
+Phase 1 - Beginning (approx. 15% of time):
+- Welcome and meditation purpose introduction
+- Guide to find comfortable sitting or lying position
+- Gently close eyes
+- Initial body relaxation guidance
+
+Phase 2 - Breath Awareness (approx. 25% of time):
+- Direct attention to breathing
+- Deep breathing exercise (inhale 4 sec, hold 2 sec, exhale 6 sec)
+- Observe natural breath rhythm
+- Use breath to deepen relaxation
+
+Phase 3 - Deep Meditation Core Practice (approx. 40% of time):
+- Category-specific guidance:
+  - mindfulness: body scan, present moment awareness
+  - sleep: progressive muscle relaxation, peaceful scene visualization
+  - anxiety: tension release, safety establishment
+  - focus: concentration, mental clarity
+  - gratitude: gratitude meditation, positive emotion cultivation
+  - spiritual: inner connection, higher consciousness exploration
+
+Phase 4 - Integration (approx. 15% of time):
+- Review meditation experience
+- Notice mind-body changes
+- Deepen peace and relaxation
+- Set positive intentions
+
+Phase 5 - Closing (approx. 5% of time):
+- Take several slow deep breaths
+- Gently wiggle fingers and toes
+- Slowly open eyes when ready
+- Closing words and encouragement
+
+**Script Language Requirements:**
+- Use warm, peaceful, guiding tone
+- Clear transition cues between phases
+- Include specific timing cues (e.g., "Take a deep breath in... hold... slowly release...")
+- Use second person (you) to build connection
+- Script should be at least 800-1200 words with rich, detailed content
 
 Respond in JSON format:
 {
   "title": "Meditation Title",
-  "description": "Meditation description",
+  "description": "Meditation description (2-3 sentences)",
   "duration": 10,
   "category": "mindfulness",
-  "script": "Detailed meditation script..."
+  "script": "Phase 1 - Beginning\n\nWelcome to...（complete multi-phase guidance script with all 5 phases in detail）"
 }
 
 Create a meditation suitable for the user based on previous conversation. Only respond with JSON, nothing else.`;
