@@ -194,8 +194,12 @@ export default function HomeScreen() {
               >
                 <View style={styles.sessionContent}>
                   <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionTitle}>{session.title}</Text>
-                    <Text style={styles.sessionDuration}>{session.duration} min</Text>
+                    <Text style={styles.sessionTitle}>
+                      {lang === "zh" ? session.titleZh : session.title}
+                    </Text>
+                    <Text style={styles.sessionDuration}>
+                      {session.duration} {lang === "zh" ? "分鐘" : "min"}
+                    </Text>
                   </View>
                   <Play size={20} color="#FFFFFF" />
                 </View>
