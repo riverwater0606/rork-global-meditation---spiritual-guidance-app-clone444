@@ -106,15 +106,20 @@ export default function MeditationPlayerScreen() {
     try {
       const sound = SOUND_EFFECTS.find(s => s.id === soundId);
       if (!sound) {
-        console.log("Sound not found:", soundId);
+        console.error("Sound not found:", soundId);
         return;
       }
 
-      console.log("Playing sound:", sound.name, sound.url);
+      console.log("[Audio] Attempting to play:", sound.name);
+      console.log("[Audio] URL:", sound.url);
 
       if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        } catch (e) {
+          console.log("[Audio] Error cleaning up previous sound:", e);
+        }
         soundRef.current = null;
       }
 
@@ -123,25 +128,45 @@ export default function MeditationPlayerScreen() {
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
         shouldDuckAndroid: true,
+        interruptionModeIOS: 1,
+        interruptionModeAndroid: 1,
       });
 
-      console.log("Loading sound from URL:", sound.url);
+      console.log("[Audio] Creating sound object...");
       const { sound: audioSound } = await Audio.Sound.createAsync(
         { uri: sound.url },
-        { shouldPlay: true, isLooping: true, volume: soundVolume },
+        { 
+          shouldPlay: true, 
+          isLooping: true, 
+          volume: soundVolume,
+        },
         (status) => {
           if (status.isLoaded) {
-            console.log("Sound loaded successfully");
-          } else if (status.error) {
-            console.log("Sound error:", status.error);
+            console.log("[Audio] Sound loaded and playing", {
+              isPlaying: status.isPlaying,
+              positionMillis: status.positionMillis,
+              durationMillis: status.durationMillis,
+            });
+          }
+          if ('error' in status && status.error) {
+            console.error("[Audio] Playback error:", status.error);
           }
         }
       );
 
       soundRef.current = audioSound;
-      console.log("Sound playing");
+      
+      const status = await audioSound.getStatusAsync();
+      console.log("[Audio] Current status:", status);
+      
+      if (status.isLoaded && !status.isPlaying) {
+        console.log("[Audio] Sound not playing, attempting to start...");
+        await audioSound.playAsync();
+      }
+      
+      console.log("[Audio] Setup complete");
     } catch (error) {
-      console.log("Error playing sound:", error);
+      console.error("[Audio] Error in playBackgroundSound:", error);
     }
   };
 
