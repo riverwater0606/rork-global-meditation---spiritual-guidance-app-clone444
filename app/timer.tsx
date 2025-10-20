@@ -13,12 +13,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { X, Play, Pause, RotateCcw, Plus, Minus } from "lucide-react-native";
 import { router } from "expo-router";
 import { useMeditation } from "@/providers/MeditationProvider";
+import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
 const PRESET_TIMES = [5, 10, 15, 20, 30, 45, 60];
 
 export default function TimerScreen() {
+  const { settings } = useSettings();
+  const lang = settings.language;
   const [duration, setDuration] = useState(10);
   const [timeRemaining, setTimeRemaining] = useState(10 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -106,7 +109,9 @@ export default function TimerScreen() {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>Meditation Timer</Text>
+          <Text style={styles.title}>
+            {lang === "zh" ? "冥想計時器" : "Meditation Timer"}
+          </Text>
 
           {/* Timer Display */}
           <Animated.View
@@ -133,7 +138,9 @@ export default function TimerScreen() {
 
               <View style={styles.durationDisplay}>
                 <Text style={styles.durationValue}>{duration}</Text>
-                <Text style={styles.durationLabel}>minutes</Text>
+                <Text style={styles.durationLabel}>
+                  {lang === "zh" ? "分鐘" : "minutes"}
+                </Text>
               </View>
 
               <TouchableOpacity

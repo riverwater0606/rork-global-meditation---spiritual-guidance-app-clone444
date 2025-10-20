@@ -68,15 +68,19 @@ export default function SleepMeditationScreen() {
               >
                 <View style={styles.sessionContent}>
                   <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionTitle}>{session.title}</Text>
+                    <Text style={styles.sessionTitle}>
+                      {lang === "zh" ? session.titleZh : session.title}
+                    </Text>
                     <Text style={styles.sessionDescription}>
-                      {session.description}
+                      {lang === "zh" ? session.descriptionZh : session.description}
                     </Text>
                     <View style={styles.sessionMeta}>
                       <Text style={styles.sessionDuration}>
                         {session.duration} {lang === "zh" ? "分鐘" : "min"}
                       </Text>
-                      <Text style={styles.sessionNarrator}>• {session.narrator}</Text>
+                      <Text style={styles.sessionNarrator}>
+                        • {lang === "zh" ? session.narratorZh : session.narrator}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.playIconContainer}>
