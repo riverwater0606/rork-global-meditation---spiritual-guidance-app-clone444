@@ -33,7 +33,7 @@ export default function TimerScreen() {
   }, [duration]);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+    let interval: number | undefined;
 
     if (isActive && timeRemaining > 0) {
       interval = setInterval(() => {

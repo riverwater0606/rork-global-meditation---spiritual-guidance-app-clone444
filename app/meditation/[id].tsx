@@ -105,24 +105,41 @@ export default function MeditationPlayerScreen() {
   const playBackgroundSound = async (soundId: string) => {
     try {
       const sound = SOUND_EFFECTS.find(s => s.id === soundId);
-      if (!sound) return;
+      if (!sound) {
+        console.log("Sound not found:", soundId);
+        return;
+      }
+
+      console.log("Playing sound:", sound.name, sound.url);
 
       if (soundRef.current) {
+        await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
+        soundRef.current = null;
       }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
+        shouldDuckAndroid: true,
       });
 
+      console.log("Loading sound from URL:", sound.url);
       const { sound: audioSound } = await Audio.Sound.createAsync(
         { uri: sound.url },
-        { shouldPlay: true, isLooping: true, volume: soundVolume }
+        { shouldPlay: true, isLooping: true, volume: soundVolume },
+        (status) => {
+          if (status.isLoaded) {
+            console.log("Sound loaded successfully");
+          } else if (status.error) {
+            console.log("Sound error:", status.error);
+          }
+        }
       );
 
       soundRef.current = audioSound;
+      console.log("Sound playing");
     } catch (error) {
       console.log("Error playing sound:", error);
     }
