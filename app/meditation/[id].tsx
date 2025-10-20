@@ -59,65 +59,6 @@ export default function MeditationPlayerScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
 
 
-  useEffect(() => {
-    Animated.timing(fadeAnimation, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-
-
-
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-      if (Platform.OS === 'web') {
-        window.speechSynthesis?.cancel();
-      } else {
-        Speech.stop();
-      }
-    };
-  }, [fadeAnimation]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      const breathingAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(breathAnimation, {
-            toValue: 1.2,
-            duration: 4000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(breathAnimation, {
-            toValue: 0.8,
-            duration: 4000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      breathingAnimation.start();
-
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            setIsPlaying(false);
-            completeMeditation(session?.id || "", session?.duration || 10);
-            return 0;
-          }
-          const newTime = prev - 1;
-          updatePhase(newTime);
-          return newTime;
-        });
-      }, 1000);
-
-      return () => {
-        clearInterval(timer);
-        breathingAnimation.stop();
-      };
-    }
-  }, [isPlaying, session, breathAnimation, completeMeditation, lang, updatePhase]);
-
   const updatePhase = useCallback((remainingSeconds: number) => {
     if (!session) return;
     
@@ -137,20 +78,6 @@ export default function MeditationPlayerScreen() {
       setCurrentPhase(lang === "zh" ? "結束階段 - 緩慢甦醒" : "Closing - Gently Awaken");
     }
   }, [session, lang]);
-
-  useEffect(() => {
-    if (selectedSound && isPlaying) {
-      playBackgroundSound(selectedSound);
-    } else if (soundRef.current && !isPlaying) {
-      soundRef.current.pauseAsync();
-    }
-  }, [selectedSound, isPlaying, playBackgroundSound]);
-
-  useEffect(() => {
-    if (soundRef.current) {
-      soundRef.current.setVolumeAsync(soundVolume);
-    }
-  }, [soundVolume]);
 
   const playBackgroundSound = useCallback(async (soundId: string) => {
     try {
@@ -217,6 +144,79 @@ export default function MeditationPlayerScreen() {
       console.log("[Audio] Setup complete");
     } catch (error) {
       console.error("[Audio] Error in playBackgroundSound:", error);
+    }
+  }, [soundVolume]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnimation, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+
+
+
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+      if (Platform.OS === 'web') {
+        window.speechSynthesis?.cancel();
+      } else {
+        Speech.stop();
+      }
+    };
+  }, [fadeAnimation]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      const breathingAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, {
+            toValue: 1.2,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(breathAnimation, {
+            toValue: 0.8,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      breathingAnimation.start();
+
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            setIsPlaying(false);
+            completeMeditation(session?.id || "", session?.duration || 10);
+            return 0;
+          }
+          const newTime = prev - 1;
+          updatePhase(newTime);
+          return newTime;
+        });
+      }, 1000);
+
+      return () => {
+        clearInterval(timer);
+        breathingAnimation.stop();
+      };
+    }
+  }, [isPlaying, session, breathAnimation, completeMeditation, lang, updatePhase]);
+
+  useEffect(() => {
+    if (selectedSound && isPlaying) {
+      playBackgroundSound(selectedSound);
+    } else if (soundRef.current && !isPlaying) {
+      soundRef.current.pauseAsync();
+    }
+  }, [selectedSound, isPlaying, playBackgroundSound]);
+
+  useEffect(() => {
+    if (soundRef.current) {
+      soundRef.current.setVolumeAsync(soundVolume);
     }
   }, [soundVolume]);
 
