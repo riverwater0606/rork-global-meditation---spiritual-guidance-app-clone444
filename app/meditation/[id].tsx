@@ -226,15 +226,24 @@ export default function MeditationPlayerScreen() {
   };
 
   const startSpeaking = async () => {
-    if (!customSession?.script) return;
+    if (!customSession?.script) {
+      console.log("[TTS] No script available");
+      return;
+    }
     
     const text = lang === "zh" ? customSession.scriptZh : customSession.script;
+    
+    if (!text) {
+      console.log("[TTS] Script text is empty");
+      return;
+    }
     
     setShowScript(true);
     
     try {
       console.log("[TTS] Starting speech synthesis...");
       console.log("[TTS] Text length:", text.length);
+      console.log("[TTS] Text preview:", text.substring(0, 50));
       console.log("[TTS] Language:", lang);
       console.log("[TTS] Platform:", Platform.OS);
       
@@ -284,6 +293,14 @@ export default function MeditationPlayerScreen() {
         setIsSpeaking(true);
         window.speechSynthesis.speak(utterance);
       } else {
+        const isSpeakingAvailable = await Speech.isSpeakingAsync();
+        console.log("[TTS Mobile] Is currently speaking:", isSpeakingAvailable);
+        
+        if (isSpeakingAvailable) {
+          console.log("[TTS Mobile] Stopping existing speech");
+          await Speech.stop();
+        }
+        
         const voice = lang === "zh" ? "zh-TW" : "en-US";
         
         console.log("[TTS Mobile] Using expo-speech");
@@ -291,12 +308,14 @@ export default function MeditationPlayerScreen() {
         
         setIsSpeaking(true);
         
-        await Speech.speak(text, {
+        Speech.speak(text, {
           language: voice,
           pitch: 1.0,
           rate: 0.85,
+          volume: 1.0,
           onStart: () => {
             console.log("[TTS Mobile] Speech started");
+            setIsSpeaking(true);
           },
           onDone: () => {
             console.log("[TTS Mobile] Speech done");
@@ -543,12 +562,20 @@ export default function MeditationPlayerScreen() {
 
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => {
+              onPress={async () => {
                 if (selectedSound) {
                   if (soundRef.current) {
-                    soundRef.current.unloadAsync();
+                    try {
+                      console.log("[Audio] Stopping and unloading sound");
+                      await soundRef.current.stopAsync();
+                      await soundRef.current.unloadAsync();
+                      soundRef.current = null;
+                    } catch (e) {
+                      console.error("[Audio] Error stopping sound:", e);
+                    }
                   }
                   setSelectedSound(null);
+                  console.log("[Audio] Sound cleared");
                 }
               }}
               disabled={!selectedSound}
