@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp, Volume } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
+import * as Speech from "expo-speech";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { SOUND_EFFECTS } from "@/constants/soundEffects";
 import { useMeditation } from "@/providers/MeditationProvider";
@@ -56,7 +57,7 @@ export default function MeditationPlayerScreen() {
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
-  const ttsAudioRef = useRef<Audio.Sound | null>(null);
+
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -71,11 +72,13 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      if (ttsAudioRef.current) {
-        ttsAudioRef.current.unloadAsync();
+      if (Platform.OS === 'web') {
+        window.speechSynthesis?.cancel();
+      } else {
+        Speech.stop();
       }
     };
-  }, []);
+  }, [fadeAnimation]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -113,9 +116,9 @@ export default function MeditationPlayerScreen() {
         breathingAnimation.stop();
       };
     }
-  }, [isPlaying, session]);
+  }, [isPlaying, session, breathAnimation, completeMeditation, lang, updatePhase]);
 
-  const updatePhase = (remainingSeconds: number) => {
+  const updatePhase = useCallback((remainingSeconds: number) => {
     if (!session) return;
     
     const totalDuration = session.duration * 60;
@@ -133,7 +136,7 @@ export default function MeditationPlayerScreen() {
     } else {
       setCurrentPhase(lang === "zh" ? "結束階段 - 緩慢甦醒" : "Closing - Gently Awaken");
     }
-  };
+  }, [session, lang]);
 
   useEffect(() => {
     if (selectedSound && isPlaying) {
@@ -141,7 +144,7 @@ export default function MeditationPlayerScreen() {
     } else if (soundRef.current && !isPlaying) {
       soundRef.current.pauseAsync();
     }
-  }, [selectedSound, isPlaying]);
+  }, [selectedSound, isPlaying, playBackgroundSound]);
 
   useEffect(() => {
     if (soundRef.current) {
@@ -149,7 +152,7 @@ export default function MeditationPlayerScreen() {
     }
   }, [soundVolume]);
 
-  const playBackgroundSound = async (soundId: string) => {
+  const playBackgroundSound = useCallback(async (soundId: string) => {
     try {
       const sound = SOUND_EFFECTS.find(s => s.id === soundId);
       if (!sound) {
@@ -215,7 +218,7 @@ export default function MeditationPlayerScreen() {
     } catch (error) {
       console.error("[Audio] Error in playBackgroundSound:", error);
     }
-  };
+  }, [soundVolume]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -232,97 +235,98 @@ export default function MeditationPlayerScreen() {
     setShowScript(true);
     
     try {
-      console.log("[TTS] Generating audio via API...");
+      console.log("[TTS] Starting speech synthesis...");
       console.log("[TTS] Text length:", text.length);
       console.log("[TTS] Language:", lang);
+      console.log("[TTS] Platform:", Platform.OS);
       
       if (soundRef.current) {
         console.log("[Audio] Lowering background sound volume for TTS");
-        await soundRef.current.setVolumeAsync(soundVolume * 0.2);
+        await soundRef.current.setVolumeAsync(soundVolume * 0.3);
       }
       
-      const response = await fetch("https://toolkit.rork.com/tts/generate/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: text,
-          language: lang === "zh" ? "zh-TW" : "en-US",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`TTS API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("[TTS] Audio URL received:", data.audioUrl);
-      
-      console.log("[TTS] Setting audio mode for TTS playback");
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-        interruptionModeIOS: 2,
-        interruptionModeAndroid: 2,
-        playThroughEarpieceAndroid: false,
-      });
-      
-      if (ttsAudioRef.current) {
-        await ttsAudioRef.current.unloadAsync();
-        ttsAudioRef.current = null;
-      }
-      
-      console.log("[TTS] Loading audio...");
-      console.log("[TTS] Audio URL to load:", data.audioUrl);
-      
-      const { sound: ttsSound } = await Audio.Sound.createAsync(
-        { uri: data.audioUrl },
-        { 
-          shouldPlay: false,
-          volume: 1.0,
-          rate: 1.0,
-          shouldCorrectPitch: true,
-        },
-        (status) => {
-          if (status.isLoaded) {
-            console.log("[TTS] Audio status:", {
-              isPlaying: status.isPlaying,
-              positionMillis: status.positionMillis,
-              durationMillis: status.durationMillis,
-            });
-            
-            if (status.didJustFinish) {
-              console.log("[TTS] Audio finished");
-              setIsSpeaking(false);
-              if (soundRef.current) {
-                soundRef.current.setVolumeAsync(soundVolume).catch(e => 
-                  console.error("[Audio] Volume restore error:", e)
-                );
-              }
-            }
-          }
-          if ('error' in status && status.error) {
-            console.error("[TTS] Playback error:", status.error);
-          }
+      if (Platform.OS === 'web') {
+        if (!window.speechSynthesis) {
+          throw new Error("Speech synthesis not supported");
         }
-      );
-      
-      ttsAudioRef.current = ttsSound;
-      
-      const status = await ttsSound.getStatusAsync();
-      console.log("[TTS] Audio loaded, status:", status);
-      
-      if (status.isLoaded) {
-        console.log("[TTS] Starting playback...");
-        await ttsSound.playAsync();
-        setIsSpeaking(true);
-        console.log("[TTS] Playback started successfully");
+        
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        utterance.onstart = () => {
+          console.log("[TTS Web] Speech started");
+          setIsSpeaking(true);
+          setIsLoadingTTS(false);
+        };
+        
+        utterance.onend = () => {
+          console.log("[TTS Web] Speech ended");
+          setIsSpeaking(false);
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+              console.error("[Audio] Volume restore error:", e)
+            );
+          }
+        };
+        
+        utterance.onerror = (event) => {
+          console.error("[TTS Web] Speech error:", event);
+          setIsSpeaking(false);
+          setIsLoadingTTS(false);
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume);
+          }
+        };
+        
+        console.log("[TTS Web] Speaking...");
+        window.speechSynthesis.speak(utterance);
       } else {
-        console.error("[TTS] Audio not loaded properly");
-        throw new Error("Audio not loaded");
+        const voice = lang === "zh" ? "zh-TW" : "en-US";
+        
+        console.log("[TTS Mobile] Using expo-speech");
+        console.log("[TTS Mobile] Voice:", voice);
+        
+        await Speech.speak(text, {
+          language: voice,
+          pitch: 1.0,
+          rate: 0.85,
+          onStart: () => {
+            console.log("[TTS Mobile] Speech started");
+            setIsSpeaking(true);
+            setIsLoadingTTS(false);
+          },
+          onDone: () => {
+            console.log("[TTS Mobile] Speech done");
+            setIsSpeaking(false);
+            if (soundRef.current) {
+              soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+                console.error("[Audio] Volume restore error:", e)
+              );
+            }
+          },
+          onStopped: () => {
+            console.log("[TTS Mobile] Speech stopped");
+            setIsSpeaking(false);
+            if (soundRef.current) {
+              soundRef.current.setVolumeAsync(soundVolume);
+            }
+          },
+          onError: (error) => {
+            console.error("[TTS Mobile] Speech error:", error);
+            setIsSpeaking(false);
+            setIsLoadingTTS(false);
+            if (soundRef.current) {
+              soundRef.current.setVolumeAsync(soundVolume);
+            }
+          },
+        });
+        
+        console.log("[TTS Mobile] Speech command sent");
       }
     } catch (error) {
       console.error("[TTS] Error:", error);
@@ -330,31 +334,31 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         await soundRef.current.setVolumeAsync(soundVolume);
       }
-    } finally {
-      setIsLoadingTTS(false);
     }
   };
 
   const stopSpeaking = async () => {
-    console.log("[TTS] Stopping audio");
+    console.log("[TTS] Stopping speech");
     
-    if (ttsAudioRef.current) {
-      try {
-        await ttsAudioRef.current.stopAsync();
-        await ttsAudioRef.current.unloadAsync();
-        ttsAudioRef.current = null;
-      } catch (error) {
-        console.error("[TTS] Stop error:", error);
+    try {
+      if (Platform.OS === 'web') {
+        window.speechSynthesis?.cancel();
+        console.log("[TTS Web] Speech cancelled");
+      } else {
+        await Speech.stop();
+        console.log("[TTS Mobile] Speech stopped");
       }
+      
+      setIsSpeaking(false);
+      
+      if (soundRef.current) {
+        await soundRef.current.setVolumeAsync(soundVolume);
+      }
+    } catch (error) {
+      console.error("[TTS] Stop error:", error);
     }
     
-    setIsSpeaking(false);
-    
-    if (soundRef.current) {
-      await soundRef.current.setVolumeAsync(soundVolume);
-    }
-    
-    console.log("[TTS] Audio stopped");
+    console.log("[TTS] Speech stopped successfully");
   };
 
   if (!session) {
