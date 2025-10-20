@@ -134,12 +134,12 @@ export default function MeditationPlayerScreen() {
   };
 
   useEffect(() => {
-    if (selectedSound && isPlaying && !isSpeaking) {
+    if (selectedSound && isPlaying) {
       playBackgroundSound(selectedSound);
-    } else if (soundRef.current) {
+    } else if (soundRef.current && !isPlaying) {
       soundRef.current.pauseAsync();
     }
-  }, [selectedSound, isPlaying, isSpeaking]);
+  }, [selectedSound, isPlaying]);
 
   useEffect(() => {
     if (soundRef.current) {
@@ -172,9 +172,9 @@ export default function MeditationPlayerScreen() {
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-        interruptionModeIOS: 2,
-        interruptionModeAndroid: 2,
+        shouldDuckAndroid: true,
+        interruptionModeIOS: 1,
+        interruptionModeAndroid: 1,
       });
 
       console.log("[Audio] Creating sound object...");
@@ -233,17 +233,17 @@ export default function MeditationPlayerScreen() {
     const sentences = splitIntoSentences(text);
     
     if (soundRef.current) {
-      console.log("[Audio] Pausing background sound for TTS");
-      await soundRef.current.pauseAsync();
+      console.log("[Audio] Lowering background sound volume for TTS");
+      await soundRef.current.setVolumeAsync(soundVolume * 0.3);
     }
     
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-      interruptionModeIOS: 2,
-      interruptionModeAndroid: 2,
+      shouldDuckAndroid: true,
+      interruptionModeIOS: 1,
+      interruptionModeAndroid: 1,
     });
     
     setIsSpeaking(true);
@@ -279,8 +279,8 @@ export default function MeditationPlayerScreen() {
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
           }
           return;
         }
@@ -311,8 +311,8 @@ export default function MeditationPlayerScreen() {
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
           }
         };
         
@@ -329,8 +329,8 @@ export default function MeditationPlayerScreen() {
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
           }
         },
       };
