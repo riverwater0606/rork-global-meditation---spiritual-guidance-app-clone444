@@ -239,6 +239,7 @@ export default function MeditationPlayerScreen() {
     }
     
     setShowScript(true);
+    setIsSpeaking(true);
     
     try {
       console.log("[TTS] Starting speech synthesis...");
@@ -249,25 +250,33 @@ export default function MeditationPlayerScreen() {
       
       if (soundRef.current) {
         console.log("[Audio] Lowering background sound volume for TTS");
-        await soundRef.current.setVolumeAsync(soundVolume * 0.3);
+        await soundRef.current.setVolumeAsync(soundVolume * 0.2);
       }
       
       if (Platform.OS === 'web') {
+        console.log("[TTS Web] Initializing Web Speech API");
+        
         if (!window.speechSynthesis) {
           console.error("[TTS Web] Speech synthesis not supported");
+          setIsSpeaking(false);
           return;
         }
         
         window.speechSynthesis.cancel();
         
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
-        utterance.rate = 0.9;
+        utterance.lang = lang === "zh" ? "zh-CN" : "en-US";
+        utterance.rate = 0.85;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
         
+        let hasStarted = false;
+        
         utterance.onstart = () => {
           console.log("[TTS Web] Speech started");
+          hasStarted = true;
           setIsSpeaking(true);
         };
         
@@ -282,27 +291,45 @@ export default function MeditationPlayerScreen() {
         };
         
         utterance.onerror = (event) => {
-          console.error("[TTS Web] Speech error:", event);
+          console.error("[TTS Web] Speech error:", event.error, event);
           setIsSpeaking(false);
           if (soundRef.current) {
             soundRef.current.setVolumeAsync(soundVolume);
           }
         };
         
-        console.log("[TTS Web] Speaking...");
-        setIsSpeaking(true);
+        console.log("[TTS Web] Calling speak()...");
         window.speechSynthesis.speak(utterance);
+        
+        setTimeout(() => {
+          if (!hasStarted) {
+            console.log("[TTS Web] Speech didn't start after 2s, checking status");
+            console.log("[TTS Web] Speaking:", window.speechSynthesis.speaking);
+            console.log("[TTS Web] Pending:", window.speechSynthesis.pending);
+            console.log("[TTS Web] Paused:", window.speechSynthesis.paused);
+            
+            if (!window.speechSynthesis.speaking) {
+              console.log("[TTS Web] Attempting to resume");
+              window.speechSynthesis.resume();
+            }
+          }
+        }, 2000);
       } else {
         console.log("[TTS Mobile] Preparing audio session for speech");
         
         try {
+          if (soundRef.current) {
+            console.log("[Audio] Pausing background sound for TTS");
+            await soundRef.current.pauseAsync();
+          }
+          
           await Audio.setAudioModeAsync({
             allowsRecordingIOS: false,
             playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: false,
-            interruptionModeIOS: 2,
-            interruptionModeAndroid: 2,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: true,
+            interruptionModeIOS: 1,
+            interruptionModeAndroid: 1,
           });
           console.log("[TTS Mobile] Audio mode configured for speech");
         } catch (audioError) {
@@ -318,19 +345,16 @@ export default function MeditationPlayerScreen() {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
         
-        const voice = lang === "zh" ? "zh-TW" : "en-US";
+        const voice = lang === "zh" ? "zh-CN" : "en-US";
         
         console.log("[TTS Mobile] Using expo-speech");
         console.log("[TTS Mobile] Voice:", voice);
         
-        setIsSpeaking(true);
-        
         Speech.speak(text, {
           language: voice,
           pitch: 1.0,
-          rate: 0.85,
+          rate: 0.8,
           volume: 1.0,
-          _voiceIndex: undefined,
           onStart: () => {
             console.log("[TTS Mobile] Speech started callback fired");
             setIsSpeaking(true);
@@ -339,8 +363,8 @@ export default function MeditationPlayerScreen() {
             console.log("[TTS Mobile] Speech done callback fired");
             setIsSpeaking(false);
             if (soundRef.current) {
-              soundRef.current.setVolumeAsync(soundVolume).catch(e => 
-                console.error("[Audio] Volume restore error:", e)
+              soundRef.current.playAsync().catch(e => 
+                console.error("[Audio] Resume error:", e)
               );
             }
           },
@@ -348,14 +372,14 @@ export default function MeditationPlayerScreen() {
             console.log("[TTS Mobile] Speech stopped callback fired");
             setIsSpeaking(false);
             if (soundRef.current) {
-              soundRef.current.setVolumeAsync(soundVolume);
+              soundRef.current.playAsync();
             }
           },
           onError: (error) => {
             console.error("[TTS Mobile] Speech error callback:", error);
             setIsSpeaking(false);
             if (soundRef.current) {
-              soundRef.current.setVolumeAsync(soundVolume);
+              soundRef.current.playAsync();
             }
           },
         });
@@ -365,6 +389,10 @@ export default function MeditationPlayerScreen() {
         setTimeout(() => {
           Speech.isSpeakingAsync().then(speaking => {
             console.log("[TTS Mobile] Check after 1s - is speaking:", speaking);
+            if (!speaking) {
+              console.log("[TTS Mobile] Speech didn't start, setting isSpeaking to false");
+              setIsSpeaking(false);
+            }
           });
         }, 1000);
       }
@@ -372,7 +400,7 @@ export default function MeditationPlayerScreen() {
       console.error("[TTS] Error:", error);
       setIsSpeaking(false);
       if (soundRef.current) {
-        await soundRef.current.setVolumeAsync(soundVolume);
+        soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
       }
     }
   };
@@ -761,12 +789,12 @@ const styles = StyleSheet.create({
     justifyContent: "center" as const,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(139, 92, 246, 0.3)",
+    backgroundColor: "rgba(139, 92, 246, 0.6)",
     borderRadius: 20,
     gap: 6,
   },
   speakButtonActive: {
-    backgroundColor: "rgba(239, 68, 68, 0.3)",
+    backgroundColor: "rgba(239, 68, 68, 0.8)",
   },
   speakButtonText: {
     fontSize: 14,
