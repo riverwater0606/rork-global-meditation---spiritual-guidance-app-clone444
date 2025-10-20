@@ -237,63 +237,128 @@ export default function MeditationPlayerScreen() {
     setShowScript(true);
     
     console.log("[TTS] Starting speech with", sentences.length, "sentences");
+    console.log("[TTS] Platform:", Platform.OS);
     console.log("[TTS] Language:", lang);
     
-    const speakSentences = async (index: number) => {
-      if (index >= sentences.length) {
-        console.log("[TTS] All sentences completed");
+    if (Platform.OS === "web") {
+      console.log("[TTS] Using Web Speech API");
+      const synth = window.speechSynthesis;
+      
+      if (!synth) {
+        console.error("[TTS] Speech synthesis not supported");
         setIsSpeaking(false);
-        setCurrentSentenceIndex(0);
-        speechRef.current = null;
         return;
       }
-
-      setCurrentSentenceIndex(index);
-      const sentence = sentences[index];
-      console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
       
-      try {
-        await Speech.speak(sentence, {
-          language: lang === "zh" ? "zh-TW" : "en-US",
-          pitch: 0.95,
-          rate: 0.75,
-          onDone: () => {
-            console.log(`[TTS] Sentence ${index + 1} completed`);
-            speakSentences(index + 1);
-          },
-          onError: (error) => {
-            console.error(`[TTS] Error speaking sentence ${index + 1}:`, error);
-            setIsSpeaking(false);
-            setCurrentSentenceIndex(0);
-            speechRef.current = null;
-          },
-        });
-      } catch (error) {
-        console.error("[TTS] Speak error:", error);
-        setIsSpeaking(false);
-        setCurrentSentenceIndex(0);
-        speechRef.current = null;
-      }
-    };
-    
-    speechRef.current = {
-      stop: () => {
-        console.log("[TTS] Stopping speech");
-        Speech.stop();
-        setIsSpeaking(false);
-        setCurrentSentenceIndex(0);
-        speechRef.current = null;
-      },
-    };
-    
-    await speakSentences(0);
+      synth.cancel();
+      
+      const speakSentencesWeb = (index: number) => {
+        if (index >= sentences.length) {
+          console.log("[TTS] All sentences completed");
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+          return;
+        }
+
+        setCurrentSentenceIndex(index);
+        const sentence = sentences[index];
+        console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
+        
+        const utterance = new SpeechSynthesisUtterance(sentence);
+        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
+        utterance.pitch = 0.95;
+        utterance.rate = 0.75;
+        utterance.volume = 1.0;
+        
+        utterance.onend = () => {
+          console.log(`[TTS] Sentence ${index + 1} completed`);
+          speakSentencesWeb(index + 1);
+        };
+        
+        utterance.onerror = (event) => {
+          console.error(`[TTS] Error speaking sentence ${index + 1}:`, event.error);
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+        };
+        
+        synth.speak(utterance);
+      };
+      
+      speechRef.current = {
+        stop: () => {
+          console.log("[TTS] Stopping speech (Web)");
+          synth.cancel();
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+        },
+      };
+      
+      speakSentencesWeb(0);
+    } else {
+      console.log("[TTS] Using expo-speech");
+      const speakSentences = async (index: number) => {
+        if (index >= sentences.length) {
+          console.log("[TTS] All sentences completed");
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+          return;
+        }
+
+        setCurrentSentenceIndex(index);
+        const sentence = sentences[index];
+        console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
+        
+        try {
+          await Speech.speak(sentence, {
+            language: lang === "zh" ? "zh-TW" : "en-US",
+            pitch: 0.95,
+            rate: 0.75,
+            onDone: () => {
+              console.log(`[TTS] Sentence ${index + 1} completed`);
+              speakSentences(index + 1);
+            },
+            onError: (error) => {
+              console.error(`[TTS] Error speaking sentence ${index + 1}:`, error);
+              setIsSpeaking(false);
+              setCurrentSentenceIndex(0);
+              speechRef.current = null;
+            },
+          });
+        } catch (error) {
+          console.error("[TTS] Speak error:", error);
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+        }
+      };
+      
+      speechRef.current = {
+        stop: () => {
+          console.log("[TTS] Stopping speech");
+          Speech.stop();
+          setIsSpeaking(false);
+          setCurrentSentenceIndex(0);
+          speechRef.current = null;
+        },
+      };
+      
+      await speakSentences(0);
+    }
   };
 
   const stopSpeaking = () => {
     if (speechRef.current) {
       speechRef.current.stop();
     } else {
-      Speech.stop();
+      if (Platform.OS === "web") {
+        window.speechSynthesis?.cancel();
+      } else {
+        Speech.stop();
+      }
       setIsSpeaking(false);
       setCurrentSentenceIndex(0);
     }
