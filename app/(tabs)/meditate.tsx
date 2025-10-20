@@ -82,7 +82,7 @@ export default function MeditateScreen() {
                   selectedCategory === category.id && { color: "#FFFFFF" },
                 ]}
               >
-                {category.name}
+                {lang === "zh" ? (category as any).nameZh : category.name}
               </Text>
             </TouchableOpacity>
           ))}
@@ -107,19 +107,25 @@ export default function MeditateScreen() {
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.sessionCardContent}>
-                  <Text style={styles.sessionCardTitle}>{session.title}</Text>
+                  <Text style={styles.sessionCardTitle}>
+                    {lang === "zh" ? session.titleZh : session.title}
+                  </Text>
                   <Text style={styles.sessionCardDescription} numberOfLines={2}>
-                    {session.description}
+                    {lang === "zh" ? session.descriptionZh : session.description}
                   </Text>
                   
                   <View style={styles.sessionCardMeta}>
                     <View style={styles.sessionCardMetaItem}>
                       <Clock size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>{session.duration} min</Text>
+                      <Text style={styles.sessionCardMetaText}>
+                        {session.duration} {lang === "zh" ? "分鐘" : "min"}
+                      </Text>
                     </View>
                     <View style={styles.sessionCardMetaItem}>
                       <Headphones size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>{session.narrator}</Text>
+                      <Text style={styles.sessionCardMetaText}>
+                        {lang === "zh" ? session.narratorZh : session.narrator}
+                      </Text>
                     </View>
                   </View>
                 </View>

@@ -15,6 +15,7 @@ import { Play, Pause, X, Volume2, VolumeX } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
+import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
@@ -22,6 +23,8 @@ export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
   const session = MEDITATION_SESSIONS.find(s => s.id === id);
   const { completeMeditation } = useMeditation();
+  const { settings } = useSettings();
+  const lang = settings.language;
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
@@ -110,8 +113,12 @@ export default function MeditationPlayerScreen() {
 
           {/* Main Content */}
           <View style={styles.mainContent}>
-            <Text style={styles.sessionTitle}>{session.title}</Text>
-            <Text style={styles.sessionNarrator}>with {session.narrator}</Text>
+            <Text style={styles.sessionTitle}>
+              {lang === "zh" ? session.titleZh : session.title}
+            </Text>
+            <Text style={styles.sessionNarrator}>
+              {lang === "zh" ? `由 ${session.narratorZh} 指導` : `with ${session.narrator}`}
+            </Text>
 
             {/* Breathing Circle */}
             <View style={styles.breathingContainer}>
@@ -127,14 +134,19 @@ export default function MeditationPlayerScreen() {
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   {isPlaying && (
                     <Text style={styles.breathText}>
-                      {Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out"}
+                      {lang === "zh" 
+                        ? (Math.floor(timeRemaining % 8) < 4 ? "吸氣" : "呼氣")
+                        : (Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out")
+                      }
                     </Text>
                   )}
                 </View>
               </Animated.View>
             </View>
 
-            <Text style={styles.description}>{session.description}</Text>
+            <Text style={styles.description}>
+              {lang === "zh" ? session.descriptionZh : session.description}
+            </Text>
           </View>
 
           {/* Volume Slider */}
