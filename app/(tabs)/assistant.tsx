@@ -136,6 +136,7 @@ export default function AssistantScreen() {
 4. Answer questions about meditation and spiritual growth
 5. Provide positive guidance and encouragement
 6. Recommend suitable meditation practices based on user needs
+7. After understanding user's needs through conversation, suggest creating a custom meditation
 
 Please respond in a warm, supportive, and professional tone. Keep answers concise, clear, and practical. Use English.`
                 : `你是一個專業的冥想和靈性指導AI助手。你的任務是：
@@ -145,6 +146,7 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
 4. 回答關於冥想、靈性成長的問題
 5. 提供積極正面的引導和鼓勵
 6. 根據用戶的需求推薦合適的冥想練習
+7. 在與用戶充分溝通了解需求後，建議為用戶創建專屬冥想
 
 請用溫暖、支持和專業的語氣回應。回答要簡潔明瞭，實用性強。使用繁體中文。`,
             },
@@ -170,7 +172,7 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      setLastAIResponse(data.completion);
+      setLastAIResponse(null);
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
@@ -455,20 +457,6 @@ Create a meditation suitable for the user based on previous conversation. Only r
 
         {(messages.length === 1 || messages.filter(m => m.isUser).length === 0) && (
           <>
-            <View style={[styles.createMeditationContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
-              <TouchableOpacity
-                style={[styles.createMeditationButton, { backgroundColor: currentTheme.primary }]}
-                onPress={handleGenerateMeditation}
-                disabled={isLoading}
-              >
-                <Sparkles color="#FFFFFF" size={20} />
-                <Text style={styles.createMeditationText}>
-                  {language === "zh" ? "AI 設計專屬冥想" : "AI Create Custom Meditation"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            
             <View style={[styles.guidedMeditationsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
               <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
                 {t.guidedMeditations}
@@ -520,6 +508,21 @@ Create a meditation suitable for the user based on previous conversation. Only r
             </ScrollView>
           </View>
           </>
+        )}
+
+        {messages.filter(m => m.isUser).length > 0 && !lastAIResponse && (
+          <View style={[styles.createMeditationContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
+            <TouchableOpacity
+              style={[styles.createMeditationButton, { backgroundColor: currentTheme.primary }]}
+              onPress={handleGenerateMeditation}
+              disabled={isLoading}
+            >
+              <Sparkles color="#FFFFFF" size={20} />
+              <Text style={styles.createMeditationText}>
+                {language === "zh" ? "設計專屬冥想" : "Create Custom Meditation"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
