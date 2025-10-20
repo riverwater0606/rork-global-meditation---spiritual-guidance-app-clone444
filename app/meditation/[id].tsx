@@ -226,6 +226,10 @@ export default function MeditationPlayerScreen() {
   };
 
   const startSpeaking = async () => {
+    console.log("[DEBUG] startSpeaking called");
+    console.log("[DEBUG] customSession:", !!customSession);
+    console.log("[DEBUG] script available:", !!customSession?.script);
+    
     if (!customSession?.script) {
       console.log("[TTS] No script available");
       return;
@@ -238,8 +242,10 @@ export default function MeditationPlayerScreen() {
       return;
     }
     
+    console.log("[DEBUG] Setting isSpeaking to true");
     setShowScript(true);
     setIsSpeaking(true);
+    console.log("[DEBUG] isSpeaking state updated");
     
     try {
       console.log("[TTS] Starting speech synthesis...");
@@ -514,6 +520,7 @@ export default function MeditationPlayerScreen() {
                 <TouchableOpacity
                   style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                   onPress={() => {
+                    console.log("[DEBUG] Button pressed. Current isSpeaking:", isSpeaking);
                     if (isSpeaking) {
                       stopSpeaking();
                     } else {
