@@ -56,7 +56,7 @@ export default function MeditationPlayerScreen() {
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
-  const speechRef = useRef<{ stop: () => void } | null>(null);
+  const speechRef = useRef<{ stop: () => void | Promise<void> } | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -134,12 +134,12 @@ export default function MeditationPlayerScreen() {
   };
 
   useEffect(() => {
-    if (selectedSound && isPlaying) {
+    if (selectedSound && isPlaying && !isSpeaking) {
       playBackgroundSound(selectedSound);
     } else if (soundRef.current) {
       soundRef.current.pauseAsync();
     }
-  }, [selectedSound, isPlaying]);
+  }, [selectedSound, isPlaying, isSpeaking]);
 
   useEffect(() => {
     if (soundRef.current) {
@@ -151,7 +151,7 @@ export default function MeditationPlayerScreen() {
     try {
       const sound = SOUND_EFFECTS.find(s => s.id === soundId);
       if (!sound) {
-        console.error("Sound not found:", soundId);
+        console.error("[Audio] Sound not found:", soundId);
         return;
       }
 
@@ -172,9 +172,9 @@ export default function MeditationPlayerScreen() {
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        interruptionModeIOS: 1,
-        interruptionModeAndroid: 1,
+        shouldDuckAndroid: false,
+        interruptionModeIOS: 2,
+        interruptionModeAndroid: 2,
       });
 
       console.log("[Audio] Creating sound object...");
@@ -232,6 +232,20 @@ export default function MeditationPlayerScreen() {
     const text = lang === "zh" ? customSession.scriptZh : customSession.script;
     const sentences = splitIntoSentences(text);
     
+    if (soundRef.current) {
+      console.log("[Audio] Pausing background sound for TTS");
+      await soundRef.current.pauseAsync();
+    }
+    
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+      interruptionModeIOS: 2,
+      interruptionModeAndroid: 2,
+    });
+    
     setIsSpeaking(true);
     setCurrentSentenceIndex(0);
     setShowScript(true);
@@ -252,12 +266,22 @@ export default function MeditationPlayerScreen() {
       
       synth.cancel();
       
+      let isCancelled = false;
+      
       const speakSentencesWeb = (index: number) => {
+        if (isCancelled) {
+          console.log("[TTS] Speech cancelled");
+          return;
+        }
+        
         if (index >= sentences.length) {
           console.log("[TTS] All sentences completed");
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
           return;
         }
 
@@ -271,9 +295,15 @@ export default function MeditationPlayerScreen() {
         utterance.rate = 0.75;
         utterance.volume = 1.0;
         
+        utterance.onstart = () => {
+          console.log(`[TTS] Started sentence ${index + 1}`);
+        };
+        
         utterance.onend = () => {
           console.log(`[TTS] Sentence ${index + 1} completed`);
-          speakSentencesWeb(index + 1);
+          if (!isCancelled) {
+            setTimeout(() => speakSentencesWeb(index + 1), 500);
+          }
         };
         
         utterance.onerror = (event) => {
@@ -281,30 +311,49 @@ export default function MeditationPlayerScreen() {
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
         };
         
+        console.log("[TTS] Calling synth.speak()");
         synth.speak(utterance);
+        console.log("[TTS] synth.speak() called, synth.speaking:", synth.speaking, "synth.pending:", synth.pending);
       };
       
       speechRef.current = {
         stop: () => {
           console.log("[TTS] Stopping speech (Web)");
+          isCancelled = true;
           synth.cancel();
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
         },
       };
       
       speakSentencesWeb(0);
     } else {
       console.log("[TTS] Using expo-speech");
+      let isCancelled = false;
+      
       const speakSentences = async (index: number) => {
+        if (isCancelled) {
+          console.log("[TTS] Speech cancelled");
+          return;
+        }
+        
         if (index >= sentences.length) {
           console.log("[TTS] All sentences completed");
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
           return;
         }
 
@@ -317,15 +366,25 @@ export default function MeditationPlayerScreen() {
             language: lang === "zh" ? "zh-TW" : "en-US",
             pitch: 0.95,
             rate: 0.75,
+            onStart: () => {
+              console.log(`[TTS] Started sentence ${index + 1}`);
+            },
             onDone: () => {
               console.log(`[TTS] Sentence ${index + 1} completed`);
-              speakSentences(index + 1);
+              if (!isCancelled) {
+                setTimeout(() => {
+                  void speakSentences(index + 1);
+                }, 500);
+              }
             },
             onError: (error) => {
               console.error(`[TTS] Error speaking sentence ${index + 1}:`, error);
               setIsSpeaking(false);
               setCurrentSentenceIndex(0);
               speechRef.current = null;
+              if (selectedSound && isPlaying && soundRef.current) {
+                void soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+              }
             },
           });
         } catch (error) {
@@ -333,16 +392,23 @@ export default function MeditationPlayerScreen() {
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
         }
       };
       
       speechRef.current = {
-        stop: () => {
+        stop: async () => {
           console.log("[TTS] Stopping speech");
-          Speech.stop();
+          isCancelled = true;
+          await Speech.stop();
           setIsSpeaking(false);
           setCurrentSentenceIndex(0);
           speechRef.current = null;
+          if (selectedSound && isPlaying && soundRef.current) {
+            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+          }
         },
       };
       
@@ -350,18 +416,25 @@ export default function MeditationPlayerScreen() {
     }
   };
 
-  const stopSpeaking = () => {
+  const stopSpeaking = async () => {
+    console.log("[TTS] stopSpeaking called");
+    
     if (speechRef.current) {
-      speechRef.current.stop();
+      await speechRef.current.stop();
     } else {
       if (Platform.OS === "web") {
         window.speechSynthesis?.cancel();
       } else {
-        Speech.stop();
+        await Speech.stop();
       }
       setIsSpeaking(false);
       setCurrentSentenceIndex(0);
+      
+      if (selectedSound && isPlaying && soundRef.current) {
+        await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+      }
     }
+    
     console.log("[TTS] Speech stopped");
   };
 
