@@ -9,13 +9,13 @@ import {
   Platform,
   ScrollView,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp, Volume } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
-import * as Speech from "expo-speech";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { SOUND_EFFECTS } from "@/constants/soundEffects";
 import { useMeditation } from "@/providers/MeditationProvider";
@@ -52,11 +52,11 @@ export default function MeditationPlayerScreen() {
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
+  const [isLoadingTTS, setIsLoadingTTS] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
-  const speechRef = useRef<{ stop: () => void | Promise<void> } | null>(null);
+  const ttsAudioRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -71,7 +71,9 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      stopSpeaking();
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.unloadAsync();
+      }
     };
   }, []);
 
@@ -221,23 +223,42 @@ export default function MeditationPlayerScreen() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const splitIntoSentences = (text: string): string[] => {
-    const sentences = text.match(/[^.!?。！？]+[.!?。！？]+/g) || [text];
-    return sentences.map(s => s.trim()).filter(s => s.length > 0);
-  };
-
   const startSpeaking = async () => {
     if (!customSession?.script) return;
     
     const text = lang === "zh" ? customSession.scriptZh : customSession.script;
-    const sentences = splitIntoSentences(text);
     
-    if (soundRef.current) {
-      console.log("[Audio] Lowering background sound volume for TTS");
-      await soundRef.current.setVolumeAsync(soundVolume * 0.2);
-    }
+    setIsLoadingTTS(true);
+    setShowScript(true);
     
-    if (Platform.OS !== "web") {
+    try {
+      console.log("[TTS] Generating audio via API...");
+      console.log("[TTS] Text length:", text.length);
+      console.log("[TTS] Language:", lang);
+      
+      if (soundRef.current) {
+        console.log("[Audio] Lowering background sound volume for TTS");
+        await soundRef.current.setVolumeAsync(soundVolume * 0.2);
+      }
+      
+      const response = await fetch("https://toolkit.rork.com/tts/generate/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: text,
+          language: lang === "zh" ? "zh-TW" : "en-US",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("[TTS] Audio URL received:", data.audioUrl);
+      
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -246,229 +267,78 @@ export default function MeditationPlayerScreen() {
         interruptionModeIOS: 2,
         interruptionModeAndroid: 2,
       });
-    }
-    
-    setIsSpeaking(true);
-    setCurrentSentenceIndex(0);
-    setShowScript(true);
-    
-    console.log("[TTS] Starting speech with", sentences.length, "sentences");
-    console.log("[TTS] Platform:", Platform.OS);
-    console.log("[TTS] Language:", lang);
-    
-    if (Platform.OS === "web") {
-      console.log("[TTS] Using Web Speech API");
-      const synth = window.speechSynthesis;
       
-      if (!synth) {
-        console.error("[TTS] Speech synthesis not supported");
-        setIsSpeaking(false);
-        if (soundRef.current) {
-          await soundRef.current.setVolumeAsync(soundVolume);
-        }
-        return;
+      if (ttsAudioRef.current) {
+        await ttsAudioRef.current.unloadAsync();
+        ttsAudioRef.current = null;
       }
       
-      synth.cancel();
-      
-      const voices = synth.getVoices();
-      console.log("[TTS] Available voices:", voices.length);
-      if (voices.length === 0) {
-        synth.addEventListener('voiceschanged', () => {
-          console.log("[TTS] Voices loaded:", synth.getVoices().length);
-        });
-      }
-      
-      let isCancelled = false;
-      
-      const speakSentencesWeb = (index: number) => {
-        if (isCancelled) {
-          console.log("[TTS] Speech cancelled");
-          return;
-        }
-        
-        if (index >= sentences.length) {
-          console.log("[TTS] All sentences completed");
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
-          }
-          return;
-        }
-
-        setCurrentSentenceIndex(index);
-        const sentence = sentences[index];
-        console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
-        
-        const utterance = new SpeechSynthesisUtterance(sentence);
-        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
-        utterance.pitch = 1.0;
-        utterance.rate = 0.8;
-        utterance.volume = 1.0;
-        
-        const voices = synth.getVoices();
-        const preferredVoice = voices.find(v => 
-          lang === "zh" 
-            ? (v.lang.startsWith('zh') || v.lang.includes('Chinese'))
-            : v.lang.startsWith('en')
-        );
-        if (preferredVoice) {
-          utterance.voice = preferredVoice;
-          console.log(`[TTS] Using voice: ${preferredVoice.name}`);
-        }
-        
-        utterance.onstart = () => {
-          console.log(`[TTS] Started sentence ${index + 1}`);
-        };
-        
-        utterance.onend = () => {
-          console.log(`[TTS] Sentence ${index + 1} completed`);
-          if (!isCancelled) {
-            setTimeout(() => speakSentencesWeb(index + 1), 500);
-          }
-        };
-        
-        utterance.onerror = (event) => {
-          console.error(`[TTS] Error speaking sentence ${index + 1}:`, event.error);
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
-          }
-        };
-        
-        console.log("[TTS] Calling synth.speak()");
-        try {
-          synth.speak(utterance);
-          console.log("[TTS] synth.speak() called, synth.speaking:", synth.speaking, "synth.pending:", synth.pending);
-          
-          setTimeout(() => {
-            console.log("[TTS] Status check - speaking:", synth.speaking, "pending:", synth.pending);
-          }, 100);
-        } catch (error) {
-          console.error("[TTS] Error calling synth.speak():", error);
-          utterance.onerror?.({ error: 'synthesis-failed' } as any);
-        }
-      };
-      
-      speechRef.current = {
-        stop: () => {
-          console.log("[TTS] Stopping speech (Web)");
-          isCancelled = true;
-          synth.cancel();
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume).catch(e => console.error("[Audio] Volume restore error:", e));
-          }
+      console.log("[TTS] Loading audio...");
+      const { sound: ttsSound } = await Audio.Sound.createAsync(
+        { uri: data.audioUrl },
+        { 
+          shouldPlay: true, 
+          volume: 1.0,
         },
-      };
-      
-      speakSentencesWeb(0);
-    } else {
-      console.log("[TTS] Using expo-speech");
-      let isCancelled = false;
-      
-      const speakSentences = async (index: number) => {
-        if (isCancelled) {
-          console.log("[TTS] Speech cancelled");
-          return;
-        }
-        
-        if (index >= sentences.length) {
-          console.log("[TTS] All sentences completed");
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
-          }
-          return;
-        }
-
-        setCurrentSentenceIndex(index);
-        const sentence = sentences[index];
-        console.log(`[TTS] Speaking sentence ${index + 1}/${sentences.length}:`, sentence.substring(0, 50));
-        
-        try {
-          await Speech.speak(sentence, {
-            language: lang === "zh" ? "zh-TW" : "en-US",
-            pitch: 0.95,
-            rate: 0.75,
-            onStart: () => {
-              console.log(`[TTS] Started sentence ${index + 1}`);
-            },
-            onDone: () => {
-              console.log(`[TTS] Sentence ${index + 1} completed`);
-              if (!isCancelled) {
-                setTimeout(() => {
-                  void speakSentences(index + 1);
-                }, 500);
-              }
-            },
-            onError: (error) => {
-              console.error(`[TTS] Error speaking sentence ${index + 1}:`, error);
+        (status) => {
+          if (status.isLoaded) {
+            console.log("[TTS] Audio status:", {
+              isPlaying: status.isPlaying,
+              positionMillis: status.positionMillis,
+              durationMillis: status.durationMillis,
+            });
+            
+            if (status.didJustFinish) {
+              console.log("[TTS] Audio finished");
               setIsSpeaking(false);
-              setCurrentSentenceIndex(0);
-              speechRef.current = null;
-              if (selectedSound && isPlaying && soundRef.current) {
-                void soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+              if (soundRef.current) {
+                soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+                  console.error("[Audio] Volume restore error:", e)
+                );
               }
-            },
-          });
-        } catch (error) {
-          console.error("[TTS] Speak error:", error);
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+            }
+          }
+          if ('error' in status && status.error) {
+            console.error("[TTS] Playback error:", status.error);
           }
         }
-      };
+      );
       
-      speechRef.current = {
-        stop: async () => {
-          console.log("[TTS] Stopping speech");
-          isCancelled = true;
-          await Speech.stop();
-          setIsSpeaking(false);
-          setCurrentSentenceIndex(0);
-          speechRef.current = null;
-          if (selectedSound && isPlaying && soundRef.current) {
-            await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
-          }
-        },
-      };
+      ttsAudioRef.current = ttsSound;
+      setIsSpeaking(true);
       
-      await speakSentences(0);
+      console.log("[TTS] Audio playback started");
+    } catch (error) {
+      console.error("[TTS] Error:", error);
+      setIsSpeaking(false);
+      if (soundRef.current) {
+        await soundRef.current.setVolumeAsync(soundVolume);
+      }
+    } finally {
+      setIsLoadingTTS(false);
     }
   };
 
   const stopSpeaking = async () => {
-    console.log("[TTS] stopSpeaking called");
+    console.log("[TTS] Stopping audio");
     
-    if (speechRef.current) {
-      await speechRef.current.stop();
-    } else {
-      if (Platform.OS === "web") {
-        window.speechSynthesis?.cancel();
-      } else {
-        await Speech.stop();
-      }
-      setIsSpeaking(false);
-      setCurrentSentenceIndex(0);
-      
-      if (selectedSound && isPlaying && soundRef.current) {
-        await soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+    if (ttsAudioRef.current) {
+      try {
+        await ttsAudioRef.current.stopAsync();
+        await ttsAudioRef.current.unloadAsync();
+        ttsAudioRef.current = null;
+      } catch (error) {
+        console.error("[TTS] Stop error:", error);
       }
     }
     
-    console.log("[TTS] Speech stopped");
+    setIsSpeaking(false);
+    
+    if (soundRef.current) {
+      await soundRef.current.setVolumeAsync(soundVolume);
+    }
+    
+    console.log("[TTS] Audio stopped");
   };
 
   if (!session) {
@@ -562,12 +432,19 @@ export default function MeditationPlayerScreen() {
                       startSpeaking();
                     }
                   }}
+                  disabled={isLoadingTTS}
                 >
-                  <Volume size={16} color="#FFFFFF" />
+                  {isLoadingTTS ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Volume size={16} color="#FFFFFF" />
+                  )}
                   <Text style={styles.speakButtonText}>
-                    {isSpeaking 
-                      ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
-                      : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
+                    {isLoadingTTS
+                      ? (lang === "zh" ? "生成中..." : "Loading...")
+                      : isSpeaking 
+                        ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
+                        : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
                     }
                   </Text>
                 </TouchableOpacity>
@@ -579,24 +456,9 @@ export default function MeditationPlayerScreen() {
           {showScript && customSession?.script && (
             <ScrollView style={styles.scriptContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.scriptContent}>
-                {isSpeaking ? (
-                  splitIntoSentences(lang === "zh" ? customSession.scriptZh : customSession.script).map((sentence, idx) => (
-                    <Text 
-                      key={idx}
-                      style={[
-                        styles.scriptSentence,
-                        idx === currentSentenceIndex && styles.scriptSentenceActive,
-                        idx < currentSentenceIndex && styles.scriptSentenceRead,
-                      ]}
-                    >
-                      {sentence}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.scriptText}>
-                    {lang === "zh" ? customSession.scriptZh : customSession.script}
-                  </Text>
-                )}
+                <Text style={styles.scriptText}>
+                  {lang === "zh" ? customSession.scriptZh : customSession.script}
+                </Text>
               </View>
             </ScrollView>
           )}
@@ -882,23 +744,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: "#E0E7FF",
   },
-  scriptSentence: {
-    fontSize: 14,
-    lineHeight: 24,
-    color: "rgba(224, 231, 255, 0.5)",
-    marginBottom: 12,
-  },
-  scriptSentenceActive: {
-    color: "#FFFFFF",
-    fontWeight: "600" as const,
-    backgroundColor: "rgba(139, 92, 246, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  scriptSentenceRead: {
-    color: "rgba(224, 231, 255, 0.3)",
-  },
+
   description: {
     fontSize: 16,
     color: "#E0E7FF",
