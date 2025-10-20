@@ -52,11 +52,12 @@ export default function MeditationPlayerScreen() {
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [canSpeak, setCanSpeak] = useState<boolean>(false);
+  const [canSpeak, setCanSpeak] = useState<boolean>(true);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
   const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const ttsAudioRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -78,11 +79,17 @@ export default function MeditationPlayerScreen() {
       } else {
         console.log("[TTS] Speech synthesis not available");
       }
+    } else {
+      setCanSpeak(true);
+      console.log("[TTS] Mobile TTS available");
     }
 
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
+      }
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.unloadAsync();
       }
       if (Platform.OS === "web" && speechSynthRef.current) {
         window.speechSynthesis.cancel();
@@ -236,64 +243,125 @@ export default function MeditationPlayerScreen() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const startSpeaking = () => {
-    if (Platform.OS !== "web" || !customSession?.script) return;
+  const startSpeaking = async () => {
+    if (!customSession?.script) return;
 
     try {
+      setIsSpeaking(true);
       const text = lang === "zh" ? customSession.scriptZh : customSession.script;
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
-      utterance.rate = 0.8;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(voice => 
-        lang === "zh" 
-          ? voice.lang.includes("zh") || voice.lang.includes("ZH")
-          : voice.lang.includes("en") || voice.lang.includes("EN")
-      );
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
+
+      if (Platform.OS === "web") {
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
+        utterance.rate = 0.8;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(voice => 
+          lang === "zh" 
+            ? voice.lang.includes("zh") || voice.lang.includes("ZH")
+            : voice.lang.includes("en") || voice.lang.includes("EN")
+        );
+        
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+
+        utterance.onstart = () => {
+          console.log("[TTS Web] Started speaking");
+        };
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          console.log("[TTS Web] Finished speaking");
+        };
+
+        utterance.onerror = (event) => {
+          console.error("[TTS Web] Error:", event);
+          setIsSpeaking(false);
+        };
+
+        speechSynthRef.current = utterance;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        
+        console.log("[TTS Web] Speech synthesis started for:", lang);
+      } else {
+        console.log("[TTS Mobile] Generating speech audio...");
+        
+        const response = await fetch("https://toolkit.rork.com/tts/generate/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text,
+            voice: lang === "zh" ? "zh-TW-Standard-A" : "en-US-Standard-A",
+            languageCode: lang === "zh" ? "zh-TW" : "en-US",
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to generate speech");
+        }
+
+        const data = await response.json();
+        const audioBase64 = data.audioContent;
+        
+        if (ttsAudioRef.current) {
+          await ttsAudioRef.current.unloadAsync();
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: `data:audio/mp3;base64,${audioBase64}` },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setIsSpeaking(false);
+              console.log("[TTS Mobile] Finished speaking");
+            }
+          }
+        );
+
+        ttsAudioRef.current = sound;
+        console.log("[TTS Mobile] Started playing audio");
       }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        console.log("[TTS] Started speaking");
-      };
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        console.log("[TTS] Finished speaking");
-      };
-
-      utterance.onerror = (event) => {
-        console.error("[TTS] Error:", event);
-        setIsSpeaking(false);
-      };
-
-      speechSynthRef.current = utterance;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      
-      console.log("[TTS] Speech synthesis started for:", lang);
     } catch (error) {
       console.error("[TTS] Error starting speech:", error);
       setIsSpeaking(false);
+      Alert.alert(
+        lang === "zh" ? "錯誤" : "Error",
+        lang === "zh" ? "無法生成語音，請稍後再試" : "Failed to generate speech. Please try again."
+      );
     }
   };
 
-  const stopSpeaking = () => {
-    if (Platform.OS !== "web") return;
-    
+  const stopSpeaking = async () => {
     try {
-      window.speechSynthesis.cancel();
+      if (Platform.OS === "web") {
+        window.speechSynthesis.cancel();
+        console.log("[TTS Web] Speech stopped");
+      } else {
+        if (ttsAudioRef.current) {
+          await ttsAudioRef.current.stopAsync();
+          await ttsAudioRef.current.unloadAsync();
+          ttsAudioRef.current = null;
+          console.log("[TTS Mobile] Audio stopped");
+        }
+      }
       setIsSpeaking(false);
-      console.log("[TTS] Speech stopped");
     } catch (error) {
       console.error("[TTS] Error stopping speech:", error);
+      setIsSpeaking(false);
     }
   };
 
@@ -377,7 +445,7 @@ export default function MeditationPlayerScreen() {
                   {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
                 </TouchableOpacity>
                 
-                {Platform.OS === "web" && canSpeak && (
+                {canSpeak && (
                   <TouchableOpacity
                     style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                     onPress={() => {
@@ -387,6 +455,7 @@ export default function MeditationPlayerScreen() {
                         startSpeaking();
                       }
                     }}
+                    disabled={isSpeaking && Platform.OS !== "web"}
                   >
                     <Volume size={16} color="#FFFFFF" />
                     <Text style={styles.speakButtonText}>
@@ -396,14 +465,6 @@ export default function MeditationPlayerScreen() {
                       }
                     </Text>
                   </TouchableOpacity>
-                )}
-                
-                {Platform.OS === "web" && !canSpeak && (
-                  <View style={styles.ttsUnavailable}>
-                    <Text style={styles.ttsUnavailableText}>
-                      {lang === "zh" ? "語音功能不可用" : "Voice unavailable"}
-                    </Text>
-                  </View>
                 )}
               </View>
             )}
