@@ -11,11 +11,12 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from "react-native";
-import { Send, Bot, User, Sparkles, PlayCircle, Globe } from "lucide-react-native";
+import { Send, Bot, User, Sparkles, PlayCircle, Mic, StopCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
+import { Audio } from "expo-av";
 
 interface Message {
   id: string;
@@ -78,6 +79,9 @@ export default function AssistantScreen() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const t = TRANSLATIONS[language];
 
@@ -180,6 +184,131 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
 
   const handlePromptPress = (prompt: string) => {
     setInputText(prompt);
+  };
+
+  const startRecording = async () => {
+    try {
+      console.log("Requesting audio permissions...");
+      const { status } = await Audio.requestPermissionsAsync();
+      
+      if (status !== "granted") {
+        console.log("Audio permission denied");
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log("Starting recording...");
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync({
+        android: {
+          extension: ".m4a",
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".wav",
+          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: "audio/webm",
+          bitsPerSecond: 128000,
+        },
+      });
+
+      await recording.startAsync();
+      recordingRef.current = recording;
+      setIsRecording(true);
+      console.log("Recording started");
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      if (!recordingRef.current) return;
+
+      console.log("Stopping recording...");
+      setIsRecording(false);
+      await recordingRef.current.stopAndUnloadAsync();
+      
+      if (Platform.OS !== "web") {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+        });
+      }
+
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+
+      if (!uri) {
+        console.error("No recording URI");
+        return;
+      }
+
+      console.log("Recording stopped, URI:", uri);
+      await transcribeAudio(uri);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      setIsRecording(false);
+    }
+  };
+
+  const transcribeAudio = async (uri: string) => {
+    try {
+      setIsTranscribing(true);
+      console.log("Transcribing audio...");
+
+      const formData = new FormData();
+      
+      const uriParts = uri.split(".");
+      const fileType = uriParts[uriParts.length - 1];
+
+      if (Platform.OS === "web") {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        formData.append("audio", blob, `recording.${fileType}`);
+      } else {
+        const audioFile = {
+          uri,
+          name: `recording.${fileType}`,
+          type: `audio/${fileType}`,
+        } as any;
+        formData.append("audio", audioFile);
+      }
+
+      formData.append("language", language === "zh" ? "zh" : "en");
+
+      const response = await fetch("https://toolkit.rork.com/stt/transcribe/", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log("Transcription result:", data);
+
+      if (data.text) {
+        setInputText(data.text);
+      }
+    } catch (error) {
+      console.error("Failed to transcribe audio:", error);
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   return (
@@ -319,20 +448,34 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
             style={[styles.input, { backgroundColor: currentTheme.background, color: currentTheme.text }]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={t.inputPlaceholder}
+            placeholder={isTranscribing ? (language === "zh" ? "正在轉錄..." : "Transcribing...") : t.inputPlaceholder}
             placeholderTextColor={currentTheme.textSecondary}
             multiline
             maxLength={500}
-            editable={!isLoading}
+            editable={!isLoading && !isRecording && !isTranscribing}
           />
+          <TouchableOpacity
+            style={[
+              styles.voiceButton,
+              { backgroundColor: isRecording ? "#EF4444" : currentTheme.background },
+            ]}
+            onPress={isRecording ? stopRecording : startRecording}
+            disabled={isLoading || isTranscribing}
+          >
+            {isRecording ? (
+              <StopCircle color="#FFFFFF" size={20} />
+            ) : (
+              <Mic color={currentTheme.primary} size={20} />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.sendButton,
               { backgroundColor: currentTheme.primary },
-              (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
+              (!inputText.trim() || isLoading || isRecording || isTranscribing) && styles.sendButtonDisabled,
             ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!inputText.trim() || isLoading || isRecording || isTranscribing}
           >
             <Send color="#FFFFFF" size={20} />
           </TouchableOpacity>
@@ -504,6 +647,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     color: "#1F2937",
+    marginRight: 8,
+  },
+  voiceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
   },
   sendButton: {

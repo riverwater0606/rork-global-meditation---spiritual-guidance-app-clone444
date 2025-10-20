@@ -2,11 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
+import { SleepTrackerProvider } from "@/providers/SleepTrackerProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
@@ -113,6 +114,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings/privacy" options={{ presentation: "modal" }} />
       <Stack.Screen name="callback" options={{ presentation: "modal" }} />
       <Stack.Screen name="sign-in" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="sleep-tracker" options={{ presentation: "modal" }} />
     </Stack>
   );
 }
@@ -139,7 +141,9 @@ export default function RootLayout() {
             <SettingsProvider>
               <UserProvider>
                 <MeditationProvider>
-                  <RootLayoutNav />
+                  <SleepTrackerProvider>
+                    <RootLayoutNav />
+                  </SleepTrackerProvider>
                 </MeditationProvider>
               </UserProvider>
             </SettingsProvider>
