@@ -304,43 +304,112 @@ export default function MeditationPlayerScreen() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to generate speech");
+          const errorText = await response.text();
+          console.error("[TTS Mobile] API Error:", response.status, errorText);
+          throw new Error(`Failed to generate speech: ${response.status}`);
         }
 
         const data = await response.json();
+        console.log("[TTS Mobile] API Response received");
+        
+        if (!data.audioContent) {
+          throw new Error("No audio content in response");
+        }
+        
         const audioBase64 = data.audioContent;
+        console.log("[TTS Mobile] Audio base64 length:", audioBase64.length);
         
         if (ttsAudioRef.current) {
-          await ttsAudioRef.current.unloadAsync();
+          try {
+            await ttsAudioRef.current.stopAsync();
+            await ttsAudioRef.current.unloadAsync();
+          } catch (e) {
+            console.log("[TTS Mobile] Error cleaning up previous audio:", e);
+          }
+          ttsAudioRef.current = null;
         }
 
+        if (soundRef.current) {
+          try {
+            await soundRef.current.setVolumeAsync(soundVolume * 0.3);
+          } catch (e) {
+            console.log("[TTS Mobile] Error lowering background sound:", e);
+          }
+        }
+
+        console.log("[TTS Mobile] Setting audio mode...");
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
+          staysActiveInBackground: false,
           shouldDuckAndroid: true,
+          interruptionModeIOS: 1,
+          interruptionModeAndroid: 1,
         });
 
+        console.log("[TTS Mobile] Creating sound object...");
         const { sound } = await Audio.Sound.createAsync(
           { uri: `data:audio/mp3;base64,${audioBase64}` },
-          { shouldPlay: true },
+          { 
+            shouldPlay: true, 
+            volume: 1.0,
+            isLooping: false,
+          },
           (status) => {
-            if (status.isLoaded && status.didJustFinish) {
+            if (status.isLoaded) {
+              console.log("[TTS Mobile] Status:", {
+                isPlaying: status.isPlaying,
+                position: status.positionMillis,
+                duration: status.durationMillis,
+                didJustFinish: status.didJustFinish,
+              });
+              
+              if (status.didJustFinish) {
+                setIsSpeaking(false);
+                console.log("[TTS Mobile] Finished speaking");
+                
+                if (soundRef.current) {
+                  soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+                    console.log("[TTS Mobile] Error restoring background sound:", e)
+                  );
+                }
+              }
+            }
+            if ('error' in status && status.error) {
+              console.error("[TTS Mobile] Playback error:", status.error);
               setIsSpeaking(false);
-              console.log("[TTS Mobile] Finished speaking");
             }
           }
         );
 
         ttsAudioRef.current = sound;
-        console.log("[TTS Mobile] Started playing audio");
+        
+        const status = await sound.getStatusAsync();
+        console.log("[TTS Mobile] Initial status:", status);
+        
+        if (status.isLoaded && !status.isPlaying) {
+          console.log("[TTS Mobile] Sound not playing, manually starting...");
+          await sound.playAsync();
+          console.log("[TTS Mobile] Play command sent");
+        } else if (status.isLoaded && status.isPlaying) {
+          console.log("[TTS Mobile] Audio is playing successfully");
+        }
       }
     } catch (error) {
       console.error("[TTS] Error starting speech:", error);
       setIsSpeaking(false);
+      
+      if (soundRef.current) {
+        soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+          console.log("[TTS Mobile] Error restoring background sound:", e)
+        );
+      }
+      
       Alert.alert(
         lang === "zh" ? "錯誤" : "Error",
-        lang === "zh" ? "無法生成語音，請稍後再試" : "Failed to generate speech. Please try again."
+        lang === "zh" 
+          ? `無法生成語音: ${error instanceof Error ? error.message : String(error)}`
+          : `Failed to generate speech: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   };
