@@ -78,9 +78,6 @@ export default function FocusMeditationScreen() {
                       <Text style={styles.sessionDuration}>
                         {session.duration} {lang === "zh" ? "分鐘" : "min"}
                       </Text>
-                      <Text style={styles.sessionNarrator}>
-                        • {lang === "zh" ? session.narratorZh : session.narrator}
-                      </Text>
                     </View>
                   </View>
                   <View style={styles.playIconContainer}>

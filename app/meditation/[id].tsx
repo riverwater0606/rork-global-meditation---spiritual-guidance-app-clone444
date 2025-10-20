@@ -116,9 +116,6 @@ export default function MeditationPlayerScreen() {
             <Text style={styles.sessionTitle}>
               {lang === "zh" ? session.titleZh : session.title}
             </Text>
-            <Text style={styles.sessionNarrator}>
-              {lang === "zh" ? `由 ${session.narratorZh} 指導` : `with ${session.narrator}`}
-            </Text>
 
             {/* Breathing Circle */}
             <View style={styles.breathingContainer}>
