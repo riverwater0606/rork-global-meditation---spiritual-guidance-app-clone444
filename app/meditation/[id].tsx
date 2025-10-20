@@ -53,7 +53,6 @@ export default function MeditationPlayerScreen() {
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [isLoadingTTS, setIsLoadingTTS] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -231,7 +230,6 @@ export default function MeditationPlayerScreen() {
     
     const text = lang === "zh" ? customSession.scriptZh : customSession.script;
     
-    setIsLoadingTTS(true);
     setShowScript(true);
     
     try {
@@ -247,7 +245,8 @@ export default function MeditationPlayerScreen() {
       
       if (Platform.OS === 'web') {
         if (!window.speechSynthesis) {
-          throw new Error("Speech synthesis not supported");
+          console.error("[TTS Web] Speech synthesis not supported");
+          return;
         }
         
         window.speechSynthesis.cancel();
@@ -261,7 +260,6 @@ export default function MeditationPlayerScreen() {
         utterance.onstart = () => {
           console.log("[TTS Web] Speech started");
           setIsSpeaking(true);
-          setIsLoadingTTS(false);
         };
         
         utterance.onend = () => {
@@ -277,13 +275,13 @@ export default function MeditationPlayerScreen() {
         utterance.onerror = (event) => {
           console.error("[TTS Web] Speech error:", event);
           setIsSpeaking(false);
-          setIsLoadingTTS(false);
           if (soundRef.current) {
             soundRef.current.setVolumeAsync(soundVolume);
           }
         };
         
         console.log("[TTS Web] Speaking...");
+        setIsSpeaking(true);
         window.speechSynthesis.speak(utterance);
       } else {
         const voice = lang === "zh" ? "zh-TW" : "en-US";
@@ -291,14 +289,14 @@ export default function MeditationPlayerScreen() {
         console.log("[TTS Mobile] Using expo-speech");
         console.log("[TTS Mobile] Voice:", voice);
         
+        setIsSpeaking(true);
+        
         await Speech.speak(text, {
           language: voice,
           pitch: 1.0,
           rate: 0.85,
           onStart: () => {
             console.log("[TTS Mobile] Speech started");
-            setIsSpeaking(true);
-            setIsLoadingTTS(false);
           },
           onDone: () => {
             console.log("[TTS Mobile] Speech done");
@@ -319,7 +317,6 @@ export default function MeditationPlayerScreen() {
           onError: (error) => {
             console.error("[TTS Mobile] Speech error:", error);
             setIsSpeaking(false);
-            setIsLoadingTTS(false);
             if (soundRef.current) {
               soundRef.current.setVolumeAsync(soundVolume);
             }
@@ -452,19 +449,12 @@ export default function MeditationPlayerScreen() {
                       startSpeaking();
                     }
                   }}
-                  disabled={isLoadingTTS}
                 >
-                  {isLoadingTTS ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Volume size={16} color="#FFFFFF" />
-                  )}
+                  <Volume size={16} color="#FFFFFF" />
                   <Text style={styles.speakButtonText}>
-                    {isLoadingTTS
-                      ? (lang === "zh" ? "生成中..." : "Loading...")
-                      : isSpeaking 
-                        ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
-                        : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
+                    {isSpeaking 
+                      ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
+                      : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
                     }
                   </Text>
                 </TouchableOpacity>
