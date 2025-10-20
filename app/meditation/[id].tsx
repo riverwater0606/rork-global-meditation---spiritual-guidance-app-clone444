@@ -331,7 +331,10 @@ export default function MeditationPlayerScreen() {
 
         if (soundRef.current) {
           try {
-            await soundRef.current.setVolumeAsync(soundVolume * 0.3);
+            const currentStatus = await soundRef.current.getStatusAsync();
+            console.log("[TTS Mobile] Background sound status before lowering:", currentStatus.isLoaded ? { isPlaying: currentStatus.isPlaying, volume: currentStatus.volume } : 'not loaded');
+            await soundRef.current.setVolumeAsync(soundVolume * 0.25);
+            console.log("[TTS Mobile] Lowered background sound to", soundVolume * 0.25);
           } catch (e) {
             console.log("[TTS Mobile] Error lowering background sound:", e);
           }
@@ -342,19 +345,20 @@ export default function MeditationPlayerScreen() {
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
-          shouldDuckAndroid: false,
+          shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
-          interruptionModeIOS: 2,
-          interruptionModeAndroid: 2,
+          interruptionModeIOS: 1,
+          interruptionModeAndroid: 1,
         });
 
         console.log("[TTS Mobile] Creating sound object...");
         const { sound } = await Audio.Sound.createAsync(
           { uri: `data:audio/mp3;base64,${audioBase64}` },
           { 
-            shouldPlay: false, 
-            volume: 1.0,
+            shouldPlay: true, 
+            volume: 0.9,
             isLooping: false,
+            progressUpdateIntervalMillis: 500,
           },
           (status) => {
             if (status.isLoaded) {
@@ -363,6 +367,7 @@ export default function MeditationPlayerScreen() {
                 position: status.positionMillis,
                 duration: status.durationMillis,
                 didJustFinish: status.didJustFinish,
+                volume: status.volume,
               });
               
               if (status.didJustFinish) {
@@ -379,30 +384,27 @@ export default function MeditationPlayerScreen() {
             if ('error' in status && status.error) {
               console.error("[TTS Mobile] Playback error:", status.error);
               setIsSpeaking(false);
+              if (soundRef.current) {
+                soundRef.current.setVolumeAsync(soundVolume).catch(e => 
+                  console.log("[TTS Mobile] Error restoring background sound:", e)
+                );
+              }
             }
           }
         );
 
         ttsAudioRef.current = sound;
+        console.log("[TTS Mobile] Sound created and auto-playing...");
         
-        console.log("[TTS Mobile] Waiting for sound to load...");
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         
         const status = await sound.getStatusAsync();
-        console.log("[TTS Mobile] Initial status:", status);
-        
-        if (status.isLoaded) {
-          console.log("[TTS Mobile] Starting playback...");
-          await sound.setVolumeAsync(1.0);
-          await sound.playAsync();
-          console.log("[TTS Mobile] Play command sent");
-          
-          const playingStatus = await sound.getStatusAsync();
-          console.log("[TTS Mobile] Playback status:", {
-            isPlaying: playingStatus.isLoaded ? playingStatus.isPlaying : false,
-            volume: playingStatus.isLoaded ? playingStatus.volume : 0,
-          });
-        }
+        console.log("[TTS Mobile] Final status check:", {
+          isLoaded: status.isLoaded,
+          isPlaying: status.isLoaded ? status.isPlaying : false,
+          volume: status.isLoaded ? status.volume : 0,
+          position: status.isLoaded ? status.positionMillis : 0,
+        });
       }
     } catch (error) {
       console.error("[TTS] Error starting speech:", error);
