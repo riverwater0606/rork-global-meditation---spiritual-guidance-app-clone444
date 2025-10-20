@@ -234,17 +234,19 @@ export default function MeditationPlayerScreen() {
     
     if (soundRef.current) {
       console.log("[Audio] Lowering background sound volume for TTS");
-      await soundRef.current.setVolumeAsync(soundVolume * 0.3);
+      await soundRef.current.setVolumeAsync(soundVolume * 0.2);
     }
     
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-      interruptionModeIOS: 1,
-      interruptionModeAndroid: 1,
-    });
+    if (Platform.OS !== "web") {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+        interruptionModeIOS: 2,
+        interruptionModeAndroid: 2,
+      });
+    }
     
     setIsSpeaking(true);
     setCurrentSentenceIndex(0);
@@ -261,10 +263,21 @@ export default function MeditationPlayerScreen() {
       if (!synth) {
         console.error("[TTS] Speech synthesis not supported");
         setIsSpeaking(false);
+        if (soundRef.current) {
+          await soundRef.current.setVolumeAsync(soundVolume);
+        }
         return;
       }
       
       synth.cancel();
+      
+      const voices = synth.getVoices();
+      console.log("[TTS] Available voices:", voices.length);
+      if (voices.length === 0) {
+        synth.addEventListener('voiceschanged', () => {
+          console.log("[TTS] Voices loaded:", synth.getVoices().length);
+        });
+      }
       
       let isCancelled = false;
       
@@ -291,9 +304,20 @@ export default function MeditationPlayerScreen() {
         
         const utterance = new SpeechSynthesisUtterance(sentence);
         utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
-        utterance.pitch = 0.95;
-        utterance.rate = 0.75;
+        utterance.pitch = 1.0;
+        utterance.rate = 0.8;
         utterance.volume = 1.0;
+        
+        const voices = synth.getVoices();
+        const preferredVoice = voices.find(v => 
+          lang === "zh" 
+            ? (v.lang.startsWith('zh') || v.lang.includes('Chinese'))
+            : v.lang.startsWith('en')
+        );
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+          console.log(`[TTS] Using voice: ${preferredVoice.name}`);
+        }
         
         utterance.onstart = () => {
           console.log(`[TTS] Started sentence ${index + 1}`);
@@ -317,8 +341,17 @@ export default function MeditationPlayerScreen() {
         };
         
         console.log("[TTS] Calling synth.speak()");
-        synth.speak(utterance);
-        console.log("[TTS] synth.speak() called, synth.speaking:", synth.speaking, "synth.pending:", synth.pending);
+        try {
+          synth.speak(utterance);
+          console.log("[TTS] synth.speak() called, synth.speaking:", synth.speaking, "synth.pending:", synth.pending);
+          
+          setTimeout(() => {
+            console.log("[TTS] Status check - speaking:", synth.speaking, "pending:", synth.pending);
+          }, 100);
+        } catch (error) {
+          console.error("[TTS] Error calling synth.speak():", error);
+          utterance.onerror?.({ error: 'synthesis-failed' } as any);
+        }
       };
       
       speechRef.current = {
