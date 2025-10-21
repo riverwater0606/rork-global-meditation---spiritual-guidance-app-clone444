@@ -235,7 +235,7 @@ export default function MeditationPlayerScreen() {
       return;
     }
     
-    const text = lang === "zh" ? customSession.scriptZh : customSession.script;
+    const text = customSession.scriptZh || customSession.script;
     
     if (!text) {
       console.log("[TTS] Script text is empty");
@@ -545,7 +545,7 @@ export default function MeditationPlayerScreen() {
             <ScrollView style={styles.scriptContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.scriptContent}>
                 <Text style={styles.scriptText}>
-                  {lang === "zh" ? customSession.scriptZh : customSession.script}
+                  {customSession.scriptZh || customSession.script}
                 </Text>
               </View>
             </ScrollView>
@@ -794,14 +794,14 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(139, 92, 246, 0.6)",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    backgroundColor: "#8B5CF6",
     borderRadius: 20,
     gap: 6,
   },
   speakButtonActive: {
-    backgroundColor: "rgba(239, 68, 68, 0.8)",
+    backgroundColor: "#EF4444",
   },
   speakButtonText: {
     fontSize: 14,
