@@ -505,17 +505,15 @@ export default function MeditationPlayerScreen() {
             {/* Script Preview Toggle & Auto Reading Controls */}
             {customSession?.script && (
               <View style={styles.scriptControls}>
-                {!isSpeaking && (
-                  <TouchableOpacity 
-                    style={styles.scriptToggle}
-                    onPress={() => setShowScript(!showScript)}
-                  >
-                    <Text style={styles.scriptToggleText}>
-                      {lang === "zh" ? "查看冥想腳本" : "View Script"}
-                    </Text>
-                    {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity 
+                  style={styles.scriptToggle}
+                  onPress={() => setShowScript(!showScript)}
+                >
+                  <Text style={styles.scriptToggleText}>
+                    {lang === "zh" ? "查看冥想腳本" : "View Script"}
+                  </Text>
+                  {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
+                </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
@@ -801,7 +799,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   speakButtonActive: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#DC2626",
   },
   speakButtonText: {
     fontSize: 14,
