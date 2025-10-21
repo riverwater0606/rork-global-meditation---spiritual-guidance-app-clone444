@@ -9,7 +9,8 @@
     "start-web-dev": "DEBUG=expo bunx rork start -p 0eov1rj688wrtzwxjndo7 --web --tunnel",
     "lint": "expo lint",
     "web": "expo start --web --clear",
-    "export": "expo export --platform web --no-minify"
+    "export": "expo export --platform web --no-minify",
+    "doctor": "expo doctor"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
