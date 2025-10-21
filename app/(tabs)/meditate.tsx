@@ -1,33 +1,73 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Dimensions,
+  ScrollView,
   StyleSheet,
   Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
   TextInput,
-  Dimensions,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Search, Clock, Headphones } from "lucide-react-native";
+import { Clock, Headphones, Search, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
-import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
+import {
+  CATEGORIES,
+  getLocalizedContent,
+  MeditationSession,
+  SupportedLanguage,
+} from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
+import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";
 
 const { width } = Dimensions.get("window");
 
-export default function MeditateScreen() {
-  const { currentTheme } = useSettings();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
+type Session = MeditationSession | CustomMeditationSession;
 
-  const filteredSessions = MEDITATION_SESSIONS.filter((session) => {
-    const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      session.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || session.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+const TRANSLATIONS: Record<
+  SupportedLanguage,
+  { title: string; search: string; all: string; customBadge: string }
+> = {
+  en: {
+    title: "Meditation Library",
+    search: "Search meditations...",
+    all: "All",
+    customBadge: "AI Guided",
+  },
+  zh: {
+    title: "冥想資源庫",
+    search: "搜尋冥想課程...",
+    all: "全部",
+    customBadge: "AI 引導",
+  },
+};
+
+const isCustomSession = (session: Session): session is CustomMeditationSession => {
+  return (session as CustomMeditationSession).source !== undefined;
+};
+
+export default function MeditateScreen() {
+  const { currentTheme, settings } = useSettings();
+  const { getAllSessions } = useMeditation();
+  const language = settings.language as SupportedLanguage;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  const t = TRANSLATIONS[language];
+
+  const sessions = useMemo(() => getAllSessions(), [getAllSessions]);
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((session) => {
+      const localized = getLocalizedContent(session, language);
+      const matchesSearch =
+        localized.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        localized.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === "all" || session.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [sessions, searchQuery, selectedCategory, language]);
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -38,13 +78,13 @@ export default function MeditateScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>Meditation Library</Text>
-          
+          <Text style={styles.title}>{t.title}</Text>
+
           <View style={[styles.searchContainer, { backgroundColor: currentTheme.surface }]}>
             <Search size={20} color="#9CA3AF" />
             <TextInput
               style={[styles.searchInput, { color: currentTheme.text }]}
-              placeholder="Search meditations..."
+              placeholder={t.search}
               placeholderTextColor={currentTheme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -54,20 +94,22 @@ export default function MeditateScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Categories */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.categoriesContainer}
           contentContainerStyle={styles.categoriesContent}
         >
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity
-              key={category.id}
+        {CATEGORIES.map((category) => (
+          <TouchableOpacity
+            key={category.id}
               style={[
                 styles.categoryChip,
                 { backgroundColor: currentTheme.surface, borderColor: currentTheme.border },
-                selectedCategory === category.id && { backgroundColor: currentTheme.primary, borderColor: currentTheme.primary },
+                selectedCategory === category.id && {
+                  backgroundColor: currentTheme.primary,
+                  borderColor: currentTheme.primary,
+                },
               ]}
               onPress={() => setSelectedCategory(category.id)}
               testID={`category-${category.id}`}
@@ -79,50 +121,62 @@ export default function MeditateScreen() {
                   selectedCategory === category.id && { color: "#FFFFFF" },
                 ]}
               >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+              {category.id === "all" ? t.all : category.name[language] ?? category.name.en}
+            </Text>
+          </TouchableOpacity>
+        ))}
         </ScrollView>
 
-        {/* Sessions Grid */}
         <View style={styles.sessionsGrid}>
-          {filteredSessions.map((session, index) => (
-            <TouchableOpacity
-              key={session.id}
-              style={[
-                styles.sessionCard,
-                index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
-              ]}
-              onPress={() => router.push(`/meditation/${session.id}`)}
-              testID={`meditation-${session.id}`}
-            >
-              <LinearGradient
-                colors={session.gradient as [string, string]}
-                style={styles.sessionCardGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+          {filteredSessions.map((session, index) => {
+            const localized = getLocalizedContent(session, language);
+            return (
+              <TouchableOpacity
+                key={session.id}
+                style={[
+                  styles.sessionCard,
+                  index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
+                ]}
+                onPress={() => router.push(`/meditation/${session.id}`)}
+                testID={`meditation-${session.id}`}
               >
-                <View style={styles.sessionCardContent}>
-                  <Text style={styles.sessionCardTitle}>{session.title}</Text>
-                  <Text style={styles.sessionCardDescription} numberOfLines={2}>
-                    {session.description}
-                  </Text>
-                  
-                  <View style={styles.sessionCardMeta}>
-                    <View style={styles.sessionCardMetaItem}>
-                      <Clock size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>{session.duration} min</Text>
+                <LinearGradient
+                  colors={session.gradient as [string, string]}
+                  style={styles.sessionCardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.sessionCardContent}>
+                    <View style={styles.sessionCardHeader}>
+                      <Text style={styles.sessionCardTitle}>{localized.title}</Text>
+                      {isCustomSession(session) && (
+                        <View style={styles.badge}>
+                          <Sparkles size={12} color="#FCD34D" />
+                          <Text style={styles.badgeText}>{t.customBadge}</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={styles.sessionCardMetaItem}>
-                      <Headphones size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>{session.narrator}</Text>
+                    <Text style={styles.sessionCardDescription} numberOfLines={2}>
+                      {localized.description}
+                    </Text>
+
+                    <View style={styles.sessionCardMeta}>
+                      <View style={styles.sessionCardMetaItem}>
+                        <Clock size={14} color="#E0E7FF" />
+                        <Text style={styles.sessionCardMetaText}>
+                          {session.duration} {language === "zh" ? "分鐘" : "min"}
+                        </Text>
+                      </View>
+                      <View style={styles.sessionCardMetaItem}>
+                        <Headphones size={14} color="#E0E7FF" />
+                        <Text style={styles.sessionCardMetaText}>{session.narrator}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.bottomSpacing} />
@@ -198,39 +252,59 @@ const styles = StyleSheet.create({
     marginLeft: 0,
   },
   sessionCardGradient: {
-    padding: 16,
-    minHeight: 160,
+    padding: 20,
   },
   sessionCardContent: {
-    flex: 1,
+    gap: 12,
+  },
+  sessionCardHeader: {
+    flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
   },
   sessionCardTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
-    marginBottom: 8,
+    flex: 1,
+    marginRight: 8,
   },
   sessionCardDescription: {
-    fontSize: 12,
-    color: "#E0E7FF",
-    lineHeight: 18,
-    marginBottom: 12,
+    fontSize: 14,
+    color: "#FFFFFF",
+    opacity: 0.9,
+    lineHeight: 20,
   },
   sessionCardMeta: {
-    marginTop: "auto",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   sessionCardMetaItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    gap: 6,
   },
   sessionCardMetaText: {
-    fontSize: 11,
+    fontSize: 14,
     color: "#E0E7FF",
-    marginLeft: 4,
+    fontWeight: "500",
   },
   bottomSpacing: {
-    height: 20,
+    height: 40,
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(252, 211, 77, 0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  badgeText: {
+    fontSize: 10,
+    color: "#FCD34D",
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
 });
