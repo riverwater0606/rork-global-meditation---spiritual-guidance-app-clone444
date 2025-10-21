@@ -20,7 +20,6 @@
     "@tanstack/react-query": "^5.83.0",
     "@ungap/structured-clone": "^1.3.0",
     "@worldcoin/minikit-js": "^1.9.6",
-    "@noble/hashes": "^1.3.2",
     "expo": "^53.0.4",
     "expo-av": "~15.0.6",
     "expo-blur": "~14.1.4",
@@ -61,12 +60,6 @@
     "typescript": "~5.8.3"
   },
   "overrides": {
-    "@noble/hashes": "^1.3.2",
-    "expo-av": "~15.0.6",
-    "expo-speech": "~12.0.6"
-  },
-  "resolutions": {
-    "@noble/hashes": "^1.3.2",
     "expo-av": "~15.0.6",
     "expo-speech": "~12.0.6"
   },
