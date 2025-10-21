@@ -18,8 +18,7 @@ import { useSettings } from "@/providers/SettingsProvider";
 const { width } = Dimensions.get("window");
 
 export default function MeditateScreen() {
-  const { currentTheme, settings } = useSettings();
-  const lang = settings.language;
+  const { currentTheme } = useSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
@@ -39,15 +38,13 @@ export default function MeditateScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>
-            {lang === "zh" ? "冥想庫" : "Meditation Library"}
-          </Text>
+          <Text style={styles.title}>Meditation Library</Text>
           
           <View style={[styles.searchContainer, { backgroundColor: currentTheme.surface }]}>
             <Search size={20} color="#9CA3AF" />
             <TextInput
               style={[styles.searchInput, { color: currentTheme.text }]}
-              placeholder={lang === "zh" ? "搜尋冥想..." : "Search meditations..."}
+              placeholder="Search meditations..."
               placeholderTextColor={currentTheme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -82,7 +79,7 @@ export default function MeditateScreen() {
                   selectedCategory === category.id && { color: "#FFFFFF" },
                 ]}
               >
-                {lang === "zh" ? (category as any).nameZh : category.name}
+                {category.name}
               </Text>
             </TouchableOpacity>
           ))}
@@ -107,25 +104,19 @@ export default function MeditateScreen() {
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.sessionCardContent}>
-                  <Text style={styles.sessionCardTitle}>
-                    {lang === "zh" ? session.titleZh : session.title}
-                  </Text>
+                  <Text style={styles.sessionCardTitle}>{session.title}</Text>
                   <Text style={styles.sessionCardDescription} numberOfLines={2}>
-                    {lang === "zh" ? session.descriptionZh : session.description}
+                    {session.description}
                   </Text>
                   
                   <View style={styles.sessionCardMeta}>
                     <View style={styles.sessionCardMetaItem}>
                       <Clock size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>
-                        {session.duration} {lang === "zh" ? "分鐘" : "min"}
-                      </Text>
+                      <Text style={styles.sessionCardMetaText}>{session.duration} min</Text>
                     </View>
                     <View style={styles.sessionCardMetaItem}>
                       <Headphones size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>
-                        {lang === "zh" ? session.narratorZh : session.narrator}
-                      </Text>
+                      <Text style={styles.sessionCardMetaText}>{session.narrator}</Text>
                     </View>
                   </View>
                 </View>

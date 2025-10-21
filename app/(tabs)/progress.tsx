@@ -5,73 +5,21 @@ import {
   View,
   ScrollView,
   Dimensions,
-  TouchableOpacity,
-  Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { TrendingUp, Calendar, Award, Target, Download } from "lucide-react-native";
+import { TrendingUp, Calendar, Award, Target } from "lucide-react-native";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
 export default function ProgressScreen() {
-  const { currentTheme, settings } = useSettings();
+  const { currentTheme } = useSettings();
   const { stats, achievements } = useMeditation();
-  const lang = settings.language;
 
-  const weekDays = lang === "zh" 
-    ? ["日", "一", "二", "三", "四", "五", "六"] 
-    : ["S", "M", "T", "W", "T", "F", "S"];
+  const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   const currentDay = new Date().getDay();
-
-  const handleExportData = () => {
-    const data = {
-      exportDate: new Date().toISOString(),
-      stats: {
-        totalSessions: stats.totalSessions,
-        totalMinutes: stats.totalMinutes,
-        totalHours: Math.floor(stats.totalMinutes / 60),
-        currentStreak: stats.currentStreak,
-        lastSessionDate: stats.lastSessionDate,
-        weekProgress: stats.weekProgress,
-      },
-      achievements: achievements.map(a => ({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        unlocked: a.unlocked,
-      })),
-    };
-
-    const jsonString = JSON.stringify(data, null, 2);
-
-    if (Platform.OS === "web") {
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `meditation-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      Alert.alert(
-        lang === "zh" ? "導出成功" : "Export Successful",
-        lang === "zh" ? "您的數據已成功導出" : "Your data has been exported successfully",
-        [{ text: "OK" }]
-      );
-    } else {
-      Alert.alert(
-        lang === "zh" ? "數據導出" : "Data Export",
-        lang === "zh" ? `總課程: ${stats.totalSessions}\n總時間: ${Math.floor(stats.totalMinutes / 60)}小時\n連續天數: ${stats.currentStreak}天` : `Total Sessions: ${stats.totalSessions}\nTotal Time: ${Math.floor(stats.totalMinutes / 60)} hours\nCurrent Streak: ${stats.currentStreak} days`,
-        [{ text: "OK" }]
-      );
-    }
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -82,21 +30,7 @@ export default function ProgressScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>
-              {lang === "zh" ? "您的進度" : "Your Progress"}
-            </Text>
-            <TouchableOpacity
-              style={styles.exportButton}
-              onPress={handleExportData}
-              testID="export-data-button"
-            >
-              <Download size={20} color="#FFFFFF" />
-              <Text style={styles.exportButtonText}>
-                {lang === "zh" ? "導出" : "Export"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.title}>Your Progress</Text>
         </SafeAreaView>
       </LinearGradient>
 
@@ -109,18 +43,14 @@ export default function ProgressScreen() {
                 <TrendingUp size={24} color="#10B981" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{stats.currentStreak}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>
-                {lang === "zh" ? "連續天數" : "Day Streak"}
-              </Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Day Streak</Text>
             </View>
             <View style={[styles.statCard, { backgroundColor: currentTheme.surface }]}>
               <View style={styles.statIcon}>
                 <Calendar size={24} color="#8B5CF6" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{stats.totalSessions}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>
-                {lang === "zh" ? "總課程" : "Total Sessions"}
-              </Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Sessions</Text>
             </View>
           </View>
           
@@ -130,27 +60,21 @@ export default function ProgressScreen() {
                 <Target size={24} color="#3B82F6" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{Math.floor(stats.totalMinutes / 60)}h</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>
-                {lang === "zh" ? "總時間" : "Total Time"}
-              </Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Time</Text>
             </View>
             <View style={[styles.statCard, { backgroundColor: currentTheme.surface }]}>
               <View style={styles.statIcon}>
                 <Award size={24} color="#F59E0B" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{achievements.filter(a => a.unlocked).length}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>
-                {lang === "zh" ? "成就" : "Achievements"}
-              </Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Achievements</Text>
             </View>
           </View>
         </View>
 
         {/* Weekly Progress */}
         <View style={styles.weeklyContainer}>
-          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-            {lang === "zh" ? "本週" : "This Week"}
-          </Text>
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>This Week</Text>
           <View style={[styles.weekGrid, { backgroundColor: currentTheme.surface }]}>
             {weekDays.map((day, index) => {
               const isToday = index === currentDay;
@@ -179,9 +103,7 @@ export default function ProgressScreen() {
 
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
-          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-            {lang === "zh" ? "成就" : "Achievements"}
-          </Text>
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>Achievements</Text>
           <View style={styles.achievementsGrid}>
             {achievements.map((achievement) => (
               <View
@@ -199,9 +121,7 @@ export default function ProgressScreen() {
                 </Text>
                 {achievement.unlocked && (
                   <View style={styles.achievementBadge}>
-                    <Text style={styles.achievementBadgeText}>
-                      {lang === "zh" ? "已解鎖" : "Unlocked"}
-                    </Text>
+                    <Text style={styles.achievementBadgeText}>Unlocked</Text>
                   </View>
                 )}
               </View>
@@ -222,31 +142,12 @@ const styles = StyleSheet.create({
   header: {
     paddingBottom: 30,
   },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#FFFFFF",
-  },
-  exportButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  exportButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    paddingHorizontal: 20,
+    marginTop: 20,
   },
   content: {
     flex: 1,

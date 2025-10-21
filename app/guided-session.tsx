@@ -17,7 +17,6 @@ import {
   SkipBack,
   X,
   Volume2,
-  VolumeX,
   Globe,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,7 +49,6 @@ export default function GuidedSessionScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const [volume] = useState<number>(0.7);
   const breathAnimation = useRef(new Animated.Value(0)).current;
   const progressAnimation = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -197,11 +195,7 @@ export default function GuidedSessionScreen() {
             ]}
           />
           <View style={styles.innerCircle}>
-            {volume === 0 ? (
-              <VolumeX color="#FFFFFF" size={40} />
-            ) : (
-              <Volume2 color="#FFFFFF" size={40} />
-            )}
+            <Volume2 color="#FFFFFF" size={40} />
           </View>
         </View>
 

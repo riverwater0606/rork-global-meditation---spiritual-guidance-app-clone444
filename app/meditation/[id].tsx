@@ -15,7 +15,6 @@ import { Play, Pause, X, Volume2, VolumeX } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
-import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
@@ -23,13 +22,11 @@ export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
   const session = MEDITATION_SESSIONS.find(s => s.id === id);
   const { completeMeditation } = useMeditation();
-  const { settings } = useSettings();
-  const lang = settings.language;
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
-  const [volume, setVolume] = useState<number>(0.7);
-  const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
+
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
 
@@ -113,9 +110,8 @@ export default function MeditationPlayerScreen() {
 
           {/* Main Content */}
           <View style={styles.mainContent}>
-            <Text style={styles.sessionTitle}>
-              {lang === "zh" ? session.titleZh : session.title}
-            </Text>
+            <Text style={styles.sessionTitle}>{session.title}</Text>
+            <Text style={styles.sessionNarrator}>with {session.narrator}</Text>
 
             {/* Breathing Circle */}
             <View style={styles.breathingContainer}>
@@ -131,41 +127,15 @@ export default function MeditationPlayerScreen() {
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   {isPlaying && (
                     <Text style={styles.breathText}>
-                      {lang === "zh" 
-                        ? (Math.floor(timeRemaining % 8) < 4 ? "吸氣" : "呼氣")
-                        : (Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out")
-                      }
+                      {Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out"}
                     </Text>
                   )}
                 </View>
               </Animated.View>
             </View>
 
-            <Text style={styles.description}>
-              {lang === "zh" ? session.descriptionZh : session.description}
-            </Text>
+            <Text style={styles.description}>{session.description}</Text>
           </View>
-
-          {/* Volume Slider */}
-          {showVolumeSlider && Platform.OS === "web" && (
-            <View style={styles.volumeSliderContainer}>
-              <VolumeX size={16} color="#FFFFFF" />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={(e) => setVolume(parseFloat((e.target as HTMLInputElement).value))}
-                style={{
-                  flex: 1,
-                  margin: "0 12px",
-                  accentColor: "#8B5CF6",
-                } as React.CSSProperties}
-              />
-              <Volume2 size={16} color="#FFFFFF" />
-            </View>
-          )}
 
           {/* Controls */}
           <View style={styles.controls}>
@@ -173,18 +143,18 @@ export default function MeditationPlayerScreen() {
               style={styles.secondaryButton}
               onPress={() => {
                 if (Platform.OS === "web") {
-                  setShowVolumeSlider(!showVolumeSlider);
+                  setIsMuted(!isMuted);
                 } else {
                   Alert.alert(
-                    "Volume Control",
-                    "Use device volume buttons to adjust volume",
+                    "Volume",
+                    "Adjust volume using device volume buttons",
                     [{ text: "OK" }]
                   );
                 }
               }}
               testID="volume-button"
             >
-              {volume === 0 ? (
+              {isMuted ? (
                 <VolumeX size={24} color="#FFFFFF" />
               ) : (
                 <Volume2 size={24} color="#FFFFFF" />
@@ -313,14 +283,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-  },
-  volumeSliderContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginBottom: 20,
   },
 });

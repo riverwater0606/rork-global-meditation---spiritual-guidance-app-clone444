@@ -11,34 +11,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { X, Play, Pause, RotateCcw } from "lucide-react-native";
 import { router } from "expo-router";
-import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
 
 const BREATHING_PATTERNS = {
-  "4-7-8": { 
-    inhale: 4, 
-    hold: 7, 
-    exhale: 8, 
-    name: { en: "4-7-8 Relaxation", zh: "4-7-8 放鬆法" }
-  },
-  "box": { 
-    inhale: 4, 
-    hold: 4, 
-    exhale: 4, 
-    name: { en: "Box Breathing", zh: "方形呼吸" }
-  },
-  "calm": { 
-    inhale: 5, 
-    hold: 0, 
-    exhale: 5, 
-    name: { en: "Calm Breathing", zh: "平靜呼吸" }
-  },
+  "4-7-8": { inhale: 4, hold: 7, exhale: 8, name: "4-7-8 Relaxation" },
+  "box": { inhale: 4, hold: 4, exhale: 4, name: "Box Breathing" },
+  "calm": { inhale: 5, hold: 0, exhale: 5, name: "Calm Breathing" },
 };
 
 export default function BreathingScreen() {
-  const { settings } = useSettings();
-  const lang = settings.language;
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<"inhale" | "hold" | "exhale">("inhale");
   const [pattern, setPattern] = useState<keyof typeof BREATHING_PATTERNS>("4-7-8");
@@ -139,13 +121,6 @@ export default function BreathingScreen() {
   };
 
   const getPhaseText = () => {
-    if (lang === "zh") {
-      switch (phase) {
-        case "inhale": return "吸氣";
-        case "hold": return "屏息";
-        case "exhale": return "呼氣";
-      }
-    }
     switch (phase) {
       case "inhale": return "Breathe In";
       case "hold": return "Hold";
@@ -172,9 +147,7 @@ export default function BreathingScreen() {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>
-            {lang === "zh" ? "呼吸練習" : "Breathing Exercise"}
-          </Text>
+          <Text style={styles.title}>Breathing Exercise</Text>
           
           {/* Pattern Selector */}
           <View style={styles.patternSelector}>
@@ -194,7 +167,7 @@ export default function BreathingScreen() {
                     pattern === key && styles.patternTextActive,
                   ]}
                 >
-                  {lang === "zh" ? value.name.zh : value.name.en}
+                  {value.name}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -213,9 +186,7 @@ export default function BreathingScreen() {
             />
             <View style={styles.innerCircle}>
               <Text style={styles.phaseText}>{getPhaseText()}</Text>
-              <Text style={styles.cyclesText}>
-                {lang === "zh" ? "循環：" : "Cycles: "}{cycles}
-              </Text>
+              <Text style={styles.cyclesText}>Cycles: {cycles}</Text>
             </View>
           </View>
 

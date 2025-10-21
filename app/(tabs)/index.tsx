@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,27 +9,31 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Clock, Heart, Moon, Brain, Zap, RefreshCw } from "lucide-react-native";
+import { Play, Clock, Heart, Moon, Brain, Zap } from "lucide-react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
-
+import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
-  const { stats, dailyAffirmation, isGeneratingAffirmation, refreshAffirmation, initializeAffirmation } = useMeditation();
+  const { stats } = useMeditation();
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
+  const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
   const isWeb = Platform.OS === 'web';
 
   const lang = settings.language;
 
-
+  useEffect(() => {
+    const today = new Date().getDay();
+    setAffirmation(DAILY_AFFIRMATIONS[today % DAILY_AFFIRMATIONS.length]);
+  }, []);
 
   useEffect(() => {
     async function onLoad() {
@@ -50,10 +54,6 @@ export default function HomeScreen() {
     void onLoad();
   }, [isWeb, isVerified]);
 
-  useEffect(() => {
-    initializeAffirmation(lang);
-  }, [initializeAffirmation, lang]);
-
   const quickActions = [
     { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
     { id: "timer", title: lang === "zh" ? "計時器" : "Timer", icon: Clock, color: "#3B82F6" },
@@ -68,10 +68,6 @@ export default function HomeScreen() {
       router.push("/breathing");
     } else if (actionId === "timer") {
       router.push("/timer");
-    } else if (actionId === "sleep") {
-      router.push("/sleep-meditation");
-    } else if (actionId === "focus") {
-      router.push("/focus-meditation");
     } else {
       router.push("/meditate");
     }
@@ -112,36 +108,15 @@ export default function HomeScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Daily Affirmation */}
         <View style={[styles.affirmationCard, { backgroundColor: currentTheme.card }]}>
-          <View style={styles.affirmationHeader}>
-            <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
-              {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
-            </Text>
-            <TouchableOpacity 
-              onPress={() => refreshAffirmation(lang)}
-              disabled={isGeneratingAffirmation}
-              style={styles.refreshButton}
-            >
-              <RefreshCw 
-                size={16} 
-                color={currentTheme.primary} 
-                style={isGeneratingAffirmation ? styles.spinning : undefined}
-              />
-            </TouchableOpacity>
-          </View>
-          {dailyAffirmation ? (
-            <>
-              <Text style={[styles.affirmationText, { color: currentTheme.text }]}>
-                {dailyAffirmation.text}
-              </Text>
-              <Text style={[styles.affirmationAuthor, { color: currentTheme.textSecondary }]}>
-                - {dailyAffirmation.author}
-              </Text>
-            </>
-          ) : (
-            <Text style={[styles.affirmationText, { color: currentTheme.textSecondary }]}>
-              {lang === "zh" ? "正在生成今日肯定語..." : "Generating today's affirmation..."}
-            </Text>
-          )}
+          <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
+            {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
+          </Text>
+          <Text style={[styles.affirmationText, { color: currentTheme.text }]}>
+            {affirmation.text}
+          </Text>
+          <Text style={[styles.affirmationAuthor, { color: currentTheme.textSecondary }]}>
+            - {affirmation.author}
+          </Text>
         </View>
 
         {/* Quick Actions */}
@@ -194,12 +169,8 @@ export default function HomeScreen() {
               >
                 <View style={styles.sessionContent}>
                   <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionTitle}>
-                      {lang === "zh" ? session.titleZh : session.title}
-                    </Text>
-                    <Text style={styles.sessionDuration}>
-                      {session.duration} {lang === "zh" ? "分鐘" : "min"}
-                    </Text>
+                    <Text style={styles.sessionTitle}>{session.title}</Text>
+                    <Text style={styles.sessionDuration}>{session.duration} min</Text>
                   </View>
                   <Play size={20} color="#FFFFFF" />
                 </View>
@@ -489,17 +460,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
-  },
-  affirmationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  refreshButton: {
-    padding: 4,
-  },
-  spinning: {
-    opacity: 0.5,
   },
 });
