@@ -16,7 +16,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Bot, Loader2, PlayCircle, PlusCircle, Send, Sparkles, User } from "@/components/icons";
+import { Bot, Loader2, PlayCircle, PlusCircle, Send, Sparkles, User } from "lucide-react-native";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
 import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";
