@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Activity, User, Sparkles, MessageCircle } from "lucide-react-native";
+import { Home, Activity, User, Sparkles, MessageCircle } from "@/components/icons";
 import React from "react";
 import { Platform } from "react-native";
 import { useSettings } from "@/providers/SettingsProvider";

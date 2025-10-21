@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack } from "expo-router";
-import { Brain, Clock, Play, Sparkles, Star } from "lucide-react-native";
+import { Brain, Clock, Play, Sparkles, Star } from "@/components/icons";
 import { MEDITATION_SESSIONS, getLocalizedContent, SupportedLanguage } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
 import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";

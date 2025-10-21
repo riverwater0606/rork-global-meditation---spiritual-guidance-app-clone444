@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useSettings } from '@/providers/SettingsProvider';
 import { useUser } from '@/providers/UserProvider';
-import { CheckCircle } from 'lucide-react-native';
+import { CheckCircle } from '@/components/icons';
 
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();

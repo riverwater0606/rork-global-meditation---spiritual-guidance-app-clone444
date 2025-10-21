@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldCheck, ScanLine, RefreshCw } from 'lucide-react-native';
+import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';
 import { useSettings } from '@/providers/SettingsProvider';
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWorldVerify } from '@/components/worldcoin/IDKitWeb';
 

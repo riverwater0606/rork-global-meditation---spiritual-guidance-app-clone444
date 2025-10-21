@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Moon, Sun, TrendingUp, Clock, Heart, Brain, Bell } from "lucide-react-native";
+import { Moon, Sun, TrendingUp, Clock, Heart, Brain, Bell } from "@/components/icons";
 import { router, Stack } from "expo-router";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useSleepTracker } from "@/providers/SleepTrackerProvider";

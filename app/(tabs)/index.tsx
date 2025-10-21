@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Clock, Heart, Moon, Brain, Zap } from "lucide-react-native";
+import { Play, Clock, Heart, Moon, Brain, Zap } from "@/components/icons";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useMeditation } from "@/providers/MeditationProvider";

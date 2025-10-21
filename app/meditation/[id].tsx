@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
-import { Pause, Play, Volume2, VolumeX, Waves, Wind, X } from "lucide-react-native";
+import { Pause, Play, Volume2, VolumeX, Waves, Wind, X } from "@/components/icons";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   getAmbientSoundById,

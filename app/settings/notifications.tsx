@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
-import { ArrowLeft, Bell, Clock } from "lucide-react-native";
+import { ArrowLeft, Bell, Clock } from "@/components/icons";
 import { useSettings } from "@/providers/SettingsProvider";
 
 export default function NotificationsScreen() {
