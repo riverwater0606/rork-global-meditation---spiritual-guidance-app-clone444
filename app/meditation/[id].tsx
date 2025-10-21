@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,17 +9,16 @@ import {
   Platform,
   ScrollView,
   Modal,
-  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp, Volume } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX, Music, ChevronDown, ChevronUp } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
-import * as Speech from "expo-speech";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { SOUND_EFFECTS } from "@/constants/soundEffects";
-import { useMeditation } from "@/providers/MeditationProvider";
+import { useMeditation, CustomMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 
 const { width } = Dimensions.get("window");
@@ -52,15 +51,63 @@ export default function MeditationPlayerScreen() {
   const [soundVolume, setSoundVolume] = useState<number>(0.5);
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [ttsError, setTtsError] = useState<string>("");
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
+  useEffect(() => {
+    Animated.timing(fadeAnimation, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
 
-  const updatePhase = useCallback((remainingSeconds: number) => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isPlaying) {
+      const breathingAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, {
+            toValue: 1.2,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(breathAnimation, {
+            toValue: 0.8,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      breathingAnimation.start();
+
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            setIsPlaying(false);
+            completeMeditation(session?.id || "", session?.duration || 10);
+            return 0;
+          }
+          const newTime = prev - 1;
+          updatePhase(newTime);
+          return newTime;
+        });
+      }, 1000);
+
+      return () => {
+        clearInterval(timer);
+        breathingAnimation.stop();
+      };
+    }
+  }, [isPlaying, session]);
+
+  const updatePhase = (remainingSeconds: number) => {
     if (!session) return;
     
     const totalDuration = session.duration * 60;
@@ -78,13 +125,27 @@ export default function MeditationPlayerScreen() {
     } else {
       setCurrentPhase(lang === "zh" ? "結束階段 - 緩慢甦醒" : "Closing - Gently Awaken");
     }
-  }, [session, lang]);
+  };
 
-  const playBackgroundSound = useCallback(async (soundId: string) => {
+  useEffect(() => {
+    if (selectedSound && isPlaying) {
+      playBackgroundSound(selectedSound);
+    } else if (soundRef.current) {
+      soundRef.current.pauseAsync();
+    }
+  }, [selectedSound, isPlaying]);
+
+  useEffect(() => {
+    if (soundRef.current) {
+      soundRef.current.setVolumeAsync(soundVolume);
+    }
+  }, [soundVolume]);
+
+  const playBackgroundSound = async (soundId: string) => {
     try {
       const sound = SOUND_EFFECTS.find(s => s.id === soundId);
       if (!sound) {
-        console.error("[Audio] Sound not found:", soundId);
+        console.error("Sound not found:", soundId);
         return;
       }
 
@@ -146,260 +207,12 @@ export default function MeditationPlayerScreen() {
     } catch (error) {
       console.error("[Audio] Error in playBackgroundSound:", error);
     }
-  }, [soundVolume]);
-
-  useEffect(() => {
-    Animated.timing(fadeAnimation, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-
-
-
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-      if (Platform.OS === 'web') {
-        window.speechSynthesis?.cancel();
-      } else {
-        Speech.stop();
-      }
-    };
-  }, [fadeAnimation]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      const breathingAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(breathAnimation, {
-            toValue: 1.2,
-            duration: 4000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(breathAnimation, {
-            toValue: 0.8,
-            duration: 4000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      breathingAnimation.start();
-
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            setIsPlaying(false);
-            completeMeditation(session?.id || "", session?.duration || 10);
-            return 0;
-          }
-          const newTime = prev - 1;
-          updatePhase(newTime);
-          return newTime;
-        });
-      }, 1000);
-
-      return () => {
-        clearInterval(timer);
-        breathingAnimation.stop();
-      };
-    }
-  }, [isPlaying, session, breathAnimation, completeMeditation, lang, updatePhase]);
-
-  useEffect(() => {
-    if (selectedSound && isPlaying) {
-      playBackgroundSound(selectedSound);
-    } else if (soundRef.current && !isPlaying) {
-      soundRef.current.pauseAsync();
-    }
-  }, [selectedSound, isPlaying, playBackgroundSound]);
-
-  useEffect(() => {
-    if (soundRef.current) {
-      soundRef.current.setVolumeAsync(soundVolume);
-    }
-  }, [soundVolume]);
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const startSpeaking = async () => {
-    if (!customSession?.script) {
-      setTtsError(lang === "zh" ? "無腳本可用" : "No script available");
-      return;
-    }
-
-    const text = lang === "zh" 
-      ? (customSession.scriptZh || customSession.script) 
-      : customSession.script;
-
-    if (!text || text.trim().length === 0) {
-      setTtsError(lang === "zh" ? "腳本為空" : "Script is empty");
-      return;
-    }
-
-    setShowScript(true);
-    setTtsError("");
-    
-    try {
-      if (soundRef.current) {
-        await soundRef.current.setVolumeAsync(soundVolume * 0.15);
-      }
-
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        await new Promise(resolve => setTimeout(resolve, 150));
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
-        utterance.rate = 0.8;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-        utteranceRef.current = utterance;
-
-        utterance.onstart = () => {
-          console.log("[TTS] Started speaking");
-          setIsSpeaking(true);
-        };
-
-        utterance.onend = () => {
-          console.log("[TTS] Finished speaking");
-          setIsSpeaking(false);
-          utteranceRef.current = null;
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume);
-          }
-        };
-
-        utterance.onerror = (event) => {
-          console.error("[TTS] Error:", event.error);
-          setIsSpeaking(false);
-          utteranceRef.current = null;
-          setTtsError(`TTS Error: ${event.error}`);
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume);
-          }
-        };
-
-        const loadVoices = () => {
-          const voices = window.speechSynthesis.getVoices();
-          if (voices.length > 0) {
-            const targetLang = lang === "zh" ? "zh" : "en";
-            const preferredVoice = voices.find(v => 
-              v.lang.toLowerCase().startsWith(targetLang)
-            );
-            if (preferredVoice) {
-              utterance.voice = preferredVoice;
-              console.log("[TTS] Using voice:", preferredVoice.name);
-            }
-          }
-        };
-
-        if (window.speechSynthesis.getVoices().length > 0) {
-          loadVoices();
-        } else {
-          window.speechSynthesis.onvoiceschanged = loadVoices;
-        }
-
-        setIsSpeaking(true);
-        window.speechSynthesis.speak(utterance);
-
-        setTimeout(() => {
-          if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-            console.log("[TTS] Manual resume attempt");
-            window.speechSynthesis.resume();
-          }
-        }, 500);
-      } else if (Platform.OS !== 'web') {
-        if (soundRef.current) {
-          await soundRef.current.pauseAsync();
-        }
-
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: false,
-          interruptionModeIOS: 1,
-          interruptionModeAndroid: 1,
-        });
-
-        const isSpeaking = await Speech.isSpeakingAsync();
-        if (isSpeaking) {
-          await Speech.stop();
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-
-        setIsSpeaking(true);
-
-        Speech.speak(text, {
-          language: lang === "zh" ? "zh-CN" : "en-US",
-          pitch: 1.0,
-          rate: 0.75,
-          volume: 1.0,
-          onStart: () => {
-            console.log("[TTS Mobile] Started");
-            setIsSpeaking(true);
-          },
-          onDone: () => {
-            console.log("[TTS Mobile] Done");
-            setIsSpeaking(false);
-            if (soundRef.current) {
-              soundRef.current.playAsync();
-            }
-          },
-          onStopped: () => {
-            console.log("[TTS Mobile] Stopped");
-            setIsSpeaking(false);
-            if (soundRef.current) {
-              soundRef.current.playAsync();
-            }
-          },
-          onError: (error) => {
-            console.error("[TTS Mobile] Error:", error);
-            setIsSpeaking(false);
-            setTtsError(String(error));
-            if (soundRef.current) {
-              soundRef.current.playAsync();
-            }
-          },
-        });
-      } else {
-        setTtsError(lang === "zh" ? "此環境不支持語音" : "TTS not supported");
-      }
-    } catch (error) {
-      console.error("[TTS] Error:", error);
-      setIsSpeaking(false);
-      setTtsError(String(error));
-      if (soundRef.current) {
-        soundRef.current.setVolumeAsync(soundVolume);
-      }
-    }
-  };
-
-  const stopSpeaking = async () => {
-    try {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        utteranceRef.current = null;
-      } else if (Platform.OS !== 'web') {
-        await Speech.stop();
-      }
-
-      setIsSpeaking(false);
-      setTtsError("");
-
-      if (soundRef.current) {
-        await soundRef.current.setVolumeAsync(soundVolume);
-      }
-    } catch (error) {
-      console.error("[TTS] Stop error:", error);
-      setIsSpeaking(false);
-    }
   };
 
   if (!session) {
@@ -469,36 +282,18 @@ export default function MeditationPlayerScreen() {
               {lang === "zh" ? session.descriptionZh : session.description}
             </Text>
 
-            {/* Script Preview Toggle & Auto Reading Controls */}
+            {/* Script Preview Toggle */}
             {customSession?.script && (
-              <View style={styles.scriptControls}>
-                <TouchableOpacity 
-                  style={styles.scriptToggle}
-                  onPress={() => setShowScript(!showScript)}
-                >
-                  <Text style={styles.scriptToggleText}>
-                    {lang === "zh" ? "查看冥想腳本" : "View Script"}
-                  </Text>
-                  {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
-                  onPress={isSpeaking ? stopSpeaking : startSpeaking}
-                >
-                  <Volume size={16} color="#FFFFFF" />
-                  <Text style={styles.speakButtonText}>
-                    {isSpeaking 
-                      ? (lang === "zh" ? "停止朗讀" : "Stop")
-                      : (lang === "zh" ? "語音朗讀" : "Read Aloud")
-                    }
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={styles.scriptToggle}
+                onPress={() => setShowScript(!showScript)}
+              >
+                <Text style={styles.scriptToggleText}>
+                  {lang === "zh" ? "查看冥想腳本" : "View Script"}
+                </Text>
+                {showScript ? <ChevronUp size={16} color="#FFFFFF" /> : <ChevronDown size={16} color="#FFFFFF" />}
+              </TouchableOpacity>
             )}
-            {ttsError ? (
-              <Text style={styles.errorText}>{ttsError}</Text>
-            ) : null}
           </View>
 
           {/* Script Content */}
@@ -506,7 +301,7 @@ export default function MeditationPlayerScreen() {
             <ScrollView style={styles.scriptContainer} showsVerticalScrollIndicator={false}>
               <View style={styles.scriptContent}>
                 <Text style={styles.scriptText}>
-                  {customSession.scriptZh || customSession.script}
+                  {lang === "zh" ? customSession.scriptZh : customSession.script}
                 </Text>
               </View>
             </ScrollView>
@@ -582,20 +377,12 @@ export default function MeditationPlayerScreen() {
 
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={async () => {
+              onPress={() => {
                 if (selectedSound) {
                   if (soundRef.current) {
-                    try {
-                      console.log("[Audio] Stopping and unloading sound");
-                      await soundRef.current.stopAsync();
-                      await soundRef.current.unloadAsync();
-                      soundRef.current = null;
-                    } catch (e) {
-                      console.error("[Audio] Error stopping sound:", e);
-                    }
+                    soundRef.current.unloadAsync();
                   }
                   setSelectedSound(null);
-                  console.log("[Audio] Sound cleared");
                 }
               }}
               disabled={!selectedSound}
@@ -734,58 +521,16 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center" as const,
   },
-  scriptControls: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    marginTop: 16,
-    gap: 12,
-  },
   scriptToggle: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "center" as const,
+    marginTop: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 20,
     gap: 8,
-  },
-  speakButton: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    backgroundColor: "#8B5CF6",
-    borderRadius: 20,
-    gap: 6,
-  },
-  speakButtonActive: {
-    backgroundColor: "#DC2626",
-  },
-  speakButtonText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "600" as const,
-  },
-  ttsUnavailable: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 16,
-  },
-  ttsUnavailableText: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.6)",
-    fontStyle: "italic" as const,
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#FCA5A5",
-    textAlign: "center" as const,
-    marginTop: 8,
-    paddingHorizontal: 20,
   },
   scriptToggleText: {
     fontSize: 14,
@@ -808,7 +553,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: "#E0E7FF",
   },
-
   description: {
     fontSize: 16,
     color: "#E0E7FF",
