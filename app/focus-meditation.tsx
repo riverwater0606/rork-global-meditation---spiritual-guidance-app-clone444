@@ -1,104 +1,142 @@
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, ChevronLeft } from "lucide-react-native";
-import { router } from "expo-router";
-import { MEDITATION_SESSIONS } from "@/constants/meditations";
+import { router, Stack } from "expo-router";
+import { Brain, Clock, Play, Sparkles, Star } from "lucide-react-native";
+import { MEDITATION_SESSIONS, getLocalizedContent, SupportedLanguage } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
+import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";
+
+const TRANSLATIONS: Record<SupportedLanguage, {
+  title: string;
+  subtitle: string;
+  recommended: string;
+  minutes: string;
+  badge: string;
+}> = {
+  en: {
+    title: "Focus Meditations",
+    subtitle: "Enhance concentration & clarity",
+    recommended: "Recommended for Focus",
+    minutes: "min",
+    badge: "AI Guided",
+  },
+  zh: {
+    title: "專注冥想",
+    subtitle: "提升專注力與清晰度",
+    recommended: "推薦專注冥想",
+    minutes: "分鐘",
+    badge: "AI 引導",
+  },
+};
+
+const isCustom = (
+  session: (typeof MEDITATION_SESSIONS)[number] | CustomMeditationSession
+): session is CustomMeditationSession => {
+  return (session as CustomMeditationSession).source !== undefined;
+};
 
 export default function FocusMeditationScreen() {
-  const { currentTheme, settings } = useSettings();
-  const lang = settings.language;
-  
-  const focusSessions = MEDITATION_SESSIONS.filter(s => s.category === "focus");
+  const { settings, currentTheme } = useSettings();
+  const { customSessions } = useMeditation();
+  const lang = settings.language as SupportedLanguage;
+  const t = TRANSLATIONS[lang];
+
+  const catalogSessions = MEDITATION_SESSIONS.filter((session) => session.category === "focus");
+  const personalizedSessions = customSessions.filter((session) => session.category === "focus");
+  const focusSessions = [...personalizedSessions, ...catalogSessions];
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
       <LinearGradient
-        colors={["#43E97B", "#38F9D7"] as any}
-        style={styles.headerGradient}
+        colors={["#43E97B", "#38F9D7"]}
+        style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-              testID="back-button"
-            >
-              <ChevronLeft size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              {lang === "zh" ? "專注冥想" : "Focus Meditation"}
-            </Text>
-            <View style={styles.placeholder} />
-          </View>
           <View style={styles.headerContent}>
-            <Text style={styles.headerSubtitle}>
-              {lang === "zh" 
-                ? "增強專注力，進入心流狀態，提升工作效率" 
-                : "Enhance concentration, enter flow state, and boost productivity"}
-            </Text>
+            <View style={styles.headerTopRow}>
+              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <Text style={styles.backButtonText}>←</Text>
+              </TouchableOpacity>
+              <Sparkles size={28} color="#FFFFFF" />
+            </View>
+            <View style={styles.iconContainer}>
+              <Brain size={32} color="#FFFFFF" />
+            </View>
+            <Text style={styles.title}>{t.title}</Text>
+            <Text style={styles.subtitle}>{t.subtitle}</Text>
           </View>
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.sessionsContainer}>
-          {focusSessions.map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              style={styles.sessionCard}
-              onPress={() => router.push(`/meditation/${session.id}`)}
-              testID={`session-${session.id}`}
-            >
-              <LinearGradient
-                colors={session.gradient as any}
-                style={styles.sessionGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>{t.recommended}</Text>
+
+        <View style={styles.sessionsList}>
+          {focusSessions.map((session) => {
+            const localized = getLocalizedContent(session, lang);
+            return (
+              <TouchableOpacity
+                key={session.id}
+                style={styles.sessionCard}
+                onPress={() => router.push(`/meditation/${session.id}`)}
+                testID={`focus-session-${session.id}`}
               >
-                <View style={styles.sessionContent}>
-                  <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionTitle}>
-                      {lang === "zh" ? session.titleZh : session.title}
-                    </Text>
-                    <Text style={styles.sessionDescription}>
-                      {lang === "zh" ? session.descriptionZh : session.description}
-                    </Text>
-                    <View style={styles.sessionMeta}>
-                      <Text style={styles.sessionDuration}>
-                        {session.duration} {lang === "zh" ? "分鐘" : "min"}
-                      </Text>
+                <LinearGradient
+                  colors={session.gradient as [string, string]}
+                  style={styles.sessionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.sessionContent}>
+                    <View style={styles.sessionInfo}>
+                      <View style={styles.sessionHeaderRow}>
+                        <Text style={styles.sessionTitle}>{localized.title}</Text>
+                        {isCustom(session) && (
+                          <View style={styles.badge}>
+                            <Sparkles size={12} color="#FCD34D" />
+                            <Text style={styles.badgeText}>{t.badge}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.sessionDescription}>{localized.description}</Text>
+                      <View style={styles.sessionMeta}>
+                        <Clock size={14} color="#E0E7FF" />
+                        <Text style={styles.sessionDuration}>
+                          {session.duration} {t.minutes}
+                        </Text>
+                        <Star size={14} color="#FCD34D" />
+                        <Text style={styles.sessionNarrator}>{session.narrator}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.playIconContainer}>
+                      <Play size={24} color="#FFFFFF" />
                     </View>
                   </View>
-                  <View style={styles.playIconContainer}>
-                    <Play size={24} color="#FFFFFF" />
-                  </View>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-          
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+
           {focusSessions.length === 0 && (
-            <View style={styles.emptyState}>
+            <View style={[styles.emptyState, { borderColor: currentTheme.border }]}>
               <Text style={[styles.emptyText, { color: currentTheme.textSecondary }]}>
-                {lang === "zh" 
-                  ? "目前沒有可用的專注冥想課���" 
-                  : "No focus meditation sessions available"}
+                {lang === "zh" ? "目前沒有專注冥想課程" : "No focus meditations yet"}
               </Text>
             </View>
           )}
         </View>
-        <View style={{ height: 40 }} />
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
@@ -108,87 +146,110 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerGradient: {
-    paddingBottom: 30,
-  },
   header: {
+    paddingBottom: 40,
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+  },
+  headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  backButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
-  headerTitle: {
-    fontSize: 20,
+  title: {
+    fontSize: 32,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
-  placeholder: {
-    width: 40,
-  },
-  headerContent: {
-    paddingHorizontal: 20,
-    marginTop: 16,
-  },
-  headerSubtitle: {
-    fontSize: 16,
+  subtitle: {
+    fontSize: 18,
     color: "#E0E7FF",
-    textAlign: "center",
-    lineHeight: 24,
   },
   content: {
     flex: 1,
     marginTop: -20,
   },
-  sessionsContainer: {
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  sessionsList: {
+    gap: 16,
   },
   sessionCard: {
-    marginBottom: 16,
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   sessionGradient: {
     padding: 20,
   },
   sessionContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
   sessionInfo: {
     flex: 1,
     marginRight: 16,
+    gap: 12,
+  },
+  sessionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   sessionTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
-    marginBottom: 8,
+    flex: 1,
   },
   sessionDescription: {
     fontSize: 14,
-    color: "#E0E7FF",
+    color: "#FFFFFF",
+    opacity: 0.9,
     lineHeight: 20,
-    marginBottom: 12,
   },
   sessionMeta: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
   sessionDuration: {
     fontSize: 14,
@@ -198,22 +259,44 @@ const styles = StyleSheet.create({
   sessionNarrator: {
     fontSize: 14,
     color: "#E0E7FF",
-    marginLeft: 8,
+    fontWeight: "600",
   },
   playIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.4)",
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(252, 211, 77, 0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  badgeText: {
+    fontSize: 10,
+    color: "#FCD34D",
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   emptyState: {
-    paddingVertical: 40,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: "dashed",
     alignItems: "center",
   },
   emptyText: {
-    fontSize: 16,
-    textAlign: "center",
+    fontSize: 14,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

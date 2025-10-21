@@ -17,8 +17,11 @@ import { useSleepTracker } from "@/providers/SleepTrackerProvider";
 
 export default function SleepTrackerScreen() {
   const { currentTheme, settings } = useSettings();
-  const { sleepData, startSleep, stopSleep, isTracking } = useSleepTracker();
+  const { sleepData, startSleep, stopSleep, isTracking, getInsights, getAdvancedInsights } = useSleepTracker();
   const lang = settings.language;
+
+  const insights = getInsights();
+  const advancedInsights = getAdvancedInsights();
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -111,6 +114,58 @@ export default function SleepTrackerScreen() {
             </Text>
           </View>
         </View>
+
+        {advancedInsights && (
+          <View style={[styles.insightsCard, { backgroundColor: currentTheme.surface }]}>
+            <Text style={[styles.insightsTitle, { color: currentTheme.text }]}> 
+              {lang === "zh" ? "進階洞察" : "Advanced Insights"}
+            </Text>
+            <View style={styles.insightsRow}>
+              <Text style={[styles.insightsLabel, { color: currentTheme.textSecondary }]}>
+                {lang === "zh" ? "建議入睡" : "Recommended Bedtime"}
+              </Text>
+              <Text style={[styles.insightsValue, { color: currentTheme.text }]}>
+                {advancedInsights.recommendedBedtime}
+              </Text>
+            </View>
+            <View style={styles.insightsRow}>
+              <Text style={[styles.insightsLabel, { color: currentTheme.textSecondary }]}>
+                {lang === "zh" ? "平均入睡" : "Average Bedtime"}
+              </Text>
+              <Text style={[styles.insightsValue, { color: currentTheme.text }]}>
+                {advancedInsights.averageBedtime}
+              </Text>
+            </View>
+            <View style={styles.insightsRow}>
+              <Text style={[styles.insightsLabel, { color: currentTheme.textSecondary }]}>
+                {lang === "zh" ? "規律分數" : "Consistency"}
+              </Text>
+              <Text style={[styles.insightsValue, { color: currentTheme.text }]}>
+                {advancedInsights.consistencyScore}%
+              </Text>
+            </View>
+            {insights && (
+              <View style={styles.insightsRow}>
+                <Text style={[styles.insightsLabel, { color: currentTheme.textSecondary }]}>
+                  {lang === "zh" ? "趨勢" : "Trend"}
+                </Text>
+                <Text style={[styles.insightsValue, { color: currentTheme.text }]}>
+                  {lang === "zh"
+                    ? insights.trend === "improving"
+                      ? "改善中"
+                      : insights.trend === "declining"
+                      ? "下降中"
+                      : "穩定"
+                    : insights.trend === "improving"
+                    ? "Improving"
+                    : insights.trend === "declining"
+                    ? "Declining"
+                    : "Stable"}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
@@ -241,6 +296,28 @@ const styles = StyleSheet.create({
   },
   trackingButtonText: {
     color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  insightsCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 20,
+    borderRadius: 16,
+    gap: 12,
+  },
+  insightsTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  insightsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  insightsLabel: {
+    fontSize: 14,
+  },
+  insightsValue: {
     fontSize: 16,
     fontWeight: "600",
   },
