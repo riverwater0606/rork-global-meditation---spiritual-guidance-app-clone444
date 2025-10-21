@@ -20,7 +20,7 @@ import {
   Download,
   Trash2,
   AlertTriangle
-} from "lucide-react-native";
+} from "@/components/icons";
 import { useSettings } from "@/providers/SettingsProvider";
 
 export default function PrivacyScreen() {

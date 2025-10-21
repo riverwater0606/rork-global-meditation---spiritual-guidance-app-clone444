@@ -11,22 +11,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { 
-  User, 
-
-  Bell, 
+import {
+  User,
+  Bell,
   Moon, 
   Globe, 
   Shield,
   LogOut,
   ChevronRight,
   Edit2
-} from "lucide-react-native";
+} from "@/components/icons";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { router } from "expo-router";
-
-
 
 export default function ProfileScreen() {
   const { profile, updateProfile, logout } = useUser();
