@@ -57,7 +57,7 @@ export default function HomeScreen() {
   const quickActions = [
     { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
     { id: "timer", title: lang === "zh" ? "計時器" : "Timer", icon: Clock, color: "#3B82F6" },
-    { id: "sleep-tracker", title: lang === "zh" ? "睡眠" : "Sleep", icon: Moon, color: "#8B5CF6" },
+    { id: "sleep", title: lang === "zh" ? "睡眠" : "Sleep", icon: Moon, color: "#8B5CF6" },
     { id: "focus", title: lang === "zh" ? "專注" : "Focus", icon: Brain, color: "#10B981" },
   ];
 
@@ -68,8 +68,8 @@ export default function HomeScreen() {
       router.push("/breathing");
     } else if (actionId === "timer") {
       router.push("/timer");
-    } else if (actionId === "sleep-tracker") {
-      router.push("/sleep-tracker");
+    } else if (actionId === "sleep") {
+      router.push("/sleep-meditation");
     } else if (actionId === "focus") {
       router.push("/focus-meditation");
     } else {

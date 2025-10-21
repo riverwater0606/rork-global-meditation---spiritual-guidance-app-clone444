@@ -11,13 +11,11 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from "react-native";
-import { Send, Bot, User, Sparkles, PlayCircle, Save } from "lucide-react-native";
+import { Send, Bot, User, Sparkles, PlayCircle, Globe } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
-import { useMeditation } from "@/providers/MeditationProvider";
-
 
 interface Message {
   id: string;
@@ -69,7 +67,6 @@ const TRANSLATIONS = {
 export default function AssistantScreen() {
   const router = useRouter();
   const { currentTheme, settings } = useSettings();
-  const { addCustomMeditation } = useMeditation();
   const language = settings.language as Language;
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -81,9 +78,6 @@ export default function AssistantScreen() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastAIResponse, setLastAIResponse] = useState<string | null>(null);
-
   const scrollViewRef = useRef<ScrollView>(null);
   const t = TRANSLATIONS[language];
 
@@ -136,7 +130,6 @@ export default function AssistantScreen() {
 4. Answer questions about meditation and spiritual growth
 5. Provide positive guidance and encouragement
 6. Recommend suitable meditation practices based on user needs
-7. After understanding user's needs through conversation, suggest creating a custom meditation
 
 Please respond in a warm, supportive, and professional tone. Keep answers concise, clear, and practical. Use English.`
                 : `你是一個專業的冥想和靈性指導AI助手。你的任務是：
@@ -146,7 +139,6 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
 4. 回答關於冥想、靈性成長的問題
 5. 提供積極正面的引導和鼓勵
 6. 根據用戶的需求推薦合適的冥想練習
-7. 在與用戶充分溝通了解需求後，建議為用戶創建專屬冥想
 
 請用溫暖、支持和專業的語氣回應。回答要簡潔明瞭，實用性強。使用繁體中文。`,
             },
@@ -172,7 +164,6 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      setLastAIResponse(null);
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
@@ -190,262 +181,6 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
   const handlePromptPress = (prompt: string) => {
     setInputText(prompt);
   };
-
-  const handleGenerateMeditation = async () => {
-    if (isLoading || isSaving) return;
-
-    setIsLoading(true);
-    setLastAIResponse(null);
-
-    const userPrompt = language === "zh" 
-      ? "根據我的需求設計一個冥想練習" 
-      : "Create a meditation practice based on my needs";
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: userPrompt,
-      isUser: true,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    try {
-      const systemPrompt = language === "zh"
-        ? `你是一個專業的冥想指導AI。請創建一個完整且豐富的冥想練習，包括：
-
-1. 標題（簡短且吸引人，中文）
-2. 描述（2-3句話說明這個冥想的好處和適用場景，中文）
-3. 時長（建議的分鐘數：5-30分鐘）
-4. 類別（mindfulness/sleep/anxiety/focus/gratitude/spiritual）
-5. 完整的冥想引導腳本（必須包含以下5個階段的詳細引導）：
-
-**冥想腳本結構要求：**
-
-第一階段 - 開始（約15%時間）：
-- 歡迎詞和冥想目的介紹
-- 引導找到舒適的坐姿或躺姿
-- 輕柔地閉上眼睛
-- 初步的身體放鬆引導
-
-第二階段 - 呼吸覺知（約25%時間）：
-- 引導注意力轉向呼吸
-- 深呼吸練習（吸氣4秒，保持2秒，呼氣6秒）
-- 觀察呼吸的自然節奏
-- 用呼吸讓身體更加放鬆
-
-第三階段 - 深度冥想核心練習（約40%時間）：
-- 根據類別進行專門的引導
-  - mindfulness: 身體掃描、當下覺知
-  - sleep: 漸進式肌肉放鬆、視覺化平靜場景
-  - anxiety: 釋放緊張、安全感建立
-  - focus: 集中注意力、心智清明
-  - gratitude: 感恩冥想、正向情緒培養
-  - spiritual: 內在連結、更高意識探索
-
-第四階段 - 整合（約15%時間）：
-- 回顧冥想體驗
-- 感受身心的變化
-- 深化平靜和放鬆的感覺
-- 設定正面意圖
-
-第五階段 - 結束（約5%時間）：
-- 緩慢地深呼吸幾次
-- 輕輕動動手指和腳趾
-- 準備好後慢慢睜開眼睛
-- 結束語和鼓勵
-
-**腳本語言要求：**
-- 使用溫暖、平和、引導性的語氣
-- 每個階段要有清晰的轉換提示
-- 包含具體的時間提示（如「深吸一口氣...保持...慢慢呼出...」）
-- 使用第二人稱（你）來建立連結
-- 腳本長度應至少800-1200字，內容豐富詳細
-
-請以JSON格式回應：
-{
-  "title": "冥想標題",
-  "description": "冥想描述（2-3句話）",
-  "duration": 10,
-  "category": "mindfulness",
-  "script": "第一階段 - 開始\n\n歡迎來到...（完整的多階段引導腳本，包含所有5個階段的詳細內容）"
-}
-
-根據前面的對話內容創建適合用戶的冥想練習。只回應JSON，不要其他內容。`
-        : `You are a professional meditation guide AI. Please create a complete and rich meditation practice including:
-
-1. Title (short and engaging, in English)
-2. Description (2-3 sentences about benefits and use cases, in English)
-3. Duration (suggested minutes: 5-30)
-4. Category (mindfulness/sleep/anxiety/focus/gratitude/spiritual)
-5. Complete meditation guidance script (MUST include all 5 phases with detailed guidance):
-
-**Script Structure Requirements:**
-
-Phase 1 - Beginning (approx. 15% of time):
-- Welcome and meditation purpose introduction
-- Guide to find comfortable sitting or lying position
-- Gently close eyes
-- Initial body relaxation guidance
-
-Phase 2 - Breath Awareness (approx. 25% of time):
-- Direct attention to breathing
-- Deep breathing exercise (inhale 4 sec, hold 2 sec, exhale 6 sec)
-- Observe natural breath rhythm
-- Use breath to deepen relaxation
-
-Phase 3 - Deep Meditation Core Practice (approx. 40% of time):
-- Category-specific guidance:
-  - mindfulness: body scan, present moment awareness
-  - sleep: progressive muscle relaxation, peaceful scene visualization
-  - anxiety: tension release, safety establishment
-  - focus: concentration, mental clarity
-  - gratitude: gratitude meditation, positive emotion cultivation
-  - spiritual: inner connection, higher consciousness exploration
-
-Phase 4 - Integration (approx. 15% of time):
-- Review meditation experience
-- Notice mind-body changes
-- Deepen peace and relaxation
-- Set positive intentions
-
-Phase 5 - Closing (approx. 5% of time):
-- Take several slow deep breaths
-- Gently wiggle fingers and toes
-- Slowly open eyes when ready
-- Closing words and encouragement
-
-**Script Language Requirements:**
-- Use warm, peaceful, guiding tone
-- Clear transition cues between phases
-- Include specific timing cues (e.g., "Take a deep breath in... hold... slowly release...")
-- Use second person (you) to build connection
-- Script should be at least 800-1200 words with rich, detailed content
-
-Respond in JSON format:
-{
-  "title": "Meditation Title",
-  "description": "Meditation description (2-3 sentences)",
-  "duration": 10,
-  "category": "mindfulness",
-  "script": "Phase 1 - Beginning\n\nWelcome to...（complete multi-phase guidance script with all 5 phases in detail）"
-}
-
-Create a meditation suitable for the user based on previous conversation. Only respond with JSON, nothing else.`;
-
-      const response = await fetch("https://toolkit.rork.com/text/llm/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            ...messages.slice(1).map((msg) => ({
-              role: msg.isUser ? "user" : "assistant",
-              content: msg.text,
-            })),
-          ],
-        }),
-      });
-
-      const data = await response.json();
-      let meditationData;
-      
-      try {
-        const jsonMatch = data.completion.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          meditationData = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error("No JSON found");
-        }
-      } catch (parseError) {
-        console.error("Error parsing meditation data:", parseError);
-        throw new Error("Failed to generate meditation");
-      }
-
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: language === "zh"
-          ? `我為你設計了一個冥想練習：\n\n**${meditationData.title}**\n\n${meditationData.description}\n\n時長：${meditationData.duration}分鐘\n\n點擊下方按鈕保存到你的冥想庫。`
-          : `I've created a meditation practice for you:\n\n**${meditationData.title}**\n\n${meditationData.description}\n\nDuration: ${meditationData.duration} minutes\n\nClick the button below to save it to your library.`,
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-      setLastAIResponse(JSON.stringify(meditationData));
-    } catch (error) {
-      console.error("Error generating meditation:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: t.error,
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveMeditation = async () => {
-    if (!lastAIResponse || isSaving) return;
-
-    setIsSaving(true);
-    try {
-      const meditationData = JSON.parse(lastAIResponse);
-      
-      const gradients = [
-        ["#FF6B6B", "#FF8E53"],
-        ["#667EEA", "#764BA2"],
-        ["#4FACFE", "#00F2FE"],
-        ["#43E97B", "#38F9D7"],
-        ["#FA709A", "#FEE140"],
-      ];
-      const randomGradient = gradients[Math.floor(Math.random() * gradients.length)];
-
-      await addCustomMeditation({
-        title: meditationData.title,
-        titleZh: meditationData.title,
-        description: meditationData.description,
-        descriptionZh: meditationData.description,
-        duration: meditationData.duration,
-        script: meditationData.script,
-        scriptZh: meditationData.script,
-        category: meditationData.category,
-        gradient: randomGradient,
-      });
-
-      const successMessage: Message = {
-        id: Date.now().toString(),
-        text: language === "zh"
-          ? "✓ 冥想練習已保存到你的冥想庫！你可以在「冥想」頁面找到它。"
-          : "✓ Meditation saved to your library! You can find it in the Meditate tab.",
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, successMessage]);
-      setLastAIResponse(null);
-    } catch (error) {
-      console.error("Error saving meditation:", error);
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        text: language === "zh" ? "保存失敗，請重試" : "Failed to save, please try again",
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -521,22 +256,6 @@ Create a meditation suitable for the user based on previous conversation. Only r
               </Text>
             </View>
           )}
-          {lastAIResponse && (
-            <View style={styles.saveButtonContainer}>
-              <TouchableOpacity
-                style={[styles.saveMeditationButton, { backgroundColor: currentTheme.primary }]}
-                onPress={handleSaveMeditation}
-                disabled={isSaving}
-              >
-                <Save color="#FFFFFF" size={20} />
-                <Text style={styles.saveMeditationText}>
-                  {isSaving
-                    ? (language === "zh" ? "保存中..." : "Saving...")
-                    : (language === "zh" ? "保存到冥想庫" : "Save to Library")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </ScrollView>
 
         {(messages.length === 1 || messages.filter(m => m.isUser).length === 0) && (
@@ -569,6 +288,7 @@ Create a meditation suitable for the user based on previous conversation. Only r
               </ScrollView>
             </View>
 
+
           <View style={[styles.promptsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
             <Text style={[styles.promptsTitle, { color: currentTheme.textSecondary }]}>
               {t.quickPrompts}
@@ -592,21 +312,6 @@ Create a meditation suitable for the user based on previous conversation. Only r
             </ScrollView>
           </View>
           </>
-        )}
-
-        {messages.filter(m => m.isUser).length > 0 && !lastAIResponse && (
-          <View style={[styles.createMeditationContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
-            <TouchableOpacity
-              style={[styles.createMeditationButton, { backgroundColor: currentTheme.primary }]}
-              onPress={handleGenerateMeditation}
-              disabled={isLoading}
-            >
-              <Sparkles color="#FFFFFF" size={20} />
-              <Text style={styles.createMeditationText}>
-                {language === "zh" ? "設計專屬冥想" : "Create Custom Meditation"}
-              </Text>
-            </TouchableOpacity>
-          </View>
         )}
 
         <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
@@ -801,7 +506,6 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     marginRight: 8,
   },
-
   sendButton: {
     width: 40,
     height: 40,
@@ -850,46 +554,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
-  },
-  createMeditationContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  createMeditationButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#8B5CF6",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  createMeditationText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  saveButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  saveMeditationButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#10B981",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  saveMeditationText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });

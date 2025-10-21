@@ -7,81 +7,28 @@ import {
   TouchableOpacity,
   TextInput,
   Dimensions,
-  Alert,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Search, Clock, Headphones, Trash2 } from "lucide-react-native";
+import { Search, Clock, Headphones } from "lucide-react-native";
 import { router } from "expo-router";
 import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
-import { useMeditation } from "@/providers/MeditationProvider";
 
 const { width } = Dimensions.get("window");
 
 export default function MeditateScreen() {
   const { currentTheme, settings } = useSettings();
-  const { customMeditations, deleteCustomMeditation } = useMeditation();
   const lang = settings.language;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const allSessions = [
-    ...customMeditations.map(cm => ({
-      id: cm.id,
-      title: cm.title,
-      titleZh: cm.titleZh,
-      description: cm.description,
-      descriptionZh: cm.descriptionZh,
-      duration: cm.duration,
-      category: cm.category,
-      narrator: "AI Generated",
-      narratorZh: "AI 生成",
-      gradient: cm.gradient,
-      featured: false,
-      isCustom: true,
-    })),
-    ...MEDITATION_SESSIONS,
-  ];
-
-  const filteredSessions = allSessions.filter((session) => {
+  const filteredSessions = MEDITATION_SESSIONS.filter((session) => {
     const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       session.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "all" || session.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const handleDeleteMeditation = (id: string, title: string) => {
-    if (Platform.OS === "web") {
-      const confirmed = window.confirm(
-        lang === "zh" 
-          ? `確定要刪除「${title}」嗎？`
-          : `Are you sure you want to delete "${title}"?`
-      );
-      if (confirmed) {
-        deleteCustomMeditation(id);
-      }
-    } else {
-      Alert.alert(
-        lang === "zh" ? "刪除冥想" : "Delete Meditation",
-        lang === "zh" 
-          ? `確定要刪除「${title}」嗎？`
-          : `Are you sure you want to delete "${title}"?`,
-        [
-          {
-            text: lang === "zh" ? "取消" : "Cancel",
-            style: "cancel"
-          },
-          {
-            text: lang === "zh" ? "刪除" : "Delete",
-            style: "destructive",
-            onPress: () => deleteCustomMeditation(id)
-          }
-        ]
-      );
-    }
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -143,69 +90,48 @@ export default function MeditateScreen() {
 
         {/* Sessions Grid */}
         <View style={styles.sessionsGrid}>
-          {filteredSessions.map((session, index) => {
-            const isCustom = 'isCustom' in session && session.isCustom;
-            return (
-              <View
-                key={session.id}
-                style={[
-                  styles.sessionCard,
-                  index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
-                ]}
+          {filteredSessions.map((session, index) => (
+            <TouchableOpacity
+              key={session.id}
+              style={[
+                styles.sessionCard,
+                index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
+              ]}
+              onPress={() => router.push(`/meditation/${session.id}`)}
+              testID={`meditation-${session.id}`}
+            >
+              <LinearGradient
+                colors={session.gradient as [string, string]}
+                style={styles.sessionCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               >
-                <TouchableOpacity
-                  onPress={() => router.push(`/meditation/${session.id}`)}
-                  testID={`meditation-${session.id}`}
-                  style={{ flex: 1 }}
-                >
-                  <LinearGradient
-                    colors={session.gradient as [string, string]}
-                    style={styles.sessionCardGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <View style={styles.sessionCardContent}>
-                      <View style={styles.sessionCardHeader}>
-                        <Text style={styles.sessionCardTitle}>
-                          {lang === "zh" ? session.titleZh : session.title}
-                        </Text>
-                        {isCustom ? (
-                          <TouchableOpacity
-                            onPress={(e: any) => {
-                              e.stopPropagation();
-                              handleDeleteMeditation(session.id, lang === "zh" ? session.titleZh : session.title);
-                            }}
-                            style={styles.deleteButton}
-                            testID={`delete-${session.id}`}
-                          >
-                            <Trash2 size={16} color="rgba(255, 255, 255, 0.9)" />
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                      <Text style={styles.sessionCardDescription} numberOfLines={2}>
-                        {lang === "zh" ? session.descriptionZh : session.description}
+                <View style={styles.sessionCardContent}>
+                  <Text style={styles.sessionCardTitle}>
+                    {lang === "zh" ? session.titleZh : session.title}
+                  </Text>
+                  <Text style={styles.sessionCardDescription} numberOfLines={2}>
+                    {lang === "zh" ? session.descriptionZh : session.description}
+                  </Text>
+                  
+                  <View style={styles.sessionCardMeta}>
+                    <View style={styles.sessionCardMetaItem}>
+                      <Clock size={14} color="#E0E7FF" />
+                      <Text style={styles.sessionCardMetaText}>
+                        {session.duration} {lang === "zh" ? "分鐘" : "min"}
                       </Text>
-                      
-                      <View style={styles.sessionCardMeta}>
-                        <View style={styles.sessionCardMetaItem}>
-                          <Clock size={14} color="#E0E7FF" />
-                          <Text style={styles.sessionCardMetaText}>
-                            {session.duration} {lang === "zh" ? "分鐘" : "min"}
-                          </Text>
-                        </View>
-                        <View style={styles.sessionCardMetaItem}>
-                          <Headphones size={14} color="#E0E7FF" />
-                          <Text style={styles.sessionCardMetaText}>
-                            {lang === "zh" ? session.narratorZh : session.narrator}
-                          </Text>
-                        </View>
-                      </View>
                     </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
+                    <View style={styles.sessionCardMetaItem}>
+                      <Headphones size={14} color="#E0E7FF" />
+                      <Text style={styles.sessionCardMetaText}>
+                        {lang === "zh" ? session.narratorZh : session.narrator}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.bottomSpacing} />
@@ -288,26 +214,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
-  sessionCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
   sessionCardTitle: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#FFFFFF",
-    flex: 1,
-    marginRight: 8,
-  },
-  deleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(239, 68, 68, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 8,
   },
   sessionCardDescription: {
     fontSize: 12,
