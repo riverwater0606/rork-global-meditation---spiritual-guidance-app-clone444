@@ -53,9 +53,11 @@ export default function MeditationPlayerScreen() {
   const [showScript, setShowScript] = useState<boolean>(false);
   const [currentPhase, setCurrentPhase] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [ttsError, setTtsError] = useState<string>("");
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
 
   const updatePhase = useCallback((remainingSeconds: number) => {
@@ -226,267 +228,178 @@ export default function MeditationPlayerScreen() {
   };
 
   const startSpeaking = async () => {
-    console.log("[DEBUG] startSpeaking called");
-    console.log("[DEBUG] customSession:", !!customSession);
-    console.log("[DEBUG] script available:", !!customSession?.script);
-    
     if (!customSession?.script) {
-      console.log("[TTS] No script available");
+      setTtsError(lang === "zh" ? "無腳本可用" : "No script available");
       return;
     }
-    
+
     const text = lang === "zh" 
       ? (customSession.scriptZh || customSession.script) 
       : customSession.script;
-    
-    if (!text) {
-      console.log("[TTS] Script text is empty");
+
+    if (!text || text.trim().length === 0) {
+      setTtsError(lang === "zh" ? "腳本為空" : "Script is empty");
       return;
     }
-    
-    console.log("[DEBUG] Setting isSpeaking to true");
+
     setShowScript(true);
-    setIsSpeaking(true);
-    console.log("[DEBUG] isSpeaking state updated");
+    setTtsError("");
     
     try {
-      console.log("[TTS] Starting speech synthesis...");
-      console.log("[TTS] Text length:", text.length);
-      console.log("[TTS] Text preview:", text.substring(0, 50));
-      console.log("[TTS] Language:", lang);
-      console.log("[TTS] Platform:", Platform.OS);
-      console.log("[TTS] User Agent:", typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A');
-      
       if (soundRef.current) {
-        console.log("[Audio] Lowering background sound volume for TTS");
-        await soundRef.current.setVolumeAsync(soundVolume * 0.2);
+        await soundRef.current.setVolumeAsync(soundVolume * 0.15);
       }
-      
-      const isReactNativeWebView = typeof navigator !== 'undefined' && 
-        (navigator.userAgent.includes('wv') || 
-         navigator.userAgent.includes('WebView') ||
-         navigator.userAgent.includes('Version') && Platform.OS !== 'web');
-      
-      console.log("[TTS] Is WebView:", isReactNativeWebView);
-      
-      if (Platform.OS === 'web' && !isReactNativeWebView) {
-        console.log("[TTS Web] Initializing Web Speech API");
-        
-        if (!window.speechSynthesis) {
-          console.error("[TTS Web] Speech synthesis not supported");
-          setIsSpeaking(false);
-          return;
-        }
-        
+
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        await new Promise(resolve => setTimeout(resolve, 150));
+
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang === "zh" ? "zh-CN" : "en-US";
-        utterance.rate = 0.85;
+        utterance.lang = lang === "zh" ? "zh-TW" : "en-US";
+        utterance.rate = 0.8;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
-        
-        let hasStarted = false;
-        
+        utteranceRef.current = utterance;
+
         utterance.onstart = () => {
-          console.log("[TTS Web] Speech started");
-          hasStarted = true;
+          console.log("[TTS] Started speaking");
           setIsSpeaking(true);
         };
-        
+
         utterance.onend = () => {
-          console.log("[TTS Web] Speech ended");
+          console.log("[TTS] Finished speaking");
           setIsSpeaking(false);
-          if (soundRef.current) {
-            soundRef.current.setVolumeAsync(soundVolume).catch(e => 
-              console.error("[Audio] Volume restore error:", e)
-            );
-          }
-        };
-        
-        utterance.onerror = (event) => {
-          console.error("[TTS Web] Speech error:", event.error, event);
-          setIsSpeaking(false);
+          utteranceRef.current = null;
           if (soundRef.current) {
             soundRef.current.setVolumeAsync(soundVolume);
           }
         };
-        
-        console.log("[TTS Web] Getting available voices...");
-        const voices = window.speechSynthesis.getVoices();
-        console.log("[TTS Web] Available voices:", voices.length);
-        
-        if (voices.length > 0) {
-          const preferredVoice = voices.find(v => 
-            lang === "zh" 
-              ? (v.lang.startsWith('zh') || v.lang.startsWith('cmn'))
-              : v.lang.startsWith('en')
-          );
-          if (preferredVoice) {
-            utterance.voice = preferredVoice;
-            console.log("[TTS Web] Selected voice:", preferredVoice.name, preferredVoice.lang);
+
+        utterance.onerror = (event) => {
+          console.error("[TTS] Error:", event.error);
+          setIsSpeaking(false);
+          utteranceRef.current = null;
+          setTtsError(`TTS Error: ${event.error}`);
+          if (soundRef.current) {
+            soundRef.current.setVolumeAsync(soundVolume);
           }
-        }
-        
-        console.log("[TTS Web] Calling speak()...");
-        window.speechSynthesis.speak(utterance);
-        
-        setTimeout(() => {
-          if (!hasStarted) {
-            console.log("[TTS Web] Speech didn't start after 2s, checking status");
-            console.log("[TTS Web] Speaking:", window.speechSynthesis.speaking);
-            console.log("[TTS Web] Pending:", window.speechSynthesis.pending);
-            console.log("[TTS Web] Paused:", window.speechSynthesis.paused);
-            
-            if (!window.speechSynthesis.speaking) {
-              console.log("[TTS Web] Attempting to resume");
-              window.speechSynthesis.resume();
+        };
+
+        const loadVoices = () => {
+          const voices = window.speechSynthesis.getVoices();
+          if (voices.length > 0) {
+            const targetLang = lang === "zh" ? "zh" : "en";
+            const preferredVoice = voices.find(v => 
+              v.lang.toLowerCase().startsWith(targetLang)
+            );
+            if (preferredVoice) {
+              utterance.voice = preferredVoice;
+              console.log("[TTS] Using voice:", preferredVoice.name);
             }
           }
-        }, 2000);
-      } else {
-        console.log("[TTS Mobile] Preparing audio session for speech");
-        
-        try {
-          if (soundRef.current) {
-            console.log("[Audio] Pausing background sound for TTS");
-            await soundRef.current.pauseAsync();
-          }
-          
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: true,
-            shouldDuckAndroid: true,
-            interruptionModeIOS: 1,
-            interruptionModeAndroid: 1,
-          });
-          console.log("[TTS Mobile] Audio mode configured for speech");
-        } catch (audioError) {
-          console.error("[TTS Mobile] Audio mode setup error:", audioError);
-        }
-        
-        const isSpeakingAvailable = await Speech.isSpeakingAsync();
-        console.log("[TTS Mobile] Is currently speaking:", isSpeakingAvailable);
-        
-        if (isSpeakingAvailable) {
-          console.log("[TTS Mobile] Stopping existing speech");
-          await Speech.stop();
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        
-        const voice = lang === "zh" ? "zh-CN" : "en-US";
-        
-        console.log("[TTS Mobile] Using expo-speech");
-        console.log("[TTS Mobile] Voice:", voice);
-        
-        const maxChunkLength = 4000;
-        const chunks: string[] = [];
-        
-        if (text.length > maxChunkLength) {
-          console.log("[TTS Mobile] Text too long, splitting into chunks");
-          for (let i = 0; i < text.length; i += maxChunkLength) {
-            chunks.push(text.substring(i, i + maxChunkLength));
-          }
-          console.log("[TTS Mobile] Created", chunks.length, "chunks");
+        };
+
+        if (window.speechSynthesis.getVoices().length > 0) {
+          loadVoices();
         } else {
-          chunks.push(text);
+          window.speechSynthesis.onvoiceschanged = loadVoices;
         }
-        
-        const speakChunks = async (index: number) => {
-          if (index >= chunks.length) {
-            console.log("[TTS Mobile] All chunks completed");
+
+        setIsSpeaking(true);
+        window.speechSynthesis.speak(utterance);
+
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+            console.log("[TTS] Manual resume attempt");
+            window.speechSynthesis.resume();
+          }
+        }, 500);
+      } else if (Platform.OS !== 'web') {
+        if (soundRef.current) {
+          await soundRef.current.pauseAsync();
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: false,
+          interruptionModeIOS: 1,
+          interruptionModeAndroid: 1,
+        });
+
+        const isSpeaking = await Speech.isSpeakingAsync();
+        if (isSpeaking) {
+          await Speech.stop();
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        setIsSpeaking(true);
+
+        Speech.speak(text, {
+          language: lang === "zh" ? "zh-CN" : "en-US",
+          pitch: 1.0,
+          rate: 0.75,
+          volume: 1.0,
+          onStart: () => {
+            console.log("[TTS Mobile] Started");
+            setIsSpeaking(true);
+          },
+          onDone: () => {
+            console.log("[TTS Mobile] Done");
             setIsSpeaking(false);
             if (soundRef.current) {
-              soundRef.current.playAsync().catch(e => 
-                console.error("[Audio] Resume error:", e)
-              );
+              soundRef.current.playAsync();
             }
-            return;
-          }
-          
-          console.log("[TTS Mobile] Speaking chunk", index + 1, "of", chunks.length);
-          
-          Speech.speak(chunks[index], {
-            language: voice,
-            pitch: 1.0,
-            rate: 0.75,
-            volume: 1.0,
-            _voiceIndex: undefined,
-            onStart: () => {
-              console.log("[TTS Mobile] Chunk", index + 1, "started");
-              if (index === 0) {
-                setIsSpeaking(true);
-              }
-            },
-            onDone: () => {
-              console.log("[TTS Mobile] Chunk", index + 1, "done");
-              speakChunks(index + 1);
-            },
-            onStopped: () => {
-              console.log("[TTS Mobile] Chunk stopped");
-              setIsSpeaking(false);
-              if (soundRef.current) {
-                soundRef.current.playAsync();
-              }
-            },
-            onError: (error) => {
-              console.error("[TTS Mobile] Chunk error:", error);
-              setIsSpeaking(false);
-              if (soundRef.current) {
-                soundRef.current.playAsync();
-              }
-            },
-          });
-        };
-        
-        speakChunks(0);
-        
-        console.log("[TTS Mobile] Speech.speak() command executed");
-        
-        setTimeout(() => {
-          Speech.isSpeakingAsync().then(speaking => {
-            console.log("[TTS Mobile] Check after 1s - is speaking:", speaking);
-            if (!speaking) {
-              console.log("[TTS Mobile] Speech didn't start, setting isSpeaking to false");
-              setIsSpeaking(false);
+          },
+          onStopped: () => {
+            console.log("[TTS Mobile] Stopped");
+            setIsSpeaking(false);
+            if (soundRef.current) {
+              soundRef.current.playAsync();
             }
-          });
-        }, 1000);
+          },
+          onError: (error) => {
+            console.error("[TTS Mobile] Error:", error);
+            setIsSpeaking(false);
+            setTtsError(String(error));
+            if (soundRef.current) {
+              soundRef.current.playAsync();
+            }
+          },
+        });
+      } else {
+        setTtsError(lang === "zh" ? "此環境不支持語音" : "TTS not supported");
       }
     } catch (error) {
       console.error("[TTS] Error:", error);
       setIsSpeaking(false);
+      setTtsError(String(error));
       if (soundRef.current) {
-        soundRef.current.playAsync().catch(e => console.error("[Audio] Resume error:", e));
+        soundRef.current.setVolumeAsync(soundVolume);
       }
     }
   };
 
   const stopSpeaking = async () => {
-    console.log("[TTS] Stopping speech");
-    
     try {
-      if (Platform.OS === 'web') {
-        window.speechSynthesis?.cancel();
-        console.log("[TTS Web] Speech cancelled");
-      } else {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        utteranceRef.current = null;
+      } else if (Platform.OS !== 'web') {
         await Speech.stop();
-        console.log("[TTS Mobile] Speech stopped");
       }
-      
+
       setIsSpeaking(false);
-      
+      setTtsError("");
+
       if (soundRef.current) {
         await soundRef.current.setVolumeAsync(soundVolume);
       }
     } catch (error) {
       console.error("[TTS] Stop error:", error);
+      setIsSpeaking(false);
     }
-    
-    console.log("[TTS] Speech stopped successfully");
   };
 
   if (!session) {
@@ -571,25 +484,21 @@ export default function MeditationPlayerScreen() {
                 
                 <TouchableOpacity
                   style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
-                  onPress={() => {
-                    console.log("[DEBUG] Button pressed. Current isSpeaking:", isSpeaking);
-                    if (isSpeaking) {
-                      stopSpeaking();
-                    } else {
-                      startSpeaking();
-                    }
-                  }}
+                  onPress={isSpeaking ? stopSpeaking : startSpeaking}
                 >
                   <Volume size={16} color="#FFFFFF" />
                   <Text style={styles.speakButtonText}>
                     {isSpeaking 
-                      ? (lang === "zh" ? "停止語音朗讀" : "Stop Reading")
-                      : (lang === "zh" ? "AI語音朗讀" : "AI Voice Read")
+                      ? (lang === "zh" ? "停止朗讀" : "Stop")
+                      : (lang === "zh" ? "語音朗讀" : "Read Aloud")
                     }
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
+            {ttsError ? (
+              <Text style={styles.errorText}>{ttsError}</Text>
+            ) : null}
           </View>
 
           {/* Script Content */}
@@ -870,6 +779,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.6)",
     fontStyle: "italic" as const,
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#FCA5A5",
+    textAlign: "center" as const,
+    marginTop: 8,
+    paddingHorizontal: 20,
   },
   scriptToggleText: {
     fontSize: 14,
