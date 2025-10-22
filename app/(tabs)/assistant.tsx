@@ -106,15 +106,21 @@ const TRANSLATIONS: Record<Language, TranslationConfig> = {
 const serializeMessages = (messages: Message[]) =>
   messages.map(({ id, text, isUser, timestamp }) => ({ id, text, isUser, timestamp: timestamp.toISOString() }));
 
+const safeParseJSON = <T = unknown>(value: string | null): T | null => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch (error) {
+    console.warn("Failed to parse JSON", error);
+    return null;
+  }
+};
+
 const deserializeMessages = (raw: string | null): Message[] => {
   if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as { id: string; text: string; isUser: boolean; timestamp: string }[];
-    return parsed.map((item) => ({ ...item, timestamp: new Date(item.timestamp) }));
-  } catch (error) {
-    console.warn("Failed to parse stored assistant messages", error);
-    return [];
-  }
+  const parsed = safeParseJSON<{ id: string; text: string; isUser: boolean; timestamp: string }[]>(raw);
+  if (!parsed) return [];
+  return parsed.map((item) => ({ ...item, timestamp: new Date(item.timestamp) }));
 };
 
 const FALLBACK_REPLIES: Record<Language, { keywords: string[]; response: string }[]> = {
@@ -311,16 +317,9 @@ export default function AssistantScreen() {
       }
 
       const raw = await response.text();
-      const parsed = raw ? (() => {
-        try {
-          return JSON.parse(raw);
-        } catch (parseError) {
-          console.warn("Assistant response was not valid JSON", parseError);
-          return raw;
-        }
-      })() : null;
+      const parsed = safeParseJSON(raw);
 
-      responseText = parseAssistantCompletion(parsed) ?? (typeof raw === "string" ? raw.trim() : null);
+      responseText = parseAssistantCompletion(parsed ?? raw) ?? (typeof raw === "string" ? raw.trim() : null);
     } catch (error) {
       console.error("Error sending message:", error);
     } finally {
@@ -414,14 +413,7 @@ Script 使用多行句子，引導使用者完成冥想。`,
       }
 
       const rawBody = await response.text();
-      const parsedResponse = rawBody ? (() => {
-        try {
-          return JSON.parse(rawBody);
-        } catch (parseError) {
-          console.warn("Custom meditation response was not valid JSON", parseError);
-          return rawBody;
-        }
-      })() : null;
+      const parsedResponse = safeParseJSON(rawBody);
 
       const completionPayload =
         typeof parsedResponse === "string"
