@@ -30,6 +30,27 @@ interface Message {
 
 type Language = "en" | "zh";
 
+type TranslationConfig = {
+  title: string;
+  welcome: string;
+  inputPlaceholder: string;
+  thinking: string;
+  error: string;
+  quickPrompts: string;
+  guidedMeditations: string;
+  minutes: string;
+  createCourse: string;
+  formTitle: string;
+  formDescription: string;
+  formDuration: string;
+  formTitlePlaceholder: string;
+  formGoalPlaceholder: string;
+  formDurationPlaceholder: string;
+  cancel: string;
+  generate: string;
+  success: (title: string) => string;
+};
+
 const CONVERSATION_STORAGE_KEY = "assistantConversation";
 
 const MEDITATION_PROMPTS: Record<Language, string[]> = {
@@ -37,29 +58,7 @@ const MEDITATION_PROMPTS: Record<Language, string[]> = {
   zh: ["我感到壓力很大", "如何開始冥想？", "幫我放鬆身心", "改善睡眠品質"],
 };
 
-const TRANSLATIONS: Record<
-  Language,
-  {
-    title: string;
-    welcome: string;
-    inputPlaceholder: string;
-    thinking: string;
-    error: string;
-    quickPrompts: string;
-    guidedMeditations: string;
-    minutes: string;
-    createCourse: string;
-    formTitle: string;
-    formDescription: string;
-    formDuration: string;
-    formTitlePlaceholder: string;
-    formGoalPlaceholder: string;
-    formDurationPlaceholder: string;
-    cancel: string;
-    generate: string;
-    success: (title: string) => string;
-  }
-  }> = {
+const TRANSLATIONS: Record<Language, TranslationConfig> = {
   en: {
     title: "AI Meditation Assistant",
     welcome:
