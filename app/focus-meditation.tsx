@@ -37,13 +37,15 @@ const isCustom = (
   return (session as CustomMeditationSession).source !== undefined;
 };
 
-const getDurationMinutes = (session: (typeof MEDITATION_SESSIONS)[number] | CustomMeditationSession) => {
+const getDurationMinutes = (
+  session: (typeof MEDITATION_SESSIONS)[number] | CustomMeditationSession
+) => {
   const rawDuration = (session as any).duration;
-  if (typeof rawDuration === "number" && Number.isFinite(rawDuration)) {
-    return Math.max(0, Math.round(rawDuration));
+  const numeric = Number(rawDuration);
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return Math.round(numeric);
   }
-  const parsed = Number.parseFloat(String(rawDuration ?? ""));
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 0;
+  return 0;
 };
 
 export default function FocusMeditationScreen() {

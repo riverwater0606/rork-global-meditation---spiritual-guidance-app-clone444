@@ -316,12 +316,21 @@ export default function AssistantScreen() {
         responseText = fallbackText;
       } else {
         const raw = await response.text();
-        const parsed = safeParseJSON(raw);
-        const parsedText = parseAssistantCompletion(parsed ?? raw);
-        if (typeof parsedText === "string" && parsedText.trim().length > 0) {
+        let parsedText = "";
+
+        try {
+          const parsedJson = JSON.parse(raw);
+          parsedText = parseAssistantCompletion(parsedJson) ?? "";
+        } catch {
+          parsedText = parseAssistantCompletion(raw) ?? raw.trim();
+        }
+
+        if (parsedText && parsedText.trim().length > 0) {
           responseText = parsedText.trim();
-        } else if (typeof raw === "string") {
+        } else if (raw && raw.trim().length > 0) {
           responseText = raw.trim();
+        } else {
+          responseText = fallbackText;
         }
       }
     } catch (error) {

@@ -30,7 +30,7 @@ const isCustomSession = (
 };
 
 const toSeconds = (value: unknown) => {
-  const numeric = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return 0;
   }
@@ -38,7 +38,7 @@ const toSeconds = (value: unknown) => {
 };
 
 const minutesToSeconds = (value: unknown) => {
-  const minutes = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  const minutes = Number(value);
   if (!Number.isFinite(minutes)) {
     return 0;
   }
