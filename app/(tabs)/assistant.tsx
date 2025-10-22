@@ -287,8 +287,8 @@ export default function AssistantScreen() {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
-
-    let responseText: string | null = null;
+    const fallbackText = pickFallbackReply(language, userMessage.text);
+    let responseText = "";
     try {
       const response = await fetch("https://toolkit.rork.com/text/llm/", {
         method: "POST",
@@ -313,22 +313,26 @@ export default function AssistantScreen() {
       clearTimeout(timeout);
 
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        responseText = fallbackText;
+      } else {
+        const raw = await response.text();
+        const parsed = safeParseJSON(raw);
+        const parsedText = parseAssistantCompletion(parsed ?? raw);
+        if (typeof parsedText === "string" && parsedText.trim().length > 0) {
+          responseText = parsedText.trim();
+        } else if (typeof raw === "string") {
+          responseText = raw.trim();
+        }
       }
-
-      const raw = await response.text();
-      const parsed = safeParseJSON(raw);
-
-      responseText = parseAssistantCompletion(parsed ?? raw) ?? (typeof raw === "string" ? raw.trim() : null);
     } catch (error) {
       console.error("Error sending message:", error);
+      responseText = fallbackText;
     } finally {
       clearTimeout(timeout);
       setIsLoading(false);
     }
 
-    const fallbackText = pickFallbackReply(language, userMessage.text);
-    const aiText = responseText && responseText.length > 0 ? responseText : fallbackText || t.error;
+    const aiText = responseText && responseText.trim().length > 0 ? responseText : fallbackText || t.error;
 
     const aiMessage: Message = {
       id: `${Date.now()}-ai`,
