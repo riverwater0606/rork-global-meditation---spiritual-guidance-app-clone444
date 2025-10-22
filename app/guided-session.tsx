@@ -18,7 +18,7 @@ import {
   X,
   Volume2,
   Globe,
-} from "lucide-react-native";
+} from "@/components/icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 

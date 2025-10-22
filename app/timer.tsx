@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, Play, Pause, RotateCcw, Plus, Minus } from "lucide-react-native";
+import { X, Play, Pause, RotateCcw, Plus, Minus } from "@/components/icons";
 import { router } from "expo-router";
 import { useMeditation } from "@/providers/MeditationProvider";
 

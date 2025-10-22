@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { postJson } from "@/services/api";
 
 interface UserProfile {
   name: string;
@@ -23,6 +24,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState<boolean>(false);
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -66,7 +69,22 @@ export const [UserProvider, useUser] = createContextHook(() => {
   };
 
   const connectWallet = async () => {
-    const mockAddress = "0x" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    try {
+      if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+        const response = await postJson("/wallet/connect", {});
+        const data = await response.json();
+        if (data?.address) {
+          setWalletAddress(data.address);
+          await AsyncStorage.setItem("walletAddress", data.address);
+          return data.address as string;
+        }
+      }
+    } catch (error) {
+      console.warn("Wallet connection fallback due to error:", error);
+    }
+
+    const mockAddress =
+      "0x" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     setWalletAddress(mockAddress);
     await AsyncStorage.setItem("walletAddress", mockAddress);
     return mockAddress;
@@ -78,10 +96,29 @@ export const [UserProvider, useUser] = createContextHook(() => {
   };
 
   const setVerified = async (payload: VerificationPayload) => {
-    setIsVerified(true);
-    setVerification(payload);
-    await AsyncStorage.setItem('isVerified', 'true');
-    await AsyncStorage.setItem('verificationPayload', JSON.stringify(payload));
+    try {
+      setIsVerifying(true);
+      setVerificationError(null);
+
+      if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+        const response = await postJson("/world-id/verify", payload, { timeoutMs: 15000 });
+        const data = await response.json();
+        if (!data?.valid) {
+          throw new Error(data?.message ?? "Verification rejected");
+        }
+      }
+
+      setIsVerified(true);
+      setVerification(payload);
+      await AsyncStorage.setItem("isVerified", "true");
+      await AsyncStorage.setItem("verificationPayload", JSON.stringify(payload));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Verification failed";
+      setVerificationError(message);
+      throw error;
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const logout = async () => {
@@ -89,6 +126,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
     setIsVerified(false);
     setVerification(null);
     setWalletAddress(null);
+    setVerificationError(null);
+    setIsVerifying(false);
     await AsyncStorage.removeItem('isVerified');
     await AsyncStorage.removeItem('verificationPayload');
     await AsyncStorage.removeItem('walletAddress');
@@ -100,6 +139,8 @@ export const [UserProvider, useUser] = createContextHook(() => {
     walletAddress,
     isVerified,
     verification,
+    isVerifying,
+    verificationError,
     updateProfile,
     connectWallet,
     disconnectWallet,

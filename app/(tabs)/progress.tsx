@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { TrendingUp, Calendar, Award, Target } from "lucide-react-native";
+import { TrendingUp, Calendar, Award, Target } from "@/components/icons";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 
