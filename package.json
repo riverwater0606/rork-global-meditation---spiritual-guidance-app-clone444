@@ -8,6 +8,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "postinstall": "node scripts/setup-web-export.mjs && node scripts/patch-expo-bin.mjs",
+    "export:web": "expo export:web",
+    "build": "expo export:web",
     "lint": "expo lint"
   },
   "dependencies": {
@@ -18,11 +21,11 @@
     "@worldcoin/minikit-js": "^1.9.6",
     "expo": "~52.0.47",
     "expo-av": "15.0.2",
+    "expo-constants": "~17.0.8",
     "expo-linear-gradient": "~14.0.2",
     "expo-linking": "~7.0.5",
     "expo-notifications": "~0.29.14",
     "expo-router": "5.0.3",
-    "expo-constants": "~17.0.8",
     "expo-speech": "~13.0.1",
     "expo-splash-screen": "~0.29.24",
     "expo-status-bar": "~2.0.1",
