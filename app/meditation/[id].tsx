@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Audio } from "expo-av";
+import { Audio, AVPlaybackStatus, InterruptionModeIOS } from "expo-av";
 import * as Speech from "expo-speech";
 import { Pause, Play, Volume2, VolumeX, Waves, Wind, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -97,7 +97,7 @@ export default function MeditationPlayerScreen() {
   }, [resetSpeech, unloadSounds]);
 
   const onPlaybackStatusUpdate = useCallback(
-    async (status: Audio.AVPlaybackStatus) => {
+    async (status: AVPlaybackStatus) => {
       if (!status.isLoaded) return;
       const totalSeconds = Math.ceil(
         (status.durationMillis ?? (session?.duration ?? 0) * 60 * 1000) / 1000
@@ -109,7 +109,7 @@ export default function MeditationPlayerScreen() {
         const remaining = Math.max(totalSeconds - Math.floor(status.positionMillis / 1000), 0);
         setTimeRemaining(remaining);
       }
-      if ((status as Audio.AVPlaybackStatusSuccess).didJustFinish) {
+      if (status.didJustFinish) {
         setIsPlaying(false);
         await completeMeditation(session?.id ?? "", session?.duration ?? Math.ceil(durationSeconds / 60));
         resetSpeech();
@@ -152,7 +152,7 @@ export default function MeditationPlayerScreen() {
       allowsRecordingIOS: false,
       staysActiveInBackground: true,
       playsInSilentModeIOS: true,
-      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
       shouldDuckAndroid: false,
     });
     void loadMainAudio();

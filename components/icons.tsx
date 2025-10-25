@@ -1,10 +1,12 @@
 import React from "react";
+import { StyleProp, TextStyle } from "react-native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 export interface IconProps {
   size?: number;
   color?: string;
   strokeWidth?: number;
+  style?: StyleProp<TextStyle>;
 }
 
 const DEFAULT_SIZE = 24;
@@ -14,11 +16,12 @@ type IconComponent = React.ComponentType<{
   name: string;
   size: number;
   color: string;
+  style?: StyleProp<TextStyle>;
 }>;
 
 const createIcon = (Component: IconComponent, name: string) =>
-  ({ size = DEFAULT_SIZE, color = DEFAULT_COLOR }: IconProps) => (
-    <Component name={name} size={size} color={color} />
+  ({ size = DEFAULT_SIZE, color = DEFAULT_COLOR, style }: IconProps) => (
+    <Component name={name} size={size} color={color} style={style} />
   );
 
 export const Activity = createIcon(Feather as IconComponent, "activity");
