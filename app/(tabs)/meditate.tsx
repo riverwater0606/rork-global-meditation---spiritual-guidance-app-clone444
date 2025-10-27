@@ -100,9 +100,9 @@ export default function MeditateScreen() {
           style={styles.categoriesContainer}
           contentContainerStyle={styles.categoriesContent}
         >
-        {CATEGORIES.map((category) => (
-          <TouchableOpacity
-            key={category.id}
+          {CATEGORIES.map((category) => (
+            <TouchableOpacity
+              key={category.id}
               style={[
                 styles.categoryChip,
                 { backgroundColor: currentTheme.surface, borderColor: currentTheme.border },
@@ -121,10 +121,10 @@ export default function MeditateScreen() {
                   selectedCategory === category.id && { color: "#FFFFFF" },
                 ]}
               >
-              {category.id === "all" ? t.all : category.name[language] ?? category.name.en}
-            </Text>
-          </TouchableOpacity>
-        ))}
+                {category.id === "all" ? t.all : category.name[language] ?? category.name.en}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         <View style={styles.sessionsGrid}>
