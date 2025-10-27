@@ -4,7 +4,7 @@ import path from 'path';
 const projectRoot = process.cwd();
 const binDir = path.join(projectRoot, 'node_modules', '.bin');
 const expoBin = path.join(binDir, 'expo');
-const wrapperSource = path.join(projectRoot, 'scripts', 'expo-wrapper.mjs');
+const wrapperSource = path.join(projectRoot, 'scripts', 'expo-wrapper.cjs');
 
 try {
   if (!fs.existsSync(wrapperSource)) {
@@ -19,12 +19,14 @@ try {
 
   const original = fs.readFileSync(expoBin, 'utf8');
   if (original.includes('expo-wrapper.mjs')) {
-    // Already patched.
+    const wrapperContent = `#!/usr/bin/env node\nrequire(${JSON.stringify(wrapperSource)});\n`;
+    fs.writeFileSync(expoBin, wrapperContent, { mode: 0o755 });
+    console.log('[patch-expo-bin] Updated expo binary to new wrapper');
     process.exit(0);
   }
 
   const backupPath = path.join(binDir, 'expo-original');
-  fs.writeFileSync(backupPath, original, 'utf8');
+  fs.writeFileSync(backupPath, original, { mode: 0o755 });
 
   const wrapperContent = `#!/usr/bin/env node\nrequire(${JSON.stringify(wrapperSource)});\n`;
   fs.writeFileSync(expoBin, wrapperContent, { mode: 0o755 });
