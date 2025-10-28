@@ -17,9 +17,20 @@ export default function SignInScreen() {
   const lang = settings.language;
 
   const ACTION_ID = 'psig' as const;
-  const CALLBACK_URL = typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
-    ? 'http://localhost:3000/callback'
-    : 'https://444-two.vercel.app/callback';
+  const callbackOrigin = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const origin = window.location?.origin;
+      if (origin) {
+        return origin;
+      }
+      const { protocol, host } = window.location ?? {};
+      if (protocol && host) {
+        return `${protocol}//${host}`;
+      }
+    }
+    return process.env.EXPO_PUBLIC_WEB_CALLBACK_ORIGIN ?? 'https://444-two.vercel.app';
+  }, []);
+  const CALLBACK_URL = `${callbackOrigin.replace(/\/$/, '')}/callback`;
 
   const texts = useMemo(() => {
     const zh = lang === 'zh';
