@@ -44,6 +44,7 @@ export default function SignInScreen() {
   const verifyInsideWorldApp = useCallback(async () => {
     if (Platform.OS !== 'web') {
       setError(texts.openWorld);
+      setBusy(false);
       return;
     }
     try {
