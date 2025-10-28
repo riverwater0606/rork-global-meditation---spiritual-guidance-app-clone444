@@ -1,5 +1,30 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
+import { VerificationLevel } from '@worldcoin/minikit-js';
+
+import { ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
+
+export interface MiniAppVerifyActionSuccessPayload {
+  status: 'success';
+  proof: string;
+  merkle_root: string;
+  nullifier_hash: string;
+  verification_level: VerificationLevel;
+  version: number;
+  [key: string]: unknown;
+}
+
+export interface MiniAppVerifyActionErrorPayload {
+  status: 'error';
+  error_code?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export type MiniAppVerifyActionPayload =
+  | MiniAppVerifyActionSuccessPayload
+  | MiniAppVerifyActionErrorPayload;
 
 interface VerifyButtonProps {
   appId: string;
@@ -144,91 +169,72 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
           if (mk) break;
         }
       }
+      const actionId = action || ACTION_ID;
+      const verifyPayload: VerifyCommandInput = {
+        action: actionId,
+        signal: VERIFY_SIGNAL,
+        verification_level: VerificationLevel.Orb,
+      };
+
       if (!mk) {
         console.log('[WorldIDVerifyButton] MiniKit not found after load attempt');
-        // Try deep-linking to World App as a fallback
-        try {
-          const actionId = action || 'psig';
-          const signal = '0x12312';
-          const verification = 'orb';
-          const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link');
-          // Attempt deep link, then fallback to universal link
-          window.location.assign(deeplink);
-          setTimeout(() => {
-            try { window.location.assign(universal); } catch {}
-          }, 800);
-          return;
-        } catch (e) {
-          console.log('[WorldIDVerifyButton] Deep link failed', e);
-        }
+        console.log('[WorldIDVerifyButton] Redirecting user to World App');
+        await redirectToWorldApp({
+          appId,
+          action: verifyPayload.action,
+          signal: verifyPayload.signal,
+          verificationLevel: verifyPayload.verification_level ?? VerificationLevel.Orb,
+          callbackUrl,
+        });
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
       }
+
       const installed = await isMiniKitInstalled(mk);
       if (!installed && !isWorldAppUA) {
         console.log('[WorldIDVerifyButton] mk.isInstalled returned false and UA not WorldApp');
-        // Try deep-linking to World App
-        try {
-          const actionId = action || 'psig';
-          const signal = '0x12312';
-          const verification = 'orb';
-          const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link (not installed)');
-          window.location.assign(deeplink);
-          setTimeout(() => {
-            try { window.location.assign(universal); } catch {}
-          }, 800);
-          return;
-        } catch (e) {
-          console.log('[WorldIDVerifyButton] Deep link (not installed) failed', e);
-        }
+        console.log('[WorldIDVerifyButton] Redirecting user to World App');
+        await redirectToWorldApp({
+          appId,
+          action: verifyPayload.action,
+          signal: verifyPayload.signal,
+          verificationLevel: verifyPayload.verification_level ?? VerificationLevel.Orb,
+          callbackUrl,
+        });
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
       }
-      const verifyFn = (
-        mk?.commandsAsync?.verify ||
-        mk?.commands?.verify ||
-        mk?.actions?.verify ||
-        mk?.verify
-      ) as undefined | ((args: any) => Promise<any>);
-      if (!verifyFn) {
-        setError('Verification API unavailable');
+
+      const verificationResponse = await runWorldVerify({ mk, payload: verifyPayload });
+      console.log('[WorldIDVerifyButton] verify result:', verificationResponse?.status);
+
+      if (verificationResponse.status === 'error') {
         setBusy(false);
+        setError(verificationResponse.error_code ?? 'Verification failed');
         return;
       }
-      const actionId = action || 'psig';
-      console.log('[WorldIDVerifyButton] Calling verify with action:', actionId);
-      const result: any = await verifyFn({
-        action: actionId,
-        signal: '0x12312',
-        verification_level: 'orb',
-      }).catch(async (err: any) => {
-        console.log('[WorldIDVerifyButton] verify threw, retrying once after 500ms', err);
-        await new Promise((r) => setTimeout(r, 500));
-        return verifyFn({ action: actionId, signal: '0x12312', verification_level: 'orb' });
-      });
-      const finalPayload = (result?.finalPayload ?? result) as any;
-      console.log('[WorldIDVerifyButton] verify result:', finalPayload?.status);
-      if (finalPayload?.status === 'error') {
-        setBusy(false);
-        setError(finalPayload?.error_code ?? 'Verification failed');
-        return;
-      }
+
+      const successPayload = verificationResponse as MiniAppVerifyActionSuccessPayload;
+      const verificationResult = {
+        payload: successPayload as unknown as ISuccessResult,
+        action: verifyPayload.action,
+        signal: verifyPayload.signal,
+      };
+
       try {
         if (typeof window !== 'undefined') {
-          window.sessionStorage?.setItem('worldid:result', JSON.stringify(finalPayload));
+          window.sessionStorage?.setItem('worldid:result', JSON.stringify(verificationResult));
         }
       } catch {}
+
       const url = new URL(callbackUrl);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(finalPayload)));
+      url.searchParams.set('result', encodeURIComponent(JSON.stringify(verificationResult)));
       if (typeof window !== 'undefined') {
         window.location.assign(url.toString());
       }
+
       setBusy(false);
     } catch (e: any) {
       console.error('[WorldIDVerifyButton] error:', e);
@@ -260,21 +266,77 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
   );
 }
 
-export async function runWorldVerify({ mk, action }: { mk: any; action: string }) {
+interface RedirectOptions {
+  appId: string;
+  action: VerifyCommandInput['action'];
+  signal?: VerifyCommandInput['signal'];
+  verificationLevel: VerificationLevel;
+  callbackUrl: string;
+}
+
+async function redirectToWorldApp({ appId, action, signal, verificationLevel, callbackUrl }: RedirectOptions) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    const actionParam = typeof action === 'string' ? action : String(action);
+    const signalParam =
+      signal == null ? undefined : typeof signal === 'string' ? signal : String(signal);
+    const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionParam)}${
+      signalParam ? `&signal=${encodeURIComponent(signalParam)}` : ''
+    }&verification_level=${encodeURIComponent(verificationLevel)}&callback_url=${encodeURIComponent(callbackUrl)}`;
+    const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(
+      actionParam
+    )}${signalParam ? `&signal=${encodeURIComponent(signalParam)}` : ''}&verification_level=${encodeURIComponent(
+      verificationLevel
+    )}&callback_url=${encodeURIComponent(callbackUrl)}`;
+
+    window.location.assign(deeplink);
+    setTimeout(() => {
+      try {
+        window.location.assign(universal);
+      } catch (error) {
+        console.log('[WorldIDVerifyButton] Universal link redirect failed', error);
+      }
+    }, 800);
+  } catch (error) {
+    console.log('[WorldIDVerifyButton] Deep link redirect failed', error);
+  }
+}
+
+export async function runWorldVerify({
+  mk,
+  payload,
+}: {
+  mk: any;
+  payload: VerifyCommandInput;
+}): Promise<MiniAppVerifyActionPayload> {
   const fn = (
     mk?.commandsAsync?.verify ||
     mk?.commands?.verify ||
     mk?.actions?.verify ||
     mk?.verify
-  ) as undefined | ((args: any) => Promise<any>);
-  if (!fn) throw new Error('Verification API unavailable');
+  ) as undefined | ((args: VerifyCommandInput) => Promise<any>);
+  if (!fn) {
+    throw new Error('Verification API unavailable');
+  }
+
+  const commandPayload: VerifyCommandInput = {
+    ...payload,
+    verification_level: payload.verification_level ?? VerificationLevel.Orb,
+  };
+
+  const attempt = async () => {
+    const response: any = await fn(commandPayload);
+    return (response?.finalPayload ?? response) as MiniAppVerifyActionPayload;
+  };
+
   try {
-    const res: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
-    return res?.finalPayload ?? res;
-  } catch (e) {
-    await new Promise((r) => setTimeout(r, 500));
-    const res2: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
-    return res2?.finalPayload ?? res2;
+    return await attempt();
+  } catch (error) {
+    console.log('[WorldIDVerifyButton] verify failed, retrying once', error);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return attempt();
   }
 }
 

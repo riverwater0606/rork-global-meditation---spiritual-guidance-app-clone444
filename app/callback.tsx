@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
+
 import { useSettings } from '@/providers/SettingsProvider';
-import { useUser } from '@/providers/UserProvider';
+import { useUser, type WorldIDVerificationResult } from '@/providers/UserProvider';
 import { CheckCircle } from '@/components/icons';
 
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
   const { currentTheme, settings } = useSettings();
-  const [parsed, setParsed] = useState<any>(null);
+  const [parsed, setParsed] = useState<WorldIDVerificationResult | null>(null);
   const { setVerified } = useUser();
   const [error, setError] = useState<string | null>(null);
 
@@ -40,14 +41,17 @@ export default function CallbackScreen() {
           } catch {}
         }
 
-        if (obj) {
-          setParsed(obj);
+        if (obj && typeof obj === 'object' && 'payload' in obj) {
+          const verificationResult = obj as WorldIDVerificationResult;
+          setParsed(verificationResult);
           try {
-            await setVerified(obj as any);
+            await setVerified(verificationResult);
           } catch (e) {
-            console.log('[Callback] setVerified failed');
+            console.log('[Callback] setVerified failed', e);
+            setError((e as Error).message ?? 'Verification failed');
+            return;
           }
-          console.log('[Callback] Parsed result', obj);
+          console.log('[Callback] Parsed verification payload');
           setTimeout(() => {
             try {
               router.replace('/');
@@ -55,7 +59,7 @@ export default function CallbackScreen() {
           }, 800);
 
         } else {
-          setError('No result provided');
+          setError('No verification result provided');
         }
       } catch (e) {
         console.error('[Callback] parse error', e);
