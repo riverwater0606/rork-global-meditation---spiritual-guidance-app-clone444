@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ISuccessResult, VerifyCommandInput } from "@worldcoin/minikit-js";
+
 import { postJson } from "@/services/api";
+import { ACTION_ID } from "@/constants/world";
 
 interface UserProfile {
   name: string;
@@ -9,11 +12,10 @@ interface UserProfile {
   avatarUrl?: string;
 }
 
-interface VerificationPayload {
-  nullifier_hash?: string;
-  merkle_root?: string;
-  status?: string;
-  [key: string]: unknown;
+export interface WorldIDVerificationResult {
+  payload: ISuccessResult;
+  action: VerifyCommandInput["action"];
+  signal?: VerifyCommandInput["signal"];
 }
 
 export const [UserProvider, useUser] = createContextHook(() => {
@@ -23,7 +25,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
   });
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState<boolean>(false);
-  const [verification, setVerification] = useState<VerificationPayload | null>(null);
+  const [verification, setVerification] = useState<WorldIDVerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
@@ -95,13 +97,26 @@ export const [UserProvider, useUser] = createContextHook(() => {
     await AsyncStorage.removeItem("walletAddress");
   };
 
-  const setVerified = async (payload: VerificationPayload) => {
+  const setVerified = async (verificationResult: WorldIDVerificationResult) => {
     try {
       setIsVerifying(true);
       setVerificationError(null);
 
       if (process.env.EXPO_PUBLIC_API_BASE_URL) {
-        const response = await postJson("/world-id/verify", payload, { timeoutMs: 15000 });
+        const actionValue =
+          typeof verificationResult.action === "string"
+            ? verificationResult.action
+            : String(verificationResult.action ?? ACTION_ID);
+        const signalValue =
+          typeof verificationResult.signal === "string" || verificationResult.signal == null
+            ? verificationResult.signal ?? undefined
+            : String(verificationResult.signal);
+        const body = {
+          payload: verificationResult.payload,
+          action: actionValue || ACTION_ID,
+          signal: signalValue,
+        };
+        const response = await postJson("/world-id/verify", body, { timeoutMs: 15000 });
         const data = await response.json();
         if (!data?.valid) {
           throw new Error(data?.message ?? "Verification rejected");
@@ -109,9 +124,9 @@ export const [UserProvider, useUser] = createContextHook(() => {
       }
 
       setIsVerified(true);
-      setVerification(payload);
+      setVerification(verificationResult);
       await AsyncStorage.setItem("isVerified", "true");
-      await AsyncStorage.setItem("verificationPayload", JSON.stringify(payload));
+      await AsyncStorage.setItem("verificationPayload", JSON.stringify(verificationResult));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Verification failed";
       setVerificationError(message);

@@ -1,10 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
+import { VerificationLevel } from '@worldcoin/minikit-js';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';
 import { useSettings } from '@/providers/SettingsProvider';
-import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWorldVerify } from '@/components/worldcoin/IDKitWeb';
+import {
+  ensureMiniKitLoaded,
+  getMiniKit,
+  isMiniKitInstalled,
+  runWorldVerify,
+  type MiniAppVerifyActionSuccessPayload,
+} from '@/components/worldcoin/IDKitWeb';
+import type { WorldIDVerificationResult } from '@/providers/UserProvider';
+import { APP_ID, ACTION_ID as CONFIG_ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
 
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
@@ -16,7 +26,15 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = 'psig' as const;
+  const ACTION_ID = CONFIG_ACTION_ID;
+  const verifyPayload = useMemo<VerifyCommandInput>(
+    () => ({
+      action: ACTION_ID,
+      signal: VERIFY_SIGNAL,
+      verification_level: VerificationLevel.Orb,
+    }),
+    [ACTION_ID],
+  );
   const CALLBACK_URL = typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
     ? 'http://localhost:3000/callback'
     : 'https://444-two.vercel.app/callback';
@@ -44,6 +62,7 @@ export default function SignInScreen() {
   const verifyInsideWorldApp = useCallback(async () => {
     if (Platform.OS !== 'web') {
       setError(texts.openWorld);
+      setBusy(false);
       return;
     }
     try {
@@ -61,25 +80,46 @@ export default function SignInScreen() {
         setBusy(false);
         return;
       }
+      try {
+        const installResult = mk?.install?.(APP_ID);
+        if (installResult && typeof installResult === 'object' && 'success' in installResult && !installResult.success) {
+          console.log('[SignIn] MiniKit install failed', installResult);
+          setError(installResult.errorMessage ?? texts.openWorld);
+          setBusy(false);
+          return;
+        }
+      } catch (installError) {
+        console.log('[SignIn] MiniKit install threw', installError);
+        setError(texts.openWorld);
+        setBusy(false);
+        return;
+      }
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
         setError(texts.openWorld);
         setBusy(false);
         return;
       }
-      const payload: any = await runWorldVerify({ mk, action: ACTION_ID });
-      if (payload?.status === 'error') {
-        setError(payload?.error_code ?? 'Verification failed');
+      const verificationResponse = await runWorldVerify({ mk, payload: verifyPayload });
+      if (verificationResponse.status === 'error') {
+        const message = verificationResponse.error_code ?? (verificationResponse as any)?.error ?? 'Verification failed';
+        setError(message);
         setBusy(false);
         return;
       }
+      const successPayload = verificationResponse as MiniAppVerifyActionSuccessPayload;
+      const verificationResult: WorldIDVerificationResult = {
+        payload: successPayload as unknown as ISuccessResult,
+        action: verifyPayload.action,
+        signal: verifyPayload.signal,
+      };
       try {
         if (typeof window !== 'undefined') {
-          window.sessionStorage?.setItem('worldid:result', JSON.stringify(payload));
+          window.sessionStorage?.setItem('worldid:result', JSON.stringify(verificationResult));
         }
       } catch {}
       const url = new URL(CALLBACK_URL);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(payload)));
+      url.searchParams.set('result', encodeURIComponent(JSON.stringify(verificationResult)));
       if (typeof window !== 'undefined') {
         window.location.assign(url.toString());
       }
@@ -89,7 +129,7 @@ export default function SignInScreen() {
       setError(e?.message ?? 'Failed to verify');
       setBusy(false);
     }
-  }, [ACTION_ID, CALLBACK_URL, isWorldEnv, texts.openWorld, ua, texts.verifying]);
+  }, [CALLBACK_URL, isWorldEnv, texts.openWorld, ua, verifyPayload]);
 
   useEffect(() => {
     if (autoTriedRef.current) return;
