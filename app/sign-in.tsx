@@ -1,10 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
+import { VerificationLevel } from '@worldcoin/minikit-js';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';
 import { useSettings } from '@/providers/SettingsProvider';
-import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWorldVerify } from '@/components/worldcoin/IDKitWeb';
+import {
+  ensureMiniKitLoaded,
+  getMiniKit,
+  isMiniKitInstalled,
+  runWorldVerify,
+  type MiniAppVerifyActionSuccessPayload,
+} from '@/components/worldcoin/IDKitWeb';
+import type { WorldIDVerificationResult } from '@/providers/UserProvider';
+import { APP_ID, ACTION_ID as CONFIG_ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
 
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
@@ -16,21 +26,33 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = 'psig' as const;
+  const ACTION_ID = CONFIG_ACTION_ID as const;
+
+  const verifyPayload = useMemo<VerifyCommandInput>(
+    () => ({
+      action: ACTION_ID,
+      signal: VERIFY_SIGNAL,
+      verification_level: VerificationLevel.Orb,
+    }),
+    [ACTION_ID],
+  );
+
   const callbackOrigin = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      const origin = window.location?.origin;
-      if (origin) {
-        return origin;
-      }
-      const { protocol, host } = window.location ?? {};
-      if (protocol && host) {
-        return `${protocol}//${host}`;
-      }
+    if (typeof window === 'undefined') {
+      return 'https://444-two.vercel.app';
     }
-    return process.env.EXPO_PUBLIC_WEB_CALLBACK_ORIGIN ?? 'https://444-two.vercel.app';
+    const host = window.location?.host ?? '';
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      return 'http://localhost:3000';
+    }
+    const origin = window.location?.origin;
+    return origin ?? 'https://444-two.vercel.app';
   }, []);
-  const CALLBACK_URL = `${callbackOrigin.replace(/\/$/, '')}/callback`;
+
+  const CALLBACK_URL = useMemo(() => {
+    const normalizedOrigin = callbackOrigin.replace(/\/$/, '');
+    return `${normalizedOrigin}/callback`;
+  }, [callbackOrigin]);
 
   const texts = useMemo(() => {
     const zh = lang === 'zh';
@@ -39,7 +61,7 @@ export default function SignInScreen() {
       subtitle: zh ? '使用 World ID 確認你是真人' : 'Use World ID to confirm you are human',
       ctaVerify: zh ? '我已在 World App 內，開始驗證' : "I'm inside World App, verify",
       openWorld: zh ? '請在 World App 中開啟' : 'Please open inside World App',
-      helper: zh ? '請用 World App 內置掃描器開啟此頁面（或掃描 QR），不要用系統瀏覽器。' : 'Open with World App’s built‑in scanner (or scan the QR), not the system browser.',
+      helper: zh ? '請用 World App 內置掃描器開啟此頁面（或掃描 QR），不要用系統瀏覽器。' : 'Open with World App’s built-in scanner (or scan the QR), not the system browser.',
       verifying: zh ? '驗證中…' : 'Verifying…',
     } as const;
   }, [lang]);
@@ -73,25 +95,46 @@ export default function SignInScreen() {
         setBusy(false);
         return;
       }
+      try {
+        const installResult = mk?.install?.(APP_ID);
+        if (installResult && typeof installResult === 'object' && 'success' in installResult && !installResult.success) {
+          console.log('[SignIn] MiniKit install failed', installResult);
+          setError(installResult.errorMessage ?? texts.openWorld);
+          setBusy(false);
+          return;
+        }
+      } catch (installError) {
+        console.log('[SignIn] MiniKit install threw', installError);
+        setError(texts.openWorld);
+        setBusy(false);
+        return;
+      }
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
         setError(texts.openWorld);
         setBusy(false);
         return;
       }
-      const payload: any = await runWorldVerify({ mk, action: ACTION_ID });
-      if (payload?.status === 'error') {
-        setError(payload?.error_code ?? 'Verification failed');
+      const verificationResponse = await runWorldVerify({ mk, payload: verifyPayload });
+      if (verificationResponse.status === 'error') {
+        const message = verificationResponse.error_code ?? (verificationResponse as any)?.error ?? 'Verification failed';
+        setError(message);
         setBusy(false);
         return;
       }
+      const successPayload = verificationResponse as MiniAppVerifyActionSuccessPayload;
+      const verificationResult: WorldIDVerificationResult = {
+        payload: successPayload as unknown as ISuccessResult,
+        action: verifyPayload.action,
+        signal: verifyPayload.signal,
+      };
       try {
         if (typeof window !== 'undefined') {
-          window.sessionStorage?.setItem('worldid:result', JSON.stringify(payload));
+          window.sessionStorage?.setItem('worldid:result', JSON.stringify(verificationResult));
         }
       } catch {}
       const url = new URL(CALLBACK_URL);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(payload)));
+      url.searchParams.set('result', encodeURIComponent(JSON.stringify(verificationResult)));
       if (typeof window !== 'undefined') {
         window.location.assign(url.toString());
       }
@@ -101,7 +144,7 @@ export default function SignInScreen() {
       setError(e?.message ?? 'Failed to verify');
       setBusy(false);
     }
-  }, [ACTION_ID, CALLBACK_URL, isWorldEnv, texts.openWorld, ua, texts.verifying]);
+  }, [CALLBACK_URL, isWorldEnv, texts.openWorld, ua, verifyPayload]);
 
   useEffect(() => {
     if (autoTriedRef.current) return;
@@ -116,9 +159,9 @@ export default function SignInScreen() {
   }, [isWorldEnv, verifyInsideWorldApp]);
 
   return (
-    <View style={[styles.root, { backgroundColor: currentTheme.background }]}> 
+    <View style={[styles.root, { backgroundColor: currentTheme.background }]}>
       <LinearGradient colors={currentTheme.gradient as any} style={styles.heroBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.container}>
           <View style={styles.header}>
             <ShieldCheck size={28} color="#FFFFFF" />
