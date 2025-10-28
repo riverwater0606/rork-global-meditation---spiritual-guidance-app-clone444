@@ -26,7 +26,7 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = CONFIG_ACTION_ID;
+  const ACTION_ID = CONFIG_ACTION_ID as const;
   const verifyPayload = useMemo<VerifyCommandInput>(
     () => ({
       action: ACTION_ID,
@@ -43,7 +43,8 @@ export default function SignInScreen() {
     if (host.includes('localhost') || host.includes('127.0.0.1')) {
       return 'http://localhost:3000';
     }
-    return window.location?.origin ?? 'https://444-two.vercel.app';
+    const origin = window.location?.origin;
+    return origin ?? 'https://444-two.vercel.app';
   }, []);
   const CALLBACK_URL = useMemo(() => {
     const normalizedOrigin = callbackOrigin.replace(/\/$/, '');
