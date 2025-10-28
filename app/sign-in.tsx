@@ -27,6 +27,7 @@ export default function SignInScreen() {
   const lang = settings.language;
 
   const ACTION_ID = CONFIG_ACTION_ID as const;
+
   const verifyPayload = useMemo<VerifyCommandInput>(
     () => ({
       action: ACTION_ID,
@@ -35,6 +36,7 @@ export default function SignInScreen() {
     }),
     [ACTION_ID],
   );
+
   const callbackOrigin = useMemo(() => {
     if (typeof window === 'undefined') {
       return 'https://444-two.vercel.app';
@@ -46,6 +48,7 @@ export default function SignInScreen() {
     const origin = window.location?.origin;
     return origin ?? 'https://444-two.vercel.app';
   }, []);
+
   const CALLBACK_URL = useMemo(() => {
     const normalizedOrigin = callbackOrigin.replace(/\/$/, '');
     return `${normalizedOrigin}/callback`;
@@ -58,7 +61,7 @@ export default function SignInScreen() {
       subtitle: zh ? '使用 World ID 確認你是真人' : 'Use World ID to confirm you are human',
       ctaVerify: zh ? '我已在 World App 內，開始驗證' : "I'm inside World App, verify",
       openWorld: zh ? '請在 World App 中開啟' : 'Please open inside World App',
-      helper: zh ? '請用 World App 內置掃描器開啟此頁面（或掃描 QR），不要用系統瀏覽器。' : 'Open with World App’s built‑in scanner (or scan the QR), not the system browser.',
+      helper: zh ? '請用 World App 內置掃描器開啟此頁面（或掃描 QR），不要用系統瀏覽器。' : 'Open with World App’s built-in scanner (or scan the QR), not the system browser.',
       verifying: zh ? '驗證中…' : 'Verifying…',
     } as const;
   }, [lang]);
@@ -156,9 +159,9 @@ export default function SignInScreen() {
   }, [isWorldEnv, verifyInsideWorldApp]);
 
   return (
-    <View style={[styles.root, { backgroundColor: currentTheme.background }]}> 
+    <View style={[styles.root, { backgroundColor: currentTheme.background }]}>
       <LinearGradient colors={currentTheme.gradient as any} style={styles.heroBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.container}>
           <View style={styles.header}>
             <ShieldCheck size={28} color="#FFFFFF" />
