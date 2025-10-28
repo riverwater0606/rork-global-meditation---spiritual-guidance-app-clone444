@@ -35,9 +35,20 @@ export default function SignInScreen() {
     }),
     [ACTION_ID],
   );
-  const CALLBACK_URL = typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))
-    ? 'http://localhost:3000/callback'
-    : 'https://444-two.vercel.app/callback';
+  const callbackOrigin = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return 'https://444-two.vercel.app';
+    }
+    const host = window.location?.host ?? '';
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      return 'http://localhost:3000';
+    }
+    return window.location?.origin ?? 'https://444-two.vercel.app';
+  }, []);
+  const CALLBACK_URL = useMemo(() => {
+    const normalizedOrigin = callbackOrigin.replace(/\/$/, '');
+    return `${normalizedOrigin}/callback`;
+  }, [callbackOrigin]);
 
   const texts = useMemo(() => {
     const zh = lang === 'zh';
