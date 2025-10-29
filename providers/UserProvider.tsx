@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ISuccessResult, VerifyCommandInput } from "@worldcoin/minikit-js";
+import type { ISuccessResult } from "@worldcoin/idkit-core";
+
+import type { VerifyCommandInput } from "@/types/worldcoin";
 
 import { postJson } from "@/services/api";
 import { ACTION_ID } from "@/constants/world";

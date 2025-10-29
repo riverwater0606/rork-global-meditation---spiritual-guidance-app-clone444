@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
-import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
-import { VerificationLevel } from '@worldcoin/minikit-js';
+import type { ISuccessResult } from '@worldcoin/idkit-core';
+import { VerificationLevel } from '@worldcoin/idkit-core';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';
@@ -15,6 +15,7 @@ import {
 } from '@/components/worldcoin/IDKitWeb';
 import type { WorldIDVerificationResult } from '@/providers/UserProvider';
 import { APP_ID, ACTION_ID as CONFIG_ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
+import type { VerifyCommandInput } from '@/types/worldcoin';
 
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
