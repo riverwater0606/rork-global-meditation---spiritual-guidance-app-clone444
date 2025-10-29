@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
-import { VerificationLevel } from '@worldcoin/minikit-js';
+import type { VerifyCommandInput, ISuccessResult } from '@/types/worldcoin';
+import { VerificationLevel } from '@/types/worldcoin';
 
 import { ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
-import type { ISuccessResult, VerifyCommandInput } from '@worldcoin/minikit-js';
-import { VerificationLevel } from '@worldcoin/minikit-js';
+import type { ISuccessResult } from '@/types/worldcoin';
+import { VerificationLevel } from '@/types/worldcoin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';
@@ -15,6 +15,7 @@ import {
 } from '@/components/worldcoin/IDKitWeb';
 import type { WorldIDVerificationResult } from '@/providers/UserProvider';
 import { APP_ID, ACTION_ID as CONFIG_ACTION_ID, VERIFY_SIGNAL } from '@/constants/world';
+import type { VerifyCommandInput } from '@/types/worldcoin';
 
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
@@ -26,15 +27,13 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = CONFIG_ACTION_ID as const;
-
   const verifyPayload = useMemo<VerifyCommandInput>(
     () => ({
-      action: ACTION_ID,
+      action: CONFIG_ACTION_ID,
       signal: VERIFY_SIGNAL,
       verification_level: VerificationLevel.Orb,
     }),
-    [ACTION_ID],
+    [],
   );
 
   const callbackOrigin = useMemo(() => {

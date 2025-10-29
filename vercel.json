@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx expo export:web",
+  "buildCommand": "node scripts/export-web.mjs",
   "outputDirectory": "dist",
   "framework": "create-react-app"
 }

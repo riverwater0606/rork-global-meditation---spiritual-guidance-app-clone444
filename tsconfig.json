@@ -5,6 +5,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "react-native-reanimated": [
+        "./polyfills/react-native-reanimated"
       ]
     }
   },

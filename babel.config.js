@@ -9,6 +9,7 @@ module.exports = function (api) {
           root: ['./'],
           alias: {
             '@': './',
+            'react-native-reanimated': './polyfills/react-native-reanimated',
           },
         },
       ],
