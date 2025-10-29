@@ -26,15 +26,13 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = CONFIG_ACTION_ID as const;
-
   const verifyPayload = useMemo<VerifyCommandInput>(
     () => ({
-      action: ACTION_ID,
+      action: CONFIG_ACTION_ID,
       signal: VERIFY_SIGNAL,
       verification_level: VerificationLevel.Orb,
     }),
-    [ACTION_ID],
+    [],
   );
 
   const callbackOrigin = useMemo(() => {
