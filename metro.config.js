@@ -6,7 +6,6 @@ const config = getDefaultConfig(projectRoot);
 
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
-  '@worldcoin/idkit-core': path.resolve(projectRoot, 'node_modules/@worldcoin/idkit-core/build/index.js'),
   'react-native-reanimated': path.resolve(projectRoot, 'polyfills/react-native-reanimated.ts'),
 };
 

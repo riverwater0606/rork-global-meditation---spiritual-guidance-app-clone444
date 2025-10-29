@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ISuccessResult } from "@worldcoin/idkit-core";
+import type { ISuccessResult } from "@/types/worldcoin";
 
 import type { VerifyCommandInput } from "@/types/worldcoin";
 

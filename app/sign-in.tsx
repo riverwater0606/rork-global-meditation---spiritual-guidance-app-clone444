@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
-import type { ISuccessResult } from '@worldcoin/idkit-core';
-import { VerificationLevel } from '@worldcoin/idkit-core';
+import type { ISuccessResult } from '@/types/worldcoin';
+import { VerificationLevel } from '@/types/worldcoin';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, ScanLine, RefreshCw } from '@/components/icons';

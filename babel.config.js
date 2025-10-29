@@ -9,7 +9,6 @@ module.exports = function (api) {
           root: ['./'],
           alias: {
             '@': './',
-            '@worldcoin/idkit-core': './node_modules/@worldcoin/idkit-core/build/index',
             'react-native-reanimated': './polyfills/react-native-reanimated',
           },
         },
