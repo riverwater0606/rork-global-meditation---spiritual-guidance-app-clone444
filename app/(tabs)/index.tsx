@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
@@ -17,14 +18,17 @@ import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { MEDITATION_SESSIONS, getLocalizedContent } from "@/constants/meditations";
+import { useWorldId } from "@/hooks/useWorldId";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
   const { stats } = useMeditation();
-  const { profile, isVerified } = useUser();
+  const { profile } = useUser();
   const { currentTheme, settings } = useSettings();
+  const { isVerified, isVerifying: isVerifyingWorldId, startVerification, verificationError, resetError } =
+    useWorldId();
   const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
   const isWeb = Platform.OS === 'web';
 
@@ -54,12 +58,15 @@ export default function HomeScreen() {
     void onLoad();
   }, [isWeb, isVerified]);
 
-  const quickActions = [
-    { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
-    { id: "timer", title: lang === "zh" ? "計時器" : "Timer", icon: Clock, color: "#3B82F6" },
-    { id: "sleep", title: lang === "zh" ? "睡眠" : "Sleep", icon: Moon, color: "#8B5CF6" },
-    { id: "focus", title: lang === "zh" ? "專注" : "Focus", icon: Brain, color: "#10B981" },
-  ];
+  const quickActions = useMemo(
+    () => [
+      { id: "breathing", title: lang === "zh" ? "呼吸" : "Breathing", icon: Heart, color: "#EC4899" },
+      { id: "timer", title: lang === "zh" ? "計時器" : "Timer", icon: Clock, color: "#3B82F6" },
+      { id: "sleep", title: lang === "zh" ? "睡眠" : "Sleep", icon: Moon, color: "#8B5CF6" },
+      { id: "focus", title: lang === "zh" ? "專注" : "Focus", icon: Brain, color: "#10B981" },
+    ],
+    [lang]
+  );
 
   const featuredSessions = MEDITATION_SESSIONS.filter((s) => s.featured)
     .slice(0, 3)
@@ -69,14 +76,31 @@ export default function HomeScreen() {
     }));
 
   const handleQuickAction = (actionId: string) => {
-    if (actionId === "breathing") {
-      router.push("/breathing");
-    } else if (actionId === "timer") {
-      router.push("/timer");
-    } else {
-      router.push("/meditate");
+    switch (actionId) {
+      case "breathing":
+        router.push("/breathing");
+        break;
+      case "timer":
+        router.push("/timer");
+        break;
+      case "sleep":
+        router.push("/sleep-meditation");
+        break;
+      case "focus":
+        router.push("/focus-meditation");
+        break;
+      default:
+        router.push("/meditate");
     }
   };
+
+  useEffect(() => {
+    if (!verificationError) return;
+    const id = setTimeout(() => {
+      resetError();
+    }, 6000);
+    return () => clearTimeout(id);
+  }, [resetError, verificationError]);
 
 
 
@@ -184,6 +208,43 @@ export default function HomeScreen() {
               </LinearGradient>
             </TouchableOpacity>
           ))}
+        </View>
+
+        <View style={[styles.worldIdCard, { backgroundColor: currentTheme.card }]}>
+          <View style={styles.worldIdHeader}>
+            <Text style={[styles.worldIdTitle, { color: currentTheme.text }]}>World ID</Text>
+            <Text style={[styles.worldIdStatus, { color: isVerified ? "#10B981" : "#F59E0B" }]}>
+              {isVerified ? (lang === "zh" ? "已驗證" : "Verified") : lang === "zh" ? "尚未驗證" : "Verification required"}
+            </Text>
+          </View>
+          <Text style={[styles.worldIdDescription, { color: currentTheme.textSecondary }]}>
+            {lang === "zh"
+              ? "依循官方 Verify 指南，請在 World App 內完成驗證，解鎖 AI 客製課程與進階儀式。"
+              : "Follow the official Verify command guidance to complete verification inside World App and unlock AI-crafted rituals."}
+          </Text>
+          {!!verificationError && (
+            <Text style={styles.worldIdError} testID="worldid-error">
+              {verificationError}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={[styles.worldIdButton, isVerified && styles.worldIdButtonDisabled]}
+            onPress={() => {
+              startVerification().catch(() => {
+                // handled in hook state
+              });
+            }}
+            disabled={isVerified || isVerifyingWorldId}
+            testID="worldid-verify"
+          >
+            {isVerifyingWorldId ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.worldIdButtonText}>
+                {isVerified ? (lang === "zh" ? "已完成" : "Completed") : lang === "zh" ? "使用 World ID 驗證" : "Verify with World ID"}
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Stats Overview */}
@@ -399,6 +460,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     marginTop: 4,
+  },
+  worldIdCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  worldIdHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  worldIdTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  worldIdStatus: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  worldIdDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  worldIdError: {
+    marginTop: 12,
+    color: "#F87171",
+    fontSize: 12,
+  },
+  worldIdButton: {
+    marginTop: 16,
+    backgroundColor: "#2563EB",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  worldIdButtonDisabled: {
+    opacity: 0.7,
+  },
+  worldIdButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
   worldBanner: {
     backgroundColor: "#111827",

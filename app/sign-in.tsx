@@ -26,7 +26,7 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
-  const ACTION_ID = CONFIG_ACTION_ID as const;
+  const ACTION_ID = CONFIG_ACTION_ID;
 
   const verifyPayload = useMemo<VerifyCommandInput>(
     () => ({

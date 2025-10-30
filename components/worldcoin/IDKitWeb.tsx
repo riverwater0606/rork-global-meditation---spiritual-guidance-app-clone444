@@ -274,7 +274,7 @@ interface RedirectOptions {
   callbackUrl: string;
 }
 
-async function redirectToWorldApp({ appId, action, signal, verificationLevel, callbackUrl }: RedirectOptions) {
+export async function redirectToWorldApp({ appId, action, signal, verificationLevel, callbackUrl }: RedirectOptions) {
   if (typeof window === 'undefined') {
     return;
   }

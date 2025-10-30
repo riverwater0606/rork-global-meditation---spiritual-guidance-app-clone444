@@ -16,10 +16,11 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Bot, Loader2, PlayCircle, PlusCircle, Send, Sparkles, User } from "lucide-react-native";
+import { Bot, Loader2, Lock, PlayCircle, PlusCircle, Send, Sparkles, User } from "lucide-react-native";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
 import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";
+import { useWorldId } from "@/hooks/useWorldId";
 
 interface Message {
   id: string;
@@ -124,6 +125,7 @@ const DEFAULT_AUDIO_URL = "https://cdn.pixabay.com/download/audio/2021/11/15/aud
 export default function AssistantScreen() {
   const router = useRouter();
   const { currentTheme, settings } = useSettings();
+  const { isVerified, isVerifying: worldIdVerifying, startVerification, verificationError: worldIdError } = useWorldId();
   const { addCustomSession } = useMeditation();
   const language = settings.language as Language;
   const t = TRANSLATIONS[language];
@@ -181,6 +183,15 @@ export default function AssistantScreen() {
 
   const sendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
+    if (!isVerified) {
+      Alert.alert(
+        language === "zh" ? "需要 World ID" : "World ID required",
+        language === "zh"
+          ? "請先完成 World ID 驗證以使用 AI 助手。"
+          : "Please complete World ID verification to chat with the assistant.",
+      );
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -262,6 +273,15 @@ export default function AssistantScreen() {
   };
 
   const generateCustomMeditation = async () => {
+    if (!isVerified) {
+      Alert.alert(
+        language === "zh" ? "需要驗證" : "Verification required",
+        language === "zh"
+          ? "請先透過 World ID 驗證以建立客製冥想課程。"
+          : "Please verify with World ID before creating a custom meditation.",
+      );
+      return;
+    }
     if (!customTitle.trim() || !customGoal.trim()) {
       Alert.alert(language === "zh" ? "請填寫完整資訊" : "Please complete all fields");
       return;
@@ -417,7 +437,11 @@ Script 使用多行句子，引導使用者完成冥想。`,
             <Text style={styles.headerTitle}>{t.title}</Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.createButton} onPress={showCreator}>
+            <TouchableOpacity
+              style={[styles.createButton, !isVerified && styles.createButtonDisabled]}
+              onPress={showCreator}
+              disabled={!isVerified}
+            >
               <PlusCircle size={18} color="#FFFFFF" />
               <Text style={styles.createButtonText}>{t.createCourse}</Text>
             </TouchableOpacity>
@@ -436,6 +460,40 @@ Script 使用多行句子，引導使用者完成冥想。`,
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
         >
+          {!isVerified && (
+            <View
+              style={[
+                styles.lockedCard,
+                { backgroundColor: currentTheme.surface, borderColor: currentTheme.border },
+              ]}
+              testID="assistant-worldid-guard"
+            >
+              <View style={styles.lockedHeader}>
+                <Lock size={18} color={currentTheme.primary} />
+                <Text style={[styles.lockedTitle, { color: currentTheme.text }]}>World ID</Text>
+              </View>
+              <Text style={[styles.lockedDescription, { color: currentTheme.textSecondary }]}>
+                {language === "zh"
+                  ? "請依照官方 Verify 指南，在 World App 內完成驗證後即可解鎖 AI 助手、客製課程與多語音引導。"
+                  : "Complete the official Verify flow inside World App to unlock the AI assistant, bespoke sessions, and layered audio guidance."}
+              </Text>
+              {!!worldIdError && <Text style={styles.lockedError}>{worldIdError}</Text>}
+              <TouchableOpacity
+                style={[styles.lockedButton, worldIdVerifying && styles.lockedButtonDisabled]}
+                onPress={() => startVerification().catch(() => {})}
+                disabled={worldIdVerifying}
+              >
+                {worldIdVerifying ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.lockedButtonText}>
+                    {language === "zh" ? "使用 World ID 驗證" : "Verify with World ID"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           {messages.map((message) => (
             <View
               key={message.id}
@@ -544,16 +602,17 @@ Script 使用多行句子，引導使用者完成冥想。`,
             placeholderTextColor={currentTheme.textSecondary}
             multiline
             maxLength={500}
-            editable={!isLoading}
+            editable={isVerified && !isLoading}
+            selectTextOnFocus={isVerified}
           />
           <TouchableOpacity
             style={[
               styles.sendButton,
               { backgroundColor: currentTheme.primary },
-              (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
+              (!inputText.trim() || isLoading || !isVerified) && styles.sendButtonDisabled,
             ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!inputText.trim() || isLoading || !isVerified}
           >
             <Send color="#FFFFFF" size={20} />
           </TouchableOpacity>
@@ -661,6 +720,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 999,
   },
+  createButtonDisabled: {
+    opacity: 0.6,
+  },
   createButtonText: {
     color: "#FFFFFF",
     fontSize: 12,
@@ -675,6 +737,44 @@ const styles = StyleSheet.create({
   messagesContent: {
     padding: 16,
     paddingBottom: 8,
+  },
+  lockedCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  lockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  lockedTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  lockedDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  lockedError: {
+    fontSize: 12,
+    color: "#F97316",
+  },
+  lockedButton: {
+    backgroundColor: "#2563EB",
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  lockedButtonDisabled: {
+    opacity: 0.7,
+  },
+  lockedButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
   messageWrapper: {
     flexDirection: "row",

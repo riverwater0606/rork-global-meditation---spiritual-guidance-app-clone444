@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { Audio, AVPlaybackStatus, InterruptionModeIOS } from "expo-av";
 import * as Speech from "expo-speech";
 import { Pause, Play, Volume2, VolumeX, Waves, Wind, X } from "lucide-react-native";
@@ -189,23 +190,36 @@ export default function MeditationPlayerScreen() {
 
   const togglePlayback = useCallback(async () => {
     if (!session) return;
-    const activeSound = await loadMainAudio();
-    if (!activeSound) return;
+    try {
+      const activeSound = await loadMainAudio();
+      if (!activeSound) {
+        throw new Error('Audio unavailable');
+      }
 
-    if (isPlaying) {
-      await activeSound.pauseAsync();
-      if (ambientSound) await ambientSound.pauseAsync();
-      setIsPlaying(false);
-      return;
-    }
+      if (isPlaying) {
+        await activeSound.pauseAsync();
+        if (ambientSound) await ambientSound.pauseAsync();
+        setIsPlaying(false);
+        return;
+      }
 
-    await activeSound.playAsync();
-    if (isAmbientEnabled) {
-      const loadedAmbient = await ensureAmbientLoaded();
-      await loadedAmbient?.playAsync();
+      await activeSound.playAsync();
+      if (isAmbientEnabled) {
+        const loadedAmbient = await ensureAmbientLoaded();
+        await loadedAmbient?.playAsync();
+      }
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(() => {});
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('[MeditationPlayer] togglePlayback failed', error);
+      Alert.alert(
+        language === 'zh' ? '無法播放音訊' : 'Unable to play audio',
+        language === 'zh'
+          ? '請檢查網路連線或稍後再試，World App 會在背景重試緩存。'
+          : 'Check your connection and try again. The app will retry buffering in the background.',
+      );
     }
-    setIsPlaying(true);
-  }, [ambientSound, ensureAmbientLoaded, isAmbientEnabled, isPlaying, loadMainAudio, session]);
+  }, [ambientSound, ensureAmbientLoaded, isAmbientEnabled, isPlaying, language, loadMainAudio, session]);
 
   const toggleAmbient = useCallback(async () => {
     if (!ambientSource) {

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -10,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Clock, Headphones, Search, Sparkles } from "lucide-react-native";
+import { Clock, Headphones, Lock, Search, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
 import {
   CATEGORIES,
@@ -20,6 +22,7 @@ import {
 } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
 import { CustomMeditationSession, useMeditation } from "@/providers/MeditationProvider";
+import { useWorldId } from "@/hooks/useWorldId";
 
 const { width } = Dimensions.get("window");
 
@@ -50,6 +53,7 @@ const isCustomSession = (session: Session): session is CustomMeditationSession =
 export default function MeditateScreen() {
   const { currentTheme, settings } = useSettings();
   const { getAllSessions } = useMeditation();
+  const { isVerified, isVerifying: worldIdVerifying, startVerification, verificationError } = useWorldId();
   const language = settings.language as SupportedLanguage;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -94,6 +98,37 @@ export default function MeditateScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={[styles.worldIdCard, { backgroundColor: currentTheme.surface }]}> 
+          <View style={styles.worldIdHeader}>
+            <Text style={[styles.worldIdTitle, { color: currentTheme.text }]}>World ID Access</Text>
+            <Text style={[styles.worldIdStatus, { color: isVerified ? "#10B981" : "#F97316" }]}>
+              {isVerified ? (language === "zh" ? "已解鎖" : "Unlocked") : language === "zh" ? "尚未解鎖" : "Locked"}
+            </Text>
+          </View>
+          <Text style={[styles.worldIdDescription, { color: currentTheme.textSecondary }]}>
+            {language === "zh"
+              ? "World App 驗證可解鎖 AI 客製課程、離線緩存與世界 ID 限定冥想。"
+              : "Verify inside World App to unlock AI-crafted sessions, offline caching, and World ID exclusive meditations."}
+          </Text>
+          {!!verificationError && <Text style={styles.worldIdError}>{verificationError}</Text>}
+          <TouchableOpacity
+            style={[styles.worldIdButton, isVerified && styles.worldIdButtonDisabled]}
+            onPress={() => startVerification().catch(() => {})}
+            disabled={isVerified || worldIdVerifying}
+            testID="meditate-worldid-button"
+          >
+            {worldIdVerifying ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.worldIdButtonText}>
+                {isVerified
+                  ? language === "zh" ? "已完成" : "Verified"
+                  : language === "zh" ? "進行 World ID 驗證" : "Verify with World ID"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -130,14 +165,33 @@ export default function MeditateScreen() {
         <View style={styles.sessionsGrid}>
           {filteredSessions.map((session, index) => {
             const localized = getLocalizedContent(session, language);
+            const parsedDuration = Number.parseInt(String(session.duration), 10);
+            const displayDuration = Number.isNaN(parsedDuration) ? session.duration : parsedDuration;
+            const requiresWorldId = isCustomSession(session) && session.source === "ai-generated";
+            const isLocked = requiresWorldId && !isVerified;
+
             return (
               <TouchableOpacity
                 key={session.id}
                 style={[
                   styles.sessionCard,
                   index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
+                  isLocked && styles.sessionCardLocked,
                 ]}
-                onPress={() => router.push(`/meditation/${session.id}`)}
+                onPress={() => {
+                  if (isLocked) {
+                    Alert.alert(
+                      language === "zh" ? "需要 World ID" : "World ID required",
+                      language === "zh"
+                        ? "這堂課程需完成 World ID 驗證後才能播放。"
+                        : "This session unlocks once you verify with World ID.",
+                    );
+                    return;
+                  }
+                  router.push(`/meditation/${session.id}`);
+                }}
+                activeOpacity={isLocked ? 1 : 0.85}
+                disabled={isLocked}
                 testID={`meditation-${session.id}`}
               >
                 <LinearGradient
@@ -155,6 +209,12 @@ export default function MeditateScreen() {
                           <Text style={styles.badgeText}>{t.customBadge}</Text>
                         </View>
                       )}
+                      {isLocked && (
+                        <View style={styles.lockBadge}>
+                          <Lock size={12} color="#F97316" />
+                          <Text style={styles.lockBadgeText}>{language === "zh" ? "World ID" : "World ID"}</Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={styles.sessionCardDescription} numberOfLines={2}>
                       {localized.description}
@@ -164,7 +224,7 @@ export default function MeditateScreen() {
                       <View style={styles.sessionCardMetaItem}>
                         <Clock size={14} color="#E0E7FF" />
                         <Text style={styles.sessionCardMetaText}>
-                          {session.duration} {language === "zh" ? "分鐘" : "min"}
+                          {displayDuration} {language === "zh" ? "分鐘" : "min"}
                         </Text>
                       </View>
                       <View style={styles.sessionCardMetaItem}>
@@ -245,6 +305,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
+  sessionCardLocked: {
+    opacity: 0.65,
+  },
   sessionCardLeft: {
     marginRight: 10,
   },
@@ -306,5 +369,68 @@ const styles = StyleSheet.create({
     color: "#FCD34D",
     fontWeight: "700",
     textTransform: "uppercase",
+  },
+  lockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(249, 115, 22, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  lockBadgeText: {
+    fontSize: 10,
+    color: "#F97316",
+    fontWeight: "700",
+  },
+  worldIdCard: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 20,
+    borderRadius: 18,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  worldIdHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  worldIdTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  worldIdStatus: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  worldIdDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  worldIdError: {
+    fontSize: 12,
+    color: "#F87171",
+    marginTop: 12,
+  },
+  worldIdButton: {
+    marginTop: 16,
+    backgroundColor: "#2563EB",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  worldIdButtonDisabled: {
+    opacity: 0.7,
+  },
+  worldIdButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

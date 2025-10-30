@@ -74,26 +74,25 @@ interface MeditationContext {
   stats: MeditationStats;
   achievements: Achievement[];
   customSessions: CustomMeditationSession[];
+  offlineSessions: (MeditationSession | CustomMeditationSession)[];
   completeMeditation: (sessionId: string, duration: number) => Promise<void>;
   addCustomSession: (session: CustomMeditationSession) => Promise<void>;
   removeCustomSession: (sessionId: string) => Promise<void>;
   getSessionById: (id: string) => MeditationSession | CustomMeditationSession | undefined;
   getAllSessions: () => (MeditationSession | CustomMeditationSession)[];
+  cacheOfflineSession: (sessionId: string) => Promise<void>;
 }
 
 const CUSTOM_SESSIONS_KEY = "customMeditationSessions";
 const MEDITATION_STATS_KEY = "meditationStats";
 const ACHIEVEMENTS_KEY = "achievements";
+const OFFLINE_SESSIONS_KEY = "offlineMeditationSessions";
 
 export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [stats, setStats] = useState<MeditationStats>(INITIAL_STATS);
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
   const [customSessions, setCustomSessions] = useState<CustomMeditationSession[]>([]);
-
-  useEffect(() => {
-    void loadStats();
-    void loadCustomSessions();
-  }, []);
+  const [offlineSessions, setOfflineSessions] = useState<(MeditationSession | CustomMeditationSession)[]>([]);
 
   const loadCustomSessions = useCallback(async () => {
     try {
@@ -114,6 +113,29 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       console.error("Error saving custom sessions:", error);
     }
   }, []);
+
+  const loadOfflineSessions = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem(OFFLINE_SESSIONS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as (MeditationSession | CustomMeditationSession)[];
+        setOfflineSessions(parsed);
+      }
+    } catch (error) {
+      console.error("Error loading offline sessions:", error);
+    }
+  }, []);
+
+  const persistOfflineSessions = useCallback(
+    async (sessions: (MeditationSession | CustomMeditationSession)[]) => {
+      try {
+        await AsyncStorage.setItem(OFFLINE_SESSIONS_KEY, JSON.stringify(sessions));
+      } catch (error) {
+        console.error("Error saving offline sessions:", error);
+      }
+    },
+    [],
+  );
 
   const loadStats = useCallback(async () => {
     try {
@@ -149,6 +171,35 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     setStats(newStats);
     await AsyncStorage.setItem(MEDITATION_STATS_KEY, JSON.stringify(newStats));
   }, []);
+
+  const findSessionById = useCallback(
+    (id: string) => {
+      return (
+        customSessions.find((session) => session.id === id) ??
+        MEDITATION_SESSIONS.find((session) => session.id === id)
+      );
+    },
+    [customSessions],
+  );
+
+  const cacheOfflineSession = useCallback(
+    async (sessionId: string) => {
+      const session = findSessionById(sessionId);
+      if (!session) return;
+      setOfflineSessions((prev) => {
+        const next = [session, ...prev.filter((item) => item.id !== session.id)].slice(0, 3);
+        void persistOfflineSessions(next);
+        return next;
+      });
+    },
+    [findSessionById, persistOfflineSessions],
+  );
+
+  useEffect(() => {
+    void loadStats();
+    void loadCustomSessions();
+    void loadOfflineSessions();
+  }, [loadCustomSessions, loadOfflineSessions, loadStats]);
 
   const completeMeditation = useCallback(
     async (sessionId: string, duration: number) => {
@@ -208,8 +259,10 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         setAchievements(newAchievements);
         await AsyncStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(newAchievements));
       }
+
+      void cacheOfflineSession(sessionId);
     },
-    [achievements, saveStats, stats]
+    [achievements, cacheOfflineSession, saveStats, stats]
   );
 
   const addCustomSession = useCallback(
@@ -238,34 +291,30 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     return [...customSessions, ...MEDITATION_SESSIONS];
   }, [customSessions]);
 
-  const getSessionById = useCallback(
-    (id: string) => {
-      return customSessions.find((session) => session.id === id) ??
-        MEDITATION_SESSIONS.find((session) => session.id === id);
-    },
-    [customSessions]
-  );
-
   return useMemo<MeditationContext>(
     () => ({
       stats,
       achievements,
       customSessions,
+      offlineSessions,
       completeMeditation,
       addCustomSession,
       removeCustomSession,
-      getSessionById,
+      getSessionById: findSessionById,
       getAllSessions,
+      cacheOfflineSession,
     }),
     [
       stats,
       achievements,
       customSessions,
+      offlineSessions,
       completeMeditation,
       addCustomSession,
       removeCustomSession,
-      getSessionById,
+      findSessionById,
       getAllSessions,
+      cacheOfflineSession,
     ]
   );
 });
