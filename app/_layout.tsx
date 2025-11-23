@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MiniKit } from "@worldcoin/minikit-js";
 import { MeditationProvider } from "@/providers/MeditationProvider";
@@ -118,56 +119,98 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+function AppBootstrap() {
+  const [bootState, setBootState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    const hide = async () => {
+    let isMounted = true;
+    const prepare = async () => {
+      console.log(`[Boot] Preparing app (attempt ${attempt + 1})`);
+      setBootState('loading');
+      setBootError(null);
+      let localError: string | null = null;
       try {
-        console.log('[WorldID] SplashScreen.hideAsync() - start');
+        if (Platform.OS === 'web' && typeof MiniKit?.install === 'function') {
+          await Promise.resolve(MiniKit.install());
+          console.log('[Boot] MiniKit.install resolved');
+        }
+      } catch (error) {
+        localError = (error as Error)?.message ?? 'MiniKit initialization failed';
+        console.log('[Boot] MiniKit.install error', error);
       } finally {
-        await SplashScreen.hideAsync()
-          .then(() => console.log('[WorldID] SplashScreen.hideAsync() - done'))
-          .catch(() => console.log('[WorldID] SplashScreen.hideAsync() - failed'));
+        try {
+          await SplashScreen.hideAsync();
+          console.log('[Boot] SplashScreen hidden');
+        } catch (hideError) {
+          console.log('[Boot] SplashScreen.hideAsync failed', hideError);
+        }
+        if (!isMounted) {
+          return;
+        }
+        if (localError) {
+          setBootError(localError);
+          setBootState('error');
+        } else {
+          setBootState('ready');
+        }
       }
     };
-    void hide();
+
+    void prepare();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [attempt]);
+
+  const handleRetry = useCallback(() => {
+    console.log('[Boot] Retry requested');
+    setAttempt((prev) => prev + 1);
   }, []);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
-    if (typeof MiniKit?.install !== 'function') {
-      console.log('[WorldID] MiniKit.install unavailable');
-      return;
-    }
-    try {
-      const installResult = MiniKit.install();
-      if (installResult instanceof Promise) {
-        installResult
-          .then(() => console.log('[WorldID] MiniKit.install resolved'))
-          .catch((error) => console.log('[WorldID] MiniKit.install failed', error));
-      } else {
-        console.log('[WorldID] MiniKit.install completed');
-      }
-    } catch (error) {
-      console.log('[WorldID] MiniKit.install threw', error);
-    }
-  }, []);
+  if (bootState === 'loading') {
+    return (
+      <View style={bootStyles.container} testID="boot-loading">
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={bootStyles.message}>Preparing immersive experience…</Text>
+      </View>
+    );
+  }
 
+  if (bootState === 'error') {
+    return (
+      <View style={bootStyles.container} testID="boot-error">
+        <Text style={bootStyles.errorTitle}>啟動失敗</Text>
+        <Text style={bootStyles.errorMessage}>{bootError ?? 'MiniKit 無法啟動，請重試'}</Text>
+        <TouchableOpacity style={bootStyles.retryButton} onPress={handleRetry} testID="boot-retry">
+          <Text style={bootStyles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return <RootLayoutNav />;
+}
+
+export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={styles.container}>
-          <MiniKitProvider>
-            <SettingsProvider>
-              <UserProvider>
-                <MeditationProvider>
-                  <RootLayoutNav />
-                </MeditationProvider>
-              </UserProvider>
-            </SettingsProvider>
-          </MiniKitProvider>
-        </GestureHandlerRootView>
+        <SafeAreaProvider>
+          <GestureHandlerRootView style={styles.container}>
+            <MiniKitProvider>
+              <SettingsProvider>
+                <UserProvider>
+                  <MeditationProvider>
+                    <AppBootstrap />
+                  </MeditationProvider>
+                </UserProvider>
+              </SettingsProvider>
+            </MiniKitProvider>
+          </GestureHandlerRootView>
+        </SafeAreaProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
@@ -176,5 +219,44 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+});
+
+const bootStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#050C1F',
+    padding: 24,
+  },
+  message: {
+    marginTop: 16,
+    color: '#E5E7EB',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#F87171',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    color: '#F3F4F6',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontSize: 14,
+  },
+  retryButton: {
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
