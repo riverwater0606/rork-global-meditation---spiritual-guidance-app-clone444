@@ -1,5 +1,26 @@
 {
-  "buildCommand": "npx expo export:web",
+  "buildCommand": "npm run export",
   "outputDirectory": "dist",
-  "framework": "create-react-app"
+  "env": {
+    "WORLD_ID_APP_ID": "app_346b0844d114f6bac06f1d35eb9f3d1d",
+    "WORLD_ID_ACTION_ID": "psig",
+    "WORLD_ID_CALLBACK_URL": "https://444-two.vercel.app/callback"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "script-src 'self' https://idkit.worldcoin.org https://id.worldcoin.org https://cdn.worldcoin.org 'unsafe-inline'; object-src 'none'; base-uri 'self';"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!.*\\..*|_next/|assets/|_expo/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

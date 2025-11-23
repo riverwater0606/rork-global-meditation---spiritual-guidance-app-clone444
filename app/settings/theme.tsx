@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
-import { ArrowLeft, Moon, Sun, Smartphone, Check } from "@/components/icons";
+import { ArrowLeft, Moon, Sun, Smartphone, Check } from "lucide-react-native";
 import { useSettings, Theme } from "@/providers/SettingsProvider";
 
 export default function ThemeScreen() {

@@ -1,15 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
-
 import { useSettings } from '@/providers/SettingsProvider';
-import { useUser, type WorldIDVerificationResult } from '@/providers/UserProvider';
-import { CheckCircle } from '@/components/icons';
+import { useUser } from '@/providers/UserProvider';
+import { CheckCircle } from 'lucide-react-native';
 
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
   const { currentTheme, settings } = useSettings();
-  const [parsed, setParsed] = useState<WorldIDVerificationResult | null>(null);
+  const [parsed, setParsed] = useState<any>(null);
   const { setVerified } = useUser();
   const [error, setError] = useState<string | null>(null);
 
@@ -41,17 +40,14 @@ export default function CallbackScreen() {
           } catch {}
         }
 
-        if (obj && typeof obj === 'object' && 'payload' in obj) {
-          const verificationResult = obj as WorldIDVerificationResult;
-          setParsed(verificationResult);
+        if (obj) {
+          setParsed(obj);
           try {
-            await setVerified(verificationResult);
+            await setVerified(obj as any);
           } catch (e) {
-            console.log('[Callback] setVerified failed', e);
-            setError((e as Error).message ?? 'Verification failed');
-            return;
+            console.log('[Callback] setVerified failed');
           }
-          console.log('[Callback] Parsed verification payload');
+          console.log('[Callback] Parsed result', obj);
           setTimeout(() => {
             try {
               router.replace('/');
@@ -59,7 +55,7 @@ export default function CallbackScreen() {
           }, 800);
 
         } else {
-          setError('No verification result provided');
+          setError('No result provided');
         }
       } catch (e) {
         console.error('[Callback] parse error', e);

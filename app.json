@@ -29,10 +29,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png",
-      "output": "static",
-      "bundler": "metro",
-      "publicPath": "./"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [

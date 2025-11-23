@@ -1,11 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  MEDITATION_SESSIONS,
-  MeditationSession,
-  SupportedLanguage,
-} from "@/constants/meditations";
 
 interface MeditationStats {
   totalSessions: number;
@@ -21,14 +16,6 @@ interface Achievement {
   description: string;
   icon: string;
   unlocked: boolean;
-}
-
-export interface CustomMeditationSession extends MeditationSession {
-  source: "ai-generated" | "manual";
-  script: string[];
-  createdAt: string;
-  language: SupportedLanguage;
-  promptSummary?: string;
 }
 
 const INITIAL_STATS: MeditationStats = {
@@ -70,202 +57,108 @@ const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-interface MeditationContext {
-  stats: MeditationStats;
-  achievements: Achievement[];
-  customSessions: CustomMeditationSession[];
-  completeMeditation: (sessionId: string, duration: number) => Promise<void>;
-  addCustomSession: (session: CustomMeditationSession) => Promise<void>;
-  removeCustomSession: (sessionId: string) => Promise<void>;
-  getSessionById: (id: string) => MeditationSession | CustomMeditationSession | undefined;
-  getAllSessions: () => (MeditationSession | CustomMeditationSession)[];
-}
-
-const CUSTOM_SESSIONS_KEY = "customMeditationSessions";
-const MEDITATION_STATS_KEY = "meditationStats";
-const ACHIEVEMENTS_KEY = "achievements";
-
 export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [stats, setStats] = useState<MeditationStats>(INITIAL_STATS);
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
-  const [customSessions, setCustomSessions] = useState<CustomMeditationSession[]>([]);
 
   useEffect(() => {
-    void loadStats();
-    void loadCustomSessions();
+    loadStats();
   }, []);
 
-  const loadCustomSessions = useCallback(async () => {
+  const loadStats = async () => {
     try {
-      const saved = await AsyncStorage.getItem(CUSTOM_SESSIONS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as CustomMeditationSession[];
-        setCustomSessions(parsed);
-      }
-    } catch (error) {
-      console.error("Error loading custom sessions:", error);
-    }
-  }, []);
-
-  const persistCustomSessions = useCallback(async (sessions: CustomMeditationSession[]) => {
-    try {
-      await AsyncStorage.setItem(CUSTOM_SESSIONS_KEY, JSON.stringify(sessions));
-    } catch (error) {
-      console.error("Error saving custom sessions:", error);
-    }
-  }, []);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const savedStats = await AsyncStorage.getItem(MEDITATION_STATS_KEY);
-      const savedAchievements = await AsyncStorage.getItem(ACHIEVEMENTS_KEY);
-
+      const savedStats = await AsyncStorage.getItem("meditationStats");
+      const savedAchievements = await AsyncStorage.getItem("achievements");
+      
       if (savedStats) {
-        const parsed = JSON.parse(savedStats) as MeditationStats;
+        const parsed = JSON.parse(savedStats);
         setStats(parsed);
         updateWeekProgress(parsed);
       }
-
+      
       if (savedAchievements) {
         setAchievements(JSON.parse(savedAchievements));
       }
     } catch (error) {
       console.error("Error loading stats:", error);
     }
-  }, []);
+  };
 
-  const updateWeekProgress = useCallback((currentStats: MeditationStats) => {
+  const updateWeekProgress = (currentStats: MeditationStats) => {
     const today = new Date().getDay();
     const lastSession = currentStats.lastSessionDate ? new Date(currentStats.lastSessionDate) : null;
-
+    
     if (lastSession && lastSession.toDateString() === new Date().toDateString()) {
       const newWeekProgress = [...currentStats.weekProgress];
       newWeekProgress[today] = true;
       setStats({ ...currentStats, weekProgress: newWeekProgress });
     }
-  }, []);
+  };
 
-  const saveStats = useCallback(async (newStats: MeditationStats) => {
+  const completeMeditation = async (sessionId: string, duration: number) => {
+    const today = new Date();
+    const todayStr = today.toDateString();
+    const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
+    
+    let newStreak = stats.currentStreak;
+    if (!lastSession || lastSession.toDateString() !== todayStr) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (lastSession && lastSession.toDateString() === yesterday.toDateString()) {
+        newStreak += 1;
+      } else if (!lastSession || lastSession.toDateString() !== todayStr) {
+        newStreak = 1;
+      }
+    }
+
+    const newWeekProgress = [...stats.weekProgress];
+    newWeekProgress[today.getDay()] = true;
+
+    const newStats: MeditationStats = {
+      totalSessions: stats.totalSessions + 1,
+      totalMinutes: stats.totalMinutes + duration,
+      currentStreak: newStreak,
+      lastSessionDate: todayStr,
+      weekProgress: newWeekProgress,
+    };
+
     setStats(newStats);
-    await AsyncStorage.setItem(MEDITATION_STATS_KEY, JSON.stringify(newStats));
-  }, []);
+    await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
-  const completeMeditation = useCallback(
-    async (sessionId: string, duration: number) => {
-      const today = new Date();
-      const todayStr = today.toDateString();
-      const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
+    // Check achievements
+    const newAchievements = [...achievements];
+    let updated = false;
 
-      let newStreak = stats.currentStreak;
-      if (!lastSession || lastSession.toDateString() !== todayStr) {
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+    if (newStats.totalSessions === 1 && !newAchievements[0].unlocked) {
+      newAchievements[0].unlocked = true;
+      updated = true;
+    }
 
-        if (lastSession && lastSession.toDateString() === yesterday.toDateString()) {
-          newStreak += 1;
-        } else if (!lastSession || lastSession.toDateString() !== todayStr) {
-          newStreak = 1;
-        }
-      }
+    if (newStats.currentStreak >= 7 && !newAchievements[1].unlocked) {
+      newAchievements[1].unlocked = true;
+      updated = true;
+    }
 
-      const newWeekProgress = [...stats.weekProgress];
-      newWeekProgress[today.getDay()] = true;
+    if (newStats.totalSessions >= 10 && !newAchievements[2].unlocked) {
+      newAchievements[2].unlocked = true;
+      updated = true;
+    }
 
-      const newStats: MeditationStats = {
-        totalSessions: stats.totalSessions + 1,
-        totalMinutes: stats.totalMinutes + duration,
-        currentStreak: newStreak,
-        lastSessionDate: todayStr,
-        weekProgress: newWeekProgress,
-      };
+    if (newStats.totalMinutes >= 60 && !newAchievements[3].unlocked) {
+      newAchievements[3].unlocked = true;
+      updated = true;
+    }
 
-      await saveStats(newStats);
+    if (updated) {
+      setAchievements(newAchievements);
+      await AsyncStorage.setItem("achievements", JSON.stringify(newAchievements));
+    }
+  };
 
-      const newAchievements = [...achievements];
-      let updated = false;
-
-      if (newStats.totalSessions === 1 && !newAchievements[0].unlocked) {
-        newAchievements[0].unlocked = true;
-        updated = true;
-      }
-
-      if (newStats.currentStreak >= 7 && !newAchievements[1].unlocked) {
-        newAchievements[1].unlocked = true;
-        updated = true;
-      }
-
-      if (newStats.totalSessions >= 10 && !newAchievements[2].unlocked) {
-        newAchievements[2].unlocked = true;
-        updated = true;
-      }
-
-      if (newStats.totalMinutes >= 60 && !newAchievements[3].unlocked) {
-        newAchievements[3].unlocked = true;
-        updated = true;
-      }
-
-      if (updated) {
-        setAchievements(newAchievements);
-        await AsyncStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(newAchievements));
-      }
-    },
-    [achievements, saveStats, stats]
-  );
-
-  const addCustomSession = useCallback(
-    async (session: CustomMeditationSession) => {
-      setCustomSessions((prev) => {
-        const next = [session, ...prev.filter((s) => s.id !== session.id)];
-        void persistCustomSessions(next);
-        return next;
-      });
-    },
-    [persistCustomSessions]
-  );
-
-  const removeCustomSession = useCallback(
-    async (sessionId: string) => {
-      setCustomSessions((prev) => {
-        const next = prev.filter((session) => session.id !== sessionId);
-        void persistCustomSessions(next);
-        return next;
-      });
-    },
-    [persistCustomSessions]
-  );
-
-  const getAllSessions = useCallback(() => {
-    return [...customSessions, ...MEDITATION_SESSIONS];
-  }, [customSessions]);
-
-  const getSessionById = useCallback(
-    (id: string) => {
-      return customSessions.find((session) => session.id === id) ??
-        MEDITATION_SESSIONS.find((session) => session.id === id);
-    },
-    [customSessions]
-  );
-
-  return useMemo<MeditationContext>(
-    () => ({
-      stats,
-      achievements,
-      customSessions,
-      completeMeditation,
-      addCustomSession,
-      removeCustomSession,
-      getSessionById,
-      getAllSessions,
-    }),
-    [
-      stats,
-      achievements,
-      customSessions,
-      completeMeditation,
-      addCustomSession,
-      removeCustomSession,
-      getSessionById,
-      getAllSessions,
-    ]
-  );
+  return {
+    stats,
+    achievements,
+    completeMeditation,
+  };
 });

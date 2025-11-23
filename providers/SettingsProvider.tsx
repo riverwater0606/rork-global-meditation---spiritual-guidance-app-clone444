@@ -3,7 +3,6 @@ import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform, Appearance, ColorSchemeName } from "react-native";
 import * as Notifications from "expo-notifications";
-import { configureNotifications, requestNotificationPermissions } from "@/lib/notifications";
 
 export type Theme = "light" | "dark" | "system";
 export type Language = "en" | "zh";
@@ -114,12 +113,22 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
     if (Platform.OS === "web") return;
 
     try {
-      const status = await requestNotificationPermissions();
+      const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") {
         console.log("Notification permissions not granted");
         return;
       }
-      await configureNotifications();
+
+      // Configure notification behavior
+      await Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
     } catch (error) {
       console.error("Error setting up notifications:", error);
     }

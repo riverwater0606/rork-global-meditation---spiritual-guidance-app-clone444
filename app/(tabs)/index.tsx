@@ -9,14 +9,14 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Clock, Heart, Moon, Brain, Zap } from "@/components/icons";
+import { Play, Clock, Heart, Moon, Brain, Zap } from "lucide-react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
-import { MEDITATION_SESSIONS, getLocalizedContent } from "@/constants/meditations";
+import { MEDITATION_SESSIONS } from "@/constants/meditations";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -61,12 +61,7 @@ export default function HomeScreen() {
     { id: "focus", title: lang === "zh" ? "專注" : "Focus", icon: Brain, color: "#10B981" },
   ];
 
-  const featuredSessions = MEDITATION_SESSIONS.filter((s) => s.featured)
-    .slice(0, 3)
-    .map((session) => ({
-      session,
-      localized: getLocalizedContent(session, lang),
-    }));
+  const featuredSessions = MEDITATION_SESSIONS.filter(s => s.featured).slice(0, 3);
 
   const handleQuickAction = (actionId: string) => {
     if (actionId === "breathing") {
@@ -159,7 +154,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {featuredSessions.map(({ session, localized }) => (
+          {featuredSessions.map((session) => (
             <TouchableOpacity
               key={session.id}
               style={styles.sessionCard}
@@ -174,10 +169,8 @@ export default function HomeScreen() {
               >
                 <View style={styles.sessionContent}>
                   <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionTitle}>{localized.title}</Text>
-                    <Text style={styles.sessionDuration}>
-                      {session.duration} {lang === "zh" ? "分鐘" : "min"}
-                    </Text>
+                    <Text style={styles.sessionTitle}>{session.title}</Text>
+                    <Text style={styles.sessionDuration}>{session.duration} min</Text>
                   </View>
                   <Play size={20} color="#FFFFFF" />
                 </View>
