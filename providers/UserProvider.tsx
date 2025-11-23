@@ -65,11 +65,10 @@ export const [UserProvider, useUser] = createContextHook(() => {
     await AsyncStorage.setItem("userProfile", JSON.stringify(newProfile));
   };
 
-  const connectWallet = async () => {
-    const mockAddress = "0x" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    setWalletAddress(mockAddress);
-    await AsyncStorage.setItem("walletAddress", mockAddress);
-    return mockAddress;
+  const connectWallet = async (address: string) => {
+    setWalletAddress(address);
+    await AsyncStorage.setItem("walletAddress", address);
+    return address;
   };
 
   const disconnectWallet = async () => {

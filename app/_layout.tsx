@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { MiniKit } from "@worldcoin/minikit-js";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
@@ -129,6 +130,28 @@ export default function RootLayout() {
       }
     };
     void hide();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+    if (typeof MiniKit?.install !== 'function') {
+      console.log('[WorldID] MiniKit.install unavailable');
+      return;
+    }
+    try {
+      const installResult = MiniKit.install();
+      if (installResult instanceof Promise) {
+        installResult
+          .then(() => console.log('[WorldID] MiniKit.install resolved'))
+          .catch((error) => console.log('[WorldID] MiniKit.install failed', error));
+      } else {
+        console.log('[WorldID] MiniKit.install completed');
+      }
+    } catch (error) {
+      console.log('[WorldID] MiniKit.install threw', error);
+    }
   }, []);
 
   return (

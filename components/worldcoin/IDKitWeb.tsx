@@ -260,7 +260,7 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
   );
 }
 
-export async function runWorldVerify({ mk, action }: { mk: any; action: string }) {
+export async function runWorldVerify({ mk, action, signal }: { mk: any; action: string; signal: string }) {
   const fn = (
     mk?.commandsAsync?.verify ||
     mk?.commands?.verify ||
@@ -268,12 +268,32 @@ export async function runWorldVerify({ mk, action }: { mk: any; action: string }
     mk?.verify
   ) as undefined | ((args: any) => Promise<any>);
   if (!fn) throw new Error('Verification API unavailable');
+  const payload = { action, signal, verification_level: 'orb' } as const;
   try {
-    const res: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
+    const res: any = await fn(payload);
     return res?.finalPayload ?? res;
   } catch (e) {
     await new Promise((r) => setTimeout(r, 500));
-    const res2: any = await fn({ action, signal: '0x12312', verification_level: 'orb' });
+    const res2: any = await fn(payload);
+    return res2?.finalPayload ?? res2;
+  }
+}
+
+export async function runWalletAuth({ mk, nonce, statement }: { mk: any; nonce: string; statement: string }) {
+  const fn = (
+    mk?.commandsAsync?.walletAuth ||
+    mk?.commands?.walletAuth ||
+    mk?.actions?.walletAuth ||
+    mk?.walletAuth
+  ) as undefined | ((args: any) => Promise<any>);
+  if (!fn) throw new Error('WalletAuth API unavailable');
+  const args = { nonce, statement } as const;
+  try {
+    const res: any = await fn(args);
+    return res?.finalPayload ?? res;
+  } catch (e) {
+    await new Promise((r) => setTimeout(r, 400));
+    const res2: any = await fn(args);
     return res2?.finalPayload ?? res2;
   }
 }
