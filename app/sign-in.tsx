@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,17 +28,19 @@ type ServerResponse = {
   [key: string]: unknown;
 };
 
+type FlowStep = 'idle' | 'wallet' | 'verify' | 'redirect';
+type StepStatus = 'pending' | 'active' | 'complete';
+
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
   const { connectWallet, walletAddress: storedWallet } = useUser();
   const [error, setError] = useState<string | null>(null);
-  const [walletBusy, setWalletBusy] = useState<boolean>(false);
-  const [verifyBusy, setVerifyBusy] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [ua, setUa] = useState<string>('');
   const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(storedWallet ?? null);
-  const autoVerifyTried = useRef<boolean>(false);
+  const [flowStep, setFlowStep] = useState<FlowStep>('idle');
+  const [signingIn, setSigningIn] = useState<boolean>(false);
 
   useEffect(() => {
     setWalletAddress(storedWallet ?? null);
@@ -64,15 +66,17 @@ export default function SignInScreen() {
       walletDesc: zh ? '系統會要求簽署 SIWE 訊息以綁定錢包地址。' : 'You will sign a SIWE message so we can bind your wallet address.',
       verifyStep: zh ? '完成 World ID 驗證' : 'Complete World ID verification',
       verifyDesc: zh ? '使用相同錢包地址作為 signal，提交 Proof。' : 'Use the same wallet address as your signal and submit the proof.',
-      connectCta: zh ? '連接錢包' : 'Connect wallet',
-      verifyingCta: zh ? '提交驗證' : 'Submit verification',
+      connectCta: zh ? '一鍵登入' : 'Sign in',
       verifying: zh ? '驗證中…' : 'Verifying…',
-      walletConnecting: zh ? '錢包連線中…' : 'Connecting wallet…',
-      walletConnected: zh ? '錢包已連接，請進行驗證。' : 'Wallet connected. Continue with verification.',
+      signingIn: zh ? '流程進行中…' : 'Completing sign-in…',
+      walletConnecting: zh ? '錢包連線中…' : 'Linking wallet…',
+      walletConnected: zh ? '錢包已連接，繼續驗證。' : 'Wallet connected. Continuing verification.',
       verifyRunning: zh ? 'World ID 驗證中…' : 'Submitting World ID proof…',
       verifyDone: zh ? '驗證完成，準備重新導向。' : 'Verification complete. Redirecting…',
-      connectFirst: zh ? '請先完成錢包連線' : 'Connect your wallet first',
       connectedLabel: zh ? '已綁定錢包：' : 'Connected wallet:',
+      pendingLabel: zh ? '待處理' : 'Pending',
+      activeLabel: zh ? '處理中' : 'In progress',
+      completeLabel: zh ? '已完成' : 'Done',
     } as const;
   }, [lang]);
 
@@ -98,7 +102,7 @@ export default function SignInScreen() {
     return payload.nonce;
   }, [lang]);
 
-  const verifySiweOnServer = useCallback(async (params: { address: string; message: string; signature: string; nonce: string; }) => {
+  const verifySiweOnServer = useCallback(async (params: { address: string; message: string; signature: string; nonce: string }) => {
     const response = await fetch(`${API_BASE}/auth/verify-siwe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -154,102 +158,112 @@ export default function SignInScreen() {
     return mk;
   }, [isWorldEnv, texts.openWorld, ua]);
 
-  const handleConnectWallet = useCallback(async () => {
+  const launchCallback = useCallback((payload: Record<string, unknown>) => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.setItem('worldid:result', JSON.stringify(payload));
+      }
+    } catch (storageError) {
+      console.log('[SignIn] sessionStorage write failed', storageError);
+    }
+    const url = new URL(callbackUrl);
+    url.searchParams.set('result', encodeURIComponent(JSON.stringify(payload)));
+    if (typeof window !== 'undefined') {
+      window.location.assign(url.toString());
+    }
+  }, [callbackUrl]);
+
+  const handleSignIn = useCallback(async () => {
+    console.log('[SignIn] Starting combined sign-in flow');
     if (Platform.OS !== 'web') {
       setError(texts.openWorld);
       return;
     }
     try {
       setError(null);
-      setStatusMessage(texts.walletConnecting);
-      setWalletBusy(true);
+      setSigningIn(true);
+      setStatusMessage(texts.signingIn);
+      setFlowStep('wallet');
+
       const mk = await resolveMiniKitClient();
+      setStatusMessage(texts.walletConnecting);
       const nonce = await fetchNonce();
       const walletPayload = (await runWalletAuth({ mk, nonce, statement: WALLET_AUTH_STATEMENT })) as WalletAuthPayload;
       if (walletPayload?.status === 'error') {
         throw new Error(walletPayload.error_code ?? (lang === 'zh' ? 'WalletAuth 失敗' : 'Wallet auth failed'));
       }
+
       const normalizedAddress = (walletPayload?.address ?? walletPayload?.wallet_address ?? walletPayload?.walletAddress) as string | undefined;
       const message = walletPayload?.message as string | undefined;
       const signature = walletPayload?.signature as string | undefined;
       if (!normalizedAddress || !message || !signature) {
         throw new Error(lang === 'zh' ? 'WalletAuth 回傳資料不完整' : 'Wallet auth response missing fields');
       }
+
       const verifiedAddress = await verifySiweOnServer({ address: normalizedAddress, message, signature, nonce });
       await connectWallet(verifiedAddress);
       setWalletAddress(verifiedAddress);
       setStatusMessage(texts.walletConnected);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Wallet auth failed';
-      console.log('[SignIn] wallet auth error', err);
-      setError(message);
-      setStatusMessage(null);
-    } finally {
-      setWalletBusy(false);
-    }
-  }, [connectWallet, fetchNonce, lang, resolveMiniKitClient, texts.openWorld, texts.walletConnected, texts.walletConnecting, verifySiweOnServer]);
 
-  const handleVerify = useCallback(async () => {
-    if (Platform.OS !== 'web') {
-      setError(texts.openWorld);
-      return;
-    }
-    if (!walletAddress) {
-      setError(texts.connectFirst);
-      return;
-    }
-    try {
-      setVerifyBusy(true);
-      setError(null);
-      setStatusMessage(texts.verifyRunning);
-      const mk = await resolveMiniKitClient();
-      const proofPayload: any = await runWorldVerify({ mk, action: ACTION_ID, signal: walletAddress });
+      setFlowStep('verify');
+      console.log('[SignIn] Wallet linked, running World ID verify');
+      const proofPayload: any = await runWorldVerify({ mk, action: ACTION_ID, signal: verifiedAddress });
       if (proofPayload?.status === 'error') {
         throw new Error(proofPayload?.error_code ?? (lang === 'zh' ? 'World ID 驗證失敗' : 'World ID verification failed'));
       }
+
+      setStatusMessage(texts.verifyRunning);
       await verifyWorldIdOnServer(proofPayload);
-      try {
-        if (typeof window !== 'undefined') {
-          window.sessionStorage?.setItem('worldid:result', JSON.stringify(proofPayload));
-        }
-      } catch (storageError) {
-        console.log('[SignIn] sessionStorage write failed', storageError);
-      }
-      const url = new URL(callbackUrl);
-      url.searchParams.set('result', encodeURIComponent(JSON.stringify(proofPayload)));
+      setFlowStep('redirect');
       setStatusMessage(texts.verifyDone);
-      if (typeof window !== 'undefined') {
-        window.location.assign(url.toString());
-      }
+      launchCallback(proofPayload);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Verification failed';
-      console.log('[SignIn] verify error', err);
+      const message = err instanceof Error ? err.message : 'Sign-in failed';
+      console.log('[SignIn] Combined flow error', err);
       setError(message);
       setStatusMessage(null);
+      setFlowStep('idle');
     } finally {
-      setVerifyBusy(false);
+      setSigningIn(false);
     }
-  }, [callbackUrl, lang, resolveMiniKitClient, texts.connectFirst, texts.openWorld, texts.verifyDone, texts.verifyRunning, walletAddress, verifyWorldIdOnServer]);
-
-  useEffect(() => {
-    if (autoVerifyTried.current) return;
-    if (Platform.OS !== 'web') return;
-    if (!isWorldEnv) return;
-    if (!walletAddress) return;
-    autoVerifyTried.current = true;
-    console.log('[SignIn] Auto verify trigger with saved wallet');
-    void handleVerify();
-  }, [handleVerify, isWorldEnv, walletAddress]);
+  }, [connectWallet, fetchNonce, lang, launchCallback, resolveMiniKitClient, texts.openWorld, texts.signingIn, texts.verifyDone, texts.verifyRunning, texts.walletConnected, texts.walletConnecting, verifySiweOnServer, verifyWorldIdOnServer]);
 
   const shortWallet = useMemo(() => {
     if (!walletAddress) return '';
     return `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
   }, [walletAddress]);
 
+  const steps = useMemo(() => {
+    const walletStatus: StepStatus = flowStep === 'wallet' ? 'active' : walletAddress ? 'complete' : 'pending';
+    const verifyStatus: StepStatus = flowStep === 'verify' ? 'active' : flowStep === 'redirect' ? 'complete' : walletAddress ? 'pending' : 'pending';
+    return [
+      {
+        key: 'wallet',
+        icon: Wallet,
+        title: texts.walletStep,
+        description: texts.walletDesc,
+        status: walletStatus,
+      },
+      {
+        key: 'verify',
+        icon: RefreshCw,
+        title: texts.verifyStep,
+        description: texts.verifyDesc,
+        status: verifyStatus,
+      },
+    ];
+  }, [flowStep, texts.verifyDesc, texts.verifyStep, texts.walletDesc, texts.walletStep, walletAddress]);
+
+  const statusMeta = useMemo(() => ({
+    pending: { label: texts.pendingLabel, color: '#6B7280', bg: '#1F2937' },
+    active: { label: texts.activeLabel, color: '#FBBF24', bg: '#1E1B4B' },
+    complete: { label: texts.completeLabel, color: '#10B981', bg: '#052E16' },
+  }), [texts.activeLabel, texts.completeLabel, texts.pendingLabel]);
+
   return (
     <View style={[styles.root, { backgroundColor: currentTheme.background }]}> 
       <LinearGradient colors={currentTheme.gradient as any} style={styles.heroBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.container}>
           <View style={styles.header}>
             <ShieldCheck size={28} color="#FFFFFF" />
@@ -264,60 +278,46 @@ export default function SignInScreen() {
           )}
 
           <View style={styles.actions}>
-            <View style={styles.stepCard}>
-              <View style={styles.stepHeader}>
-                <Wallet size={18} color="#10B981" />
-                <View>
-                  <Text style={styles.stepLabel}>{texts.walletStep}</Text>
-                  <Text style={styles.stepDescription}>{texts.walletDesc}</Text>
-                </View>
-              </View>
-              {walletAddress && (
-                <Text style={styles.connectedText}>{texts.connectedLabel} <Text style={styles.connectedValue}>{shortWallet}</Text></Text>
-              )}
-              <TouchableOpacity
-                style={[styles.primaryButton, walletBusy && styles.btnDisabled]}
-                onPress={handleConnectWallet}
-                disabled={walletBusy}
-                testID="btn-wallet-connect"
-                accessibilityRole="button"
-              >
-                {walletBusy ? (
-                  <View style={styles.rowCenter}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>{texts.walletConnecting}</Text>
+            {steps.map((step) => {
+              const Icon = step.icon;
+              const meta = statusMeta[step.status];
+              return (
+                <View key={step.key} style={[styles.stepCard, step.status === 'active' && styles.cardActive, step.status === 'complete' && styles.cardComplete]}>
+                  <View style={styles.stepHeader}>
+                    <View style={[styles.stepIcon, step.status === 'complete' && styles.stepIconComplete]}>
+                      <Icon size={18} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.stepHeaderText}>
+                      <Text style={styles.stepLabel}>{step.title}</Text>
+                      <Text style={styles.stepDescription}>{step.description}</Text>
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: meta.bg }]}> 
+                      <Text style={[styles.statusPillText, { color: meta.color }]}>{meta.label}</Text>
+                    </View>
                   </View>
-                ) : (
-                  <Text style={styles.primaryButtonText}>{texts.connectCta}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                  {step.key === 'wallet' && walletAddress && (
+                    <Text style={styles.connectedText}>{texts.connectedLabel} <Text style={styles.connectedValue}>{shortWallet}</Text></Text>
+                  )}
+                </View>
+              );
+            })}
 
-            <View style={styles.stepCard}>
-              <View style={styles.stepHeader}>
-                <RefreshCw size={18} color="#2563EB" />
-                <View>
-                  <Text style={styles.stepLabel}>{texts.verifyStep}</Text>
-                  <Text style={styles.stepDescription}>{texts.verifyDesc}</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, signingIn && styles.btnDisabled]}
+              onPress={handleSignIn}
+              disabled={signingIn}
+              testID="btn-sign-in"
+              accessibilityRole="button"
+            >
+              {signingIn ? (
+                <View style={styles.rowCenter}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>{texts.signingIn}</Text>
                 </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.verifyBtn, (verifyBusy || !walletAddress) && styles.btnDisabled]}
-                onPress={handleVerify}
-                disabled={verifyBusy || !walletAddress}
-                testID="btn-worldid-verify"
-                accessibilityRole="button"
-              >
-                {verifyBusy ? (
-                  <View style={styles.rowCenter}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={[styles.verifyText, { marginLeft: 8 }]}>{texts.verifying}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.verifyText}>{texts.verifyingCta}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+              ) : (
+                <Text style={styles.primaryButtonText}>{texts.connectCta}</Text>
+              )}
+            </TouchableOpacity>
 
             <View style={styles.hint}>
               <ScanLine size={16} color="#6B7280" />
@@ -345,19 +345,24 @@ const styles = StyleSheet.create({
   actions: { marginTop: 24, paddingHorizontal: 24, gap: 16 } as const,
   errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 10, marginHorizontal: 24, marginTop: 16 },
   errorText: { color: '#B91C1C', fontSize: 12 },
-  stepCard: { backgroundColor: '#111827', borderRadius: 16, padding: 16, gap: 12 } as const,
+  stepCard: { backgroundColor: '#111827', borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: '#1F2937' } as const,
+  cardActive: { borderColor: '#FBBF24' },
+  cardComplete: { borderColor: '#10B981' },
   stepHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' } as const,
+  stepHeaderText: { flex: 1 } as const,
   stepLabel: { color: '#F9FAFB', fontSize: 16, fontWeight: '700' },
   stepDescription: { color: '#9CA3AF', fontSize: 13, marginTop: 2 },
-  primaryButton: { backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  verifyBtn: { backgroundColor: '#2563EB', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnDisabled: { opacity: 0.6 },
-  verifyText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  stepIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center' },
+  stepIconComplete: { backgroundColor: '#065F46' },
+  primaryButton: { backgroundColor: '#6366F1', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  btnDisabled: { opacity: 0.7 },
   hint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 6 } as const,
   hintText: { color: '#6B7280', fontSize: 12, marginLeft: 6, textAlign: 'center' },
   rowCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   statusMessage: { textAlign: 'center', fontSize: 12, color: '#9CA3AF' },
   connectedText: { color: '#9CA3AF', fontSize: 12 },
   connectedValue: { color: '#F9FAFB', fontSize: 12, fontWeight: '600' },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusPillText: { fontSize: 11, fontWeight: '700' },
 });
