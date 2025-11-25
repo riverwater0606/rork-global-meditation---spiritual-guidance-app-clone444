@@ -16,6 +16,7 @@ import { useMeditation } from "@/providers/MeditationProvider";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
+import { SPIRITUAL_QUOTES } from "@/constants/quotes";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 
 
@@ -26,6 +27,7 @@ export default function HomeScreen() {
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
   const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
+  const [dailyQuote, setDailyQuote] = useState(SPIRITUAL_QUOTES[0]);
   const isWeb = Platform.OS === 'web';
 
   const lang = settings.language;
@@ -33,6 +35,8 @@ export default function HomeScreen() {
   useEffect(() => {
     const today = new Date().getDay();
     setAffirmation(DAILY_AFFIRMATIONS[today % DAILY_AFFIRMATIONS.length]);
+    const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    setDailyQuote(SPIRITUAL_QUOTES[dayOfYear % SPIRITUAL_QUOTES.length]);
   }, []);
 
   useEffect(() => {
@@ -96,6 +100,10 @@ export default function HomeScreen() {
               <Text style={styles.subtitle}>
                 {lang === "zh" ? "您的旅程繼續" : "Your journey continues"}
               </Text>
+              <Text style={styles.quoteText}>
+                {lang === "zh" ? dailyQuote.zh : dailyQuote.en}
+              </Text>
+              <Text style={styles.quoteAuthor}>— {dailyQuote.author}</Text>
             </View>
             <View style={styles.streakContainer}>
               <Zap size={20} color="#FCD34D" />
@@ -250,6 +258,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#E0E7FF",
     marginTop: 4,
+  },
+  quoteText: {
+    fontSize: 14,
+    color: "#E0E7FF",
+    marginTop: 12,
+    fontStyle: "italic" as const,
+    lineHeight: 20,
+  },
+  quoteAuthor: {
+    fontSize: 12,
+    color: "rgba(224, 231, 255, 0.8)",
+    marginTop: 6,
   },
   streakContainer: {
     flexDirection: "row",

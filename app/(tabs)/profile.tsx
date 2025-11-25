@@ -13,14 +13,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { 
   User, 
-
   Bell, 
   Moon, 
   Globe, 
   Shield,
   LogOut,
   ChevronRight,
-  Edit2
+  Edit2,
+  Crown
 } from "lucide-react-native";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
@@ -313,6 +313,30 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* VIP Upgrade */}
+        <TouchableOpacity
+          style={[styles.vipButton, { backgroundColor: currentTheme.primary }]}
+          onPress={async () => {
+            if (Platform.OS === "web") {
+              alert(lang === "zh" ? "VIP 升級功能即將推出" : "VIP Upgrade Coming Soon");
+            } else {
+              Alert.alert(
+                lang === "zh" ? "升級 VIP" : "Upgrade to VIP",
+                lang === "zh" ? "解鎖無限 AI、所有音效和 VIP 徽章" : "Unlock unlimited AI, all sounds, and VIP badge",
+                [
+                  { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
+                  { text: lang === "zh" ? "68 WLD 升級" : "Upgrade 68 WLD" }
+                ]
+              );
+            }
+          }}
+          testID="vip-upgrade-button"
+        >
+          <Crown size={20} color="#FFFFFF" />
+          <Text style={styles.vipButtonText}>
+            {lang === "zh" ? "升級 VIP · 68 WLD" : "Go VIP · 68 WLD"}
+          </Text>
+        </TouchableOpacity>
 
         {/* Settings */}
         <View style={styles.settingsContainer}>
@@ -521,6 +545,22 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 40,
+  },
+  vipButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: "#8B5CF6",
+    borderRadius: 12,
+  },
+  vipButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginLeft: 8,
   },
   worldIDSection: {
     paddingHorizontal: 20,

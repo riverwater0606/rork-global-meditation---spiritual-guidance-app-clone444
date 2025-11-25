@@ -15,8 +15,9 @@ import { useSettings } from "@/providers/SettingsProvider";
 const { width } = Dimensions.get("window");
 
 export default function ProgressScreen() {
-  const { currentTheme } = useSettings();
+  const { currentTheme, settings } = useSettings();
   const { stats, achievements } = useMeditation();
+  const lang = settings.language;
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   const currentDay = new Date().getDay();
@@ -30,7 +31,7 @@ export default function ProgressScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>Your Progress</Text>
+          <Text style={styles.title}>{lang === "zh" ? "你的進展" : "Your Progress"}</Text>
         </SafeAreaView>
       </LinearGradient>
 
@@ -43,14 +44,14 @@ export default function ProgressScreen() {
                 <TrendingUp size={24} color="#10B981" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{stats.currentStreak}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Day Streak</Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>{lang === "zh" ? "連續天數" : "Day Streak"}</Text>
             </View>
             <View style={[styles.statCard, { backgroundColor: currentTheme.surface }]}>
               <View style={styles.statIcon}>
                 <Calendar size={24} color="#8B5CF6" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{stats.totalSessions}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Sessions</Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>{lang === "zh" ? "總課程" : "Total Sessions"}</Text>
             </View>
           </View>
           
@@ -60,21 +61,21 @@ export default function ProgressScreen() {
                 <Target size={24} color="#3B82F6" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{Math.floor(stats.totalMinutes / 60)}h</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Total Time</Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>{lang === "zh" ? "總時間" : "Total Time"}</Text>
             </View>
             <View style={[styles.statCard, { backgroundColor: currentTheme.surface }]}>
               <View style={styles.statIcon}>
                 <Award size={24} color="#F59E0B" />
               </View>
               <Text style={[styles.statValue, { color: currentTheme.text }]}>{achievements.filter(a => a.unlocked).length}</Text>
-              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>Achievements</Text>
+              <Text style={[styles.statLabel, { color: currentTheme.textSecondary }]}>{lang === "zh" ? "成就" : "Achievements"}</Text>
             </View>
           </View>
         </View>
 
         {/* Weekly Progress */}
         <View style={styles.weeklyContainer}>
-          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>This Week</Text>
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>{lang === "zh" ? "本週" : "This Week"}</Text>
           <View style={[styles.weekGrid, { backgroundColor: currentTheme.surface }]}>
             {weekDays.map((day, index) => {
               const isToday = index === currentDay;
@@ -103,7 +104,7 @@ export default function ProgressScreen() {
 
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
-          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>Achievements</Text>
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>{lang === "zh" ? "成就" : "Achievements"}</Text>
           <View style={styles.achievementsGrid}>
             {achievements.map((achievement) => (
               <View
@@ -121,7 +122,7 @@ export default function ProgressScreen() {
                 </Text>
                 {achievement.unlocked && (
                   <View style={styles.achievementBadge}>
-                    <Text style={styles.achievementBadgeText}>Unlocked</Text>
+                    <Text style={styles.achievementBadgeText}>{lang === "zh" ? "已解鎖" : "Unlocked"}</Text>
                   </View>
                 )}
               </View>

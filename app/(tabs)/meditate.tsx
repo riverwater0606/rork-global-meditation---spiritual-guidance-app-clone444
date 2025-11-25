@@ -18,7 +18,8 @@ import { useSettings } from "@/providers/SettingsProvider";
 const { width } = Dimensions.get("window");
 
 export default function MeditateScreen() {
-  const { currentTheme } = useSettings();
+  const { currentTheme, settings } = useSettings();
+  const lang = settings.language;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
@@ -38,13 +39,13 @@ export default function MeditateScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>Meditation Library</Text>
+          <Text style={styles.title}>{lang === "zh" ? "冥想圖書館" : "Meditation Library"}</Text>
           
           <View style={[styles.searchContainer, { backgroundColor: currentTheme.surface }]}>
             <Search size={20} color="#9CA3AF" />
             <TextInput
               style={[styles.searchInput, { color: currentTheme.text }]}
-              placeholder="Search meditations..."
+              placeholder={lang === "zh" ? "搜尋冥想..." : "Search meditations..."}
               placeholderTextColor={currentTheme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
