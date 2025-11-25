@@ -14,10 +14,10 @@ declare global {
     MiniKit?: {
       isInstalled: () => boolean;
       commands?: {
-        verify: (args: { action: string; verification_level: string }) => void;
+        verify: (args: { action: string; verification_level: string; signal?: string }) => void;
       };
       commandsAsync?: {
-        verify: (args: { action: string; verification_level: string }) => Promise<{ finalPayload?: MiniKitVerifyPayload } | MiniKitVerifyPayload>;
+        verify: (args: { action: string; verification_level: string; signal?: string }) => Promise<{ finalPayload?: MiniKitVerifyPayload } | MiniKitVerifyPayload>;
       };
     };
   }
@@ -41,10 +41,15 @@ export default function SignInScreen() {
         return;
       }
 
+      console.log('[SignIn] MiniKit installed');
+
       const verifyPayload = {
         action: 'psig',
         verification_level: 'orb',
+        signal: '0x12312',
       } as const;
+
+      console.log('[SignIn] verify called');
 
       const verifyResult = await window.MiniKit.commandsAsync?.verify?.(verifyPayload);
       if (!verifyResult) {

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
+import { MiniKit } from "@/constants/minikit";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -117,6 +118,17 @@ export default function RootLayout() {
     SplashScreen.hideAsync().catch((error) => {
       console.log('[RootLayout] SplashScreen.hideAsync failed', error);
     });
+  }, []);
+
+  useEffect(() => {
+    if (MiniKit?.install) {
+      try {
+        MiniKit.install();
+        console.log('[RootLayout] MiniKit installed');
+      } catch (error) {
+        console.log('[RootLayout] MiniKit install failed', error);
+      }
+    }
   }, []);
 
   return (
