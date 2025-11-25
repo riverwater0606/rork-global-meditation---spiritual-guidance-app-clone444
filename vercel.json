@@ -1,7 +1,9 @@
 {
-  "buildCommand": "npm run export",
+  "framework": null,
+  "buildCommand": "npx expo export -p web",
+  "devCommand": "npx expo start",
+  "installCommand": "npm install",
   "outputDirectory": "dist",
-  "framework": "nextjs",
   "rewrites": [
     {
       "source": "/(.*)",
