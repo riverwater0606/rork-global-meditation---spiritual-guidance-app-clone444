@@ -4,12 +4,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ensureMiniKitLoaded } from '@/components/worldcoin/IDKitWeb';
 
+interface MiniKitVerifyPayload {
+  status?: string;
+  [key: string]: unknown;
+}
+
 declare global {
   interface Window {
     MiniKit?: {
       isInstalled: () => boolean;
-      commands: {
+      commands?: {
         verify: (args: { action: string; verification_level: string }) => void;
+      };
+      commandsAsync?: {
+        verify: (args: { action: string; verification_level: string }) => Promise<{ finalPayload?: MiniKitVerifyPayload } | MiniKitVerifyPayload>;
       };
     };
   }
@@ -19,7 +27,7 @@ const MINIKIT_TIMEOUT_MS = 8000;
 
 export default function SignInScreen() {
   const handleSignIn = useCallback(async () => {
-    if (typeof window === 'undefined' || !window.MiniKit) {
+    if (typeof window === 'undefined' || !window.MiniKit?.isInstalled?.()) {
       return;
     }
 
@@ -29,14 +37,29 @@ export default function SignInScreen() {
         new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
       ]);
 
-      if (!window.MiniKit?.isInstalled || !window.MiniKit.isInstalled()) {
+      if (!window.MiniKit?.isInstalled?.()) {
         return;
       }
 
-      window.MiniKit.commands.verify({
+      const verifyPayload = {
         action: 'psig',
         verification_level: 'orb',
-      });
+      } as const;
+
+      const verifyResult = await window.MiniKit.commandsAsync?.verify?.(verifyPayload);
+      if (!verifyResult) {
+        return;
+      }
+
+      const normalizedResult = (verifyResult as { finalPayload?: MiniKitVerifyPayload })?.finalPayload;
+      const finalPayload: MiniKitVerifyPayload | undefined = normalizedResult ?? (verifyResult as MiniKitVerifyPayload | undefined);
+      if (finalPayload?.status === 'success') {
+        await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload: finalPayload }),
+        }).catch(() => undefined);
+      }
     } catch {
       return;
     }
