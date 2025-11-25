@@ -11,6 +11,38 @@ import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWalletAuth, run
 const API_BASE = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
 const WORLD_APP_REQUIRED_ERROR = 'WORLD_APP_REQUIRED';
 const GUIDE_URL = 'https://docs.world.org/mini-apps/quick-start/installing';
+const MINIKIT_SIGNIN_TIMEOUT_MS = 8000;
+
+async function checkWindowMiniKitInstalledFlag(): Promise<boolean | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const globalMiniKit = (window as unknown as { MiniKit?: any }).MiniKit;
+  if (!globalMiniKit) {
+    return null;
+  }
+  try {
+    const candidate = typeof globalMiniKit.isInstalled === 'function' ? globalMiniKit.isInstalled() : globalMiniKit.isInstalled;
+    if (candidate && typeof (candidate as Promise<unknown>).then === 'function') {
+      const awaited = await (candidate as Promise<unknown>);
+      return Boolean(awaited);
+    }
+    return Boolean(candidate);
+  } catch (error) {
+    console.log('[SignIn] window.MiniKit isInstalled check failed', error);
+    return false;
+  }
+}
+
+async function loadMiniKitWithCommandTimeout() {
+  const mk = await Promise.race<any>([
+    ensureMiniKitLoaded(),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_SIGNIN_TIMEOUT_MS);
+    }),
+  ]); // Timeout per MiniKit Quick Start: https://docs.world.org/mini-apps/quick-start/installing
+  return mk;
+}
 
 type WalletAuthPayload = {
   address?: string;
@@ -35,8 +67,6 @@ export default function SignInScreen() {
   const { connectWallet, walletAddress: storedWallet } = useUser();
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [ua, setUa] = useState<string>('');
-  const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(storedWallet ?? null);
   const [signingIn, setSigningIn] = useState<boolean>(false);
   const [showFallback, setShowFallback] = useState<boolean>(false);
@@ -72,32 +102,24 @@ export default function SignInScreen() {
     return {
       eyebrow: zh ? 'PSI-G 身份' : 'PSI-G identity',
       title: zh ? 'World ID 安全登入' : 'World ID secure sign-in',
-      body: zh ? '一鍵簽署即可連接錢包並驗證 World ID。' : 'One tap links your wallet and verifies World ID.',
-      button: zh ? '���用 World ID 登入' : 'Sign in with World ID',
+      body: zh ? '簽署即可連接錢包並完成 World ID 驗證。' : 'Sign once to link your wallet and verify World ID.',
+      button: zh ? '使用 World ID 登入' : 'Sign in with World ID',
       buttonLoading: zh ? '處理中…' : 'Signing in…',
-      helper: zh ? '抽屜將顯示：錢包簽署、Verification level、Stay signed in。' : 'Drawer shows: wallet signature, verification level, stay signed in.',
+      helper: zh ? '抽屜會顯示：錢包權限、Verification level、保持登入。' : 'Drawer shows wallet access, verification level, and Stay signed in.',
       statusPreparing: zh ? '啟動 MiniKit…' : 'Preparing MiniKit…',
-      statusWallet: zh ? '請在抽屜中簽署錢包登入…' : 'Approve wallet authentication in the drawer…',
+      statusDrawer: zh ? '簽署以確認錢包擁有權並登入 PSI-G' : 'Sign to confirm wallet ownership and authenticate to PSI-G',
       statusVerify: zh ? 'World ID 驗證執行中…' : 'Completing World ID verification…',
       fallbackTitle: zh ? '請於 World App 內開啟' : 'Please open in World App',
-      fallbackBody: zh ? 'World ID 驗證需要 World App 內建瀏覽器。' : 'World ID verification requires the World App in-app browser.',
-      guide: zh ? '查看開啟指南' : 'Open guide',
+      fallbackBody: zh ? 'World App 內建瀏覽器才能顯示 World ID 抽屜。' : 'World ID drawer requires the World App in-app browser.',
+      guide: zh ? '開啟 World App 指南' : 'Open World App Guide',
       debug: zh ? '以瀏覽器繼續（除錯）' : 'Continue in browser (debug)',
       openWorld: zh ? '請於 World App 內開啟此頁面' : 'Please open inside World App',
-      permissionTitle: zh ? '此登入會要求' : 'This sign-in will request',
-      permissionWallet: zh ? '• 錢包擁有權簽署（SIWE）' : '• Wallet ownership signature (SIWE)',
-      permissionVerification: zh ? '• World ID Verification level 權限' : '• World ID verification level access',
-      permissionStay: zh ? '• 「Stay signed in」選項' : '• "Stay signed in" option',
+      permissionTitle: zh ? '此登入會要求' : 'Permissions requested',
+      permissionWallet: zh ? '• 錢包' : '• Wallet',
+      permissionVerification: zh ? '• Verification level' : '• Verification level',
+      permissionStay: zh ? '• 保持登入' : '• Stay signed in',
     } as const;
   }, [lang]);
-
-  useEffect(() => {
-    const userAgent = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-    setUa(userAgent);
-    const detected = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(userAgent);
-    setIsWorldEnv(detected);
-    console.log('[SignIn] UA:', userAgent, 'WorldApp:', detected);
-  }, []);
 
   const fetchNonce = useCallback(async (): Promise<string> => {
     const response = await fetch(`${API_BASE}/auth/nonce`, { headers: { Accept: 'application/json' } });
@@ -152,13 +174,16 @@ export default function SignInScreen() {
   }, [lang]);
 
   const resolveMiniKitClient = useCallback(async () => {
-    let mk: any | undefined = await ensureMiniKitLoaded();
-    const shouldPoll = Platform.OS === 'web' && (isWorldEnv || /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua));
-    if (!mk && shouldPoll) {
-      for (let i = 0; i < 60 && !mk; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        mk = getMiniKit();
-      }
+    if (Platform.OS !== 'web') {
+      throw new Error(WORLD_APP_REQUIRED_ERROR);
+    }
+    const preInstalled = await checkWindowMiniKitInstalledFlag();
+    if (preInstalled === false) {
+      throw new Error(WORLD_APP_REQUIRED_ERROR);
+    }
+    let mk: any | undefined = await loadMiniKitWithCommandTimeout();
+    if (!mk) {
+      mk = getMiniKit();
     }
     if (!mk) {
       throw new Error(WORLD_APP_REQUIRED_ERROR);
@@ -168,7 +193,7 @@ export default function SignInScreen() {
       throw new Error(WORLD_APP_REQUIRED_ERROR);
     }
     return mk;
-  }, [isWorldEnv, ua]);
+  }, []);
 
   const launchCallback = useCallback((payload: Record<string, unknown>) => {
     try {
@@ -203,9 +228,16 @@ export default function SignInScreen() {
       setSigningIn(true);
       setStatusMessage(texts.statusPreparing);
 
+      const installState = await checkWindowMiniKitInstalledFlag();
+      if (installState === false) {
+        triggerFallback(texts.fallbackBody);
+        setStatusMessage(null);
+        return;
+      }
+
       const mk = await resolveMiniKitClient();
 
-      setStatusMessage(texts.statusWallet);
+      setStatusMessage(texts.statusDrawer);
       const nonce = await fetchNonce();
       const walletPayload = (await runWalletAuth({ mk, nonce, statement: WALLET_AUTH_STATEMENT })) as WalletAuthPayload;
       if (walletPayload?.status === 'error') {
@@ -243,7 +275,7 @@ export default function SignInScreen() {
     } finally {
       setSigningIn(false);
     }
-  }, [connectWallet, fetchNonce, lang, launchCallback, resolveMiniKitClient, texts.fallbackBody, texts.openWorld, texts.statusPreparing, texts.statusVerify, texts.statusWallet, triggerFallback, verifySiweOnServer, verifyWorldIdOnServer]);
+  }, [connectWallet, fetchNonce, lang, launchCallback, resolveMiniKitClient, texts.fallbackBody, texts.openWorld, texts.statusDrawer, texts.statusPreparing, texts.statusVerify, triggerFallback, verifySiweOnServer, verifyWorldIdOnServer]);
 
   const handleOpenGuide = useCallback(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {

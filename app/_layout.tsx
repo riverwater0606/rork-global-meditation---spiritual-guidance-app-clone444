@@ -21,6 +21,20 @@ try {
 }
 
 const queryClient = new QueryClient();
+const MINIKIT_TIMEOUT_MS = 8000;
+
+async function installMiniKitWithTimeout() {
+  if (Platform.OS !== 'web') return;
+  const mk = await Promise.race<any>([
+    ensureMiniKitLoaded(),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS);
+    }),
+  ]); // Timeout per MiniKit Quick Start: https://docs.world.org/mini-apps/quick-start/installing
+  if (mk && typeof mk.install === 'function') {
+    await mk.install();
+  }
+}
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -137,13 +151,8 @@ function AppBootstrap() {
       let localError: string | null = null;
       try {
         if (Platform.OS === 'web') {
-          const mk = await ensureMiniKitLoaded();
-          if (mk && typeof mk.install === 'function') {
-            await mk.install();
-            console.log('[Boot] MiniKit.install resolved');
-          } else {
-            console.log('[Boot] MiniKit not available or not a function');
-          }
+          await installMiniKitWithTimeout();
+          console.log('[Boot] MiniKit.install resolved');
         }
       } catch (error) {
         localError = (error as Error)?.message ?? 'MiniKit initialization failed';
@@ -160,10 +169,9 @@ function AppBootstrap() {
         }
         if (localError) {
           setBootError(localError);
-          setBootState('error');
-        } else {
-          setBootState('ready');
+          console.log('[Boot] MiniKit fallback to sign-in due to:', localError);
         }
+        setBootState('ready');
       }
     };
 
