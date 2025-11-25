@@ -1,7 +1,6 @@
 import { Tabs } from "expo-router";
 import { Home, Activity, User, Sparkles, MessageCircle } from "lucide-react-native";
 import React from "react";
-import { Platform } from "react-native";
 import { useSettings } from "@/providers/SettingsProvider";
 
 export default function TabLayout() {
@@ -30,8 +29,8 @@ export default function TabLayout() {
           shadowRadius: 10,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
-          height: Platform.OS === "ios" ? 85 : 65,
-          paddingBottom: Platform.OS === "ios" ? 25 : 10,
+          height: 70,
+          paddingBottom: 10,
           paddingTop: 10,
         },
       }}
