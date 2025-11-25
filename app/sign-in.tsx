@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldCheck, ScanLine, RefreshCw, Wallet } from 'lucide-react-native';
+import { ShieldCheck } from 'lucide-react-native';
 import { useSettings } from '@/providers/SettingsProvider';
 import { useUser } from '@/providers/UserProvider';
 import { ACTION_ID, API_BASE_URL, WALLET_AUTH_STATEMENT } from '@/constants/world';
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWalletAuth, runWorldVerify } from '@/components/worldcoin/IDKitWeb';
 
 const API_BASE = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+const WORLD_APP_REQUIRED_ERROR = 'WORLD_APP_REQUIRED';
+const GUIDE_URL = 'https://docs.world.org/mini-apps/quick-start/installing';
 
 type WalletAuthPayload = {
   address?: string;
@@ -28,9 +30,6 @@ type ServerResponse = {
   [key: string]: unknown;
 };
 
-type FlowStep = 'idle' | 'wallet' | 'verify' | 'redirect';
-type StepStatus = 'pending' | 'active' | 'complete';
-
 export default function SignInScreen() {
   const { currentTheme, settings } = useSettings();
   const { connectWallet, walletAddress: storedWallet } = useUser();
@@ -39,8 +38,9 @@ export default function SignInScreen() {
   const [ua, setUa] = useState<string>('');
   const [isWorldEnv, setIsWorldEnv] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(storedWallet ?? null);
-  const [flowStep, setFlowStep] = useState<FlowStep>('idle');
   const [signingIn, setSigningIn] = useState<boolean>(false);
+  const [showFallback, setShowFallback] = useState<boolean>(false);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
 
   useEffect(() => {
     setWalletAddress(storedWallet ?? null);
@@ -70,25 +70,24 @@ export default function SignInScreen() {
   const texts = useMemo(() => {
     const zh = lang === 'zh';
     return {
-      title: zh ? '登入以繼續' : 'Sign in to continue',
-      subtitle: zh ? '使用 World ID 驗證你是真人' : 'Use World ID to confirm you are human',
+      eyebrow: zh ? 'PSI-G 身份' : 'PSI-G identity',
+      title: zh ? 'World ID 安全登入' : 'World ID secure sign-in',
+      body: zh ? '一鍵簽署即可連接錢包並驗證 World ID。' : 'One tap links your wallet and verifies World ID.',
+      button: zh ? '���用 World ID 登入' : 'Sign in with World ID',
+      buttonLoading: zh ? '處理中…' : 'Signing in…',
+      helper: zh ? '抽屜將顯示：錢包簽署、Verification level、Stay signed in。' : 'Drawer shows: wallet signature, verification level, stay signed in.',
+      statusPreparing: zh ? '啟動 MiniKit…' : 'Preparing MiniKit…',
+      statusWallet: zh ? '請在抽屜中簽署錢包登入…' : 'Approve wallet authentication in the drawer…',
+      statusVerify: zh ? 'World ID 驗證執行中…' : 'Completing World ID verification…',
+      fallbackTitle: zh ? '請於 World App 內開啟' : 'Please open in World App',
+      fallbackBody: zh ? 'World ID 驗證需要 World App 內建瀏覽器。' : 'World ID verification requires the World App in-app browser.',
+      guide: zh ? '查看開啟指南' : 'Open guide',
+      debug: zh ? '以瀏覽器繼續（除錯）' : 'Continue in browser (debug)',
       openWorld: zh ? '請於 World App 內開啟此頁面' : 'Please open inside World App',
-      helper: zh ? '透過 World App 內建掃描器開啟，勿使用系統瀏覽器。' : 'Open via the World App QR scanner, not a system browser.',
-      walletStep: zh ? '連接 World 錢包' : 'Connect your World Wallet',
-      walletDesc: zh ? '系統會要求簽署 SIWE 訊息以綁定錢包地址。' : 'You will sign a SIWE message so we can bind your wallet address.',
-      verifyStep: zh ? '完成 World ID 驗證' : 'Complete World ID verification',
-      verifyDesc: zh ? '使用相同錢包地址作為 signal，提交 Proof。' : 'Use the same wallet address as your signal and submit the proof.',
-      connectCta: zh ? '一鍵登入' : 'Sign in',
-      verifying: zh ? '驗證中…' : 'Verifying…',
-      signingIn: zh ? '流程進行中…' : 'Completing sign-in…',
-      walletConnecting: zh ? '錢包連線中…' : 'Linking wallet…',
-      walletConnected: zh ? '錢包已連接，繼續驗證。' : 'Wallet connected. Continuing verification.',
-      verifyRunning: zh ? 'World ID 驗證中…' : 'Submitting World ID proof…',
-      verifyDone: zh ? '驗證完成，準備重新導向。' : 'Verification complete. Redirecting…',
-      connectedLabel: zh ? '已綁定錢包：' : 'Connected wallet:',
-      pendingLabel: zh ? '待處理' : 'Pending',
-      activeLabel: zh ? '處理中' : 'In progress',
-      completeLabel: zh ? '已完成' : 'Done',
+      permissionTitle: zh ? '此登入會要求' : 'This sign-in will request',
+      permissionWallet: zh ? '• 錢包擁有權簽署（SIWE）' : '• Wallet ownership signature (SIWE)',
+      permissionVerification: zh ? '• World ID Verification level 權限' : '• World ID verification level access',
+      permissionStay: zh ? '• 「Stay signed in」選項' : '• "Stay signed in" option',
     } as const;
   }, [lang]);
 
@@ -154,21 +153,22 @@ export default function SignInScreen() {
 
   const resolveMiniKitClient = useCallback(async () => {
     let mk: any | undefined = await ensureMiniKitLoaded();
-    if (!mk && (isWorldEnv || /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua))) {
+    const shouldPoll = Platform.OS === 'web' && (isWorldEnv || /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua));
+    if (!mk && shouldPoll) {
       for (let i = 0; i < 60 && !mk; i++) {
         await new Promise((resolve) => setTimeout(resolve, 150));
         mk = getMiniKit();
       }
     }
     if (!mk) {
-      throw new Error(texts.openWorld);
+      throw new Error(WORLD_APP_REQUIRED_ERROR);
     }
     const installed = await isMiniKitInstalled(mk);
     if (!installed) {
-      throw new Error(texts.openWorld);
+      throw new Error(WORLD_APP_REQUIRED_ERROR);
     }
     return mk;
-  }, [isWorldEnv, texts.openWorld, ua]);
+  }, [isWorldEnv, ua]);
 
   const launchCallback = useCallback((payload: Record<string, unknown>) => {
     try {
@@ -185,20 +185,27 @@ export default function SignInScreen() {
     }
   }, [callbackUrl]);
 
+  const triggerFallback = useCallback((message?: string) => {
+    setFallbackReason(message ?? texts.fallbackBody);
+    setShowFallback(true);
+  }, [texts.fallbackBody]);
+
   const handleSignIn = useCallback(async () => {
     console.log('[SignIn] Starting combined sign-in flow');
     if (Platform.OS !== 'web') {
-      setError(texts.openWorld);
+      triggerFallback(texts.openWorld);
       return;
     }
     try {
+      setShowFallback(false);
+      setFallbackReason(null);
       setError(null);
       setSigningIn(true);
-      setStatusMessage(texts.signingIn);
-      setFlowStep('wallet');
+      setStatusMessage(texts.statusPreparing);
 
       const mk = await resolveMiniKitClient();
-      setStatusMessage(texts.walletConnecting);
+
+      setStatusMessage(texts.statusWallet);
       const nonce = await fetchNonce();
       const walletPayload = (await runWalletAuth({ mk, nonce, statement: WALLET_AUTH_STATEMENT })) as WalletAuthPayload;
       if (walletPayload?.status === 'error') {
@@ -215,114 +222,85 @@ export default function SignInScreen() {
       const verifiedAddress = await verifySiweOnServer({ address: normalizedAddress, message, signature, nonce });
       await connectWallet(verifiedAddress);
       setWalletAddress(verifiedAddress);
-      setStatusMessage(texts.walletConnected);
 
-      setFlowStep('verify');
-      console.log('[SignIn] Wallet linked, running World ID verify');
+      setStatusMessage(texts.statusVerify);
       const proofPayload: any = await runWorldVerify({ mk, action: ACTION_ID, signal: verifiedAddress });
       if (proofPayload?.status === 'error') {
         throw new Error(proofPayload?.error_code ?? (lang === 'zh' ? 'World ID 驗證失敗' : 'World ID verification failed'));
       }
 
-      setStatusMessage(texts.verifyRunning);
       await verifyWorldIdOnServer(proofPayload);
-      setFlowStep('redirect');
-      setStatusMessage(texts.verifyDone);
       launchCallback(proofPayload);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign-in failed';
       console.log('[SignIn] Combined flow error', err);
-      setError(message);
+      if (err instanceof Error && err.message === WORLD_APP_REQUIRED_ERROR) {
+        triggerFallback(texts.fallbackBody);
+      } else {
+        setError(message);
+      }
       setStatusMessage(null);
-      setFlowStep('idle');
     } finally {
       setSigningIn(false);
     }
-  }, [connectWallet, fetchNonce, lang, launchCallback, resolveMiniKitClient, texts.openWorld, texts.signingIn, texts.verifyDone, texts.verifyRunning, texts.walletConnected, texts.walletConnecting, verifySiweOnServer, verifyWorldIdOnServer]);
+  }, [connectWallet, fetchNonce, lang, launchCallback, resolveMiniKitClient, texts.fallbackBody, texts.openWorld, texts.statusPreparing, texts.statusVerify, texts.statusWallet, triggerFallback, verifySiweOnServer, verifyWorldIdOnServer]);
+
+  const handleOpenGuide = useCallback(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(GUIDE_URL, '_blank', 'noopener');
+      return;
+    }
+    Linking.openURL(GUIDE_URL).catch((err) => console.log('[SignIn] Failed to open guide', err));
+  }, []);
+
+  const handleContinueBrowser = useCallback(() => {
+    setShowFallback(false);
+    setFallbackReason(null);
+    setError(null);
+  }, []);
 
   const shortWallet = useMemo(() => {
     if (!walletAddress) return '';
     return `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
   }, [walletAddress]);
 
-  const steps = useMemo(() => {
-    const walletStatus: StepStatus = flowStep === 'wallet' ? 'active' : walletAddress ? 'complete' : 'pending';
-    const verifyStatus: StepStatus = flowStep === 'verify' ? 'active' : flowStep === 'redirect' ? 'complete' : walletAddress ? 'pending' : 'pending';
-    return [
-      {
-        key: 'wallet',
-        icon: Wallet,
-        title: texts.walletStep,
-        description: texts.walletDesc,
-        status: walletStatus,
-      },
-      {
-        key: 'verify',
-        icon: RefreshCw,
-        title: texts.verifyStep,
-        description: texts.verifyDesc,
-        status: verifyStatus,
-      },
-    ];
-  }, [flowStep, texts.verifyDesc, texts.verifyStep, texts.walletDesc, texts.walletStep, walletAddress]);
-
-  const statusMeta = useMemo(() => ({
-    pending: { label: texts.pendingLabel, color: '#6B7280', bg: '#1F2937' },
-    active: { label: texts.activeLabel, color: '#FBBF24', bg: '#1E1B4B' },
-    complete: { label: texts.completeLabel, color: '#10B981', bg: '#052E16' },
-  }), [texts.activeLabel, texts.completeLabel, texts.pendingLabel]);
-
-  const showWorldWarning = Platform.OS === 'web' && !isWorldEnv;
-
   return (
     <View style={[styles.root, { backgroundColor: currentTheme.background }]}> 
       <LinearGradient colors={currentTheme.gradient as any} style={styles.heroBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <ShieldCheck size={28} color="#FFFFFF" />
+          <View style={styles.hero}>
+            <View style={styles.iconWrap}>
+              <ShieldCheck size={28} color="#0A0A0A" />
+            </View>
+            <Text style={styles.eyebrow}>{texts.eyebrow}</Text>
             <Text style={styles.title} testID="signin-title">{texts.title}</Text>
-            <Text style={styles.subtitle}>{texts.subtitle}</Text>
+            <Text style={styles.subtitle}>{texts.body}</Text>
+            {!!walletAddress && (
+              <Text style={styles.connectedText}>Connected: <Text style={styles.connectedValue}>{shortWallet}</Text></Text>
+            )}
           </View>
 
-          {showWorldWarning && (
-            <View style={styles.worldWarning} testID="world-warning">
-              <Text style={styles.worldWarningTitle}>{texts.openWorld}</Text>
-              <Text style={styles.worldWarningBody}>{texts.helper}</Text>
+          {showFallback && (
+            <View style={styles.fallbackCard} testID="world-fallback">
+              <Text style={styles.fallbackTitle}>{texts.fallbackTitle}</Text>
+              <Text style={styles.fallbackBody}>{fallbackReason ?? texts.fallbackBody}</Text>
+              <TouchableOpacity style={styles.fallbackPrimary} onPress={handleOpenGuide} testID="fallback-guide">
+                <Text style={styles.fallbackPrimaryText}>{texts.guide}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.fallbackSecondary} onPress={handleContinueBrowser} testID="fallback-continue">
+                <Text style={styles.fallbackSecondaryText}>{texts.debug}</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          {!!error && (
+          {!showFallback && !!error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText} testID="minikit-init-error">{error}</Text>
             </View>
           )}
 
-          <View style={styles.actions}>
-            {steps.map((step) => {
-              const Icon = step.icon;
-              const meta = statusMeta[step.status];
-              return (
-                <View key={step.key} style={[styles.stepCard, step.status === 'active' && styles.cardActive, step.status === 'complete' && styles.cardComplete]}>
-                  <View style={styles.stepHeader}>
-                    <View style={[styles.stepIcon, step.status === 'complete' && styles.stepIconComplete]}>
-                      <Icon size={18} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.stepHeaderText}>
-                      <Text style={styles.stepLabel}>{step.title}</Text>
-                      <Text style={styles.stepDescription}>{step.description}</Text>
-                    </View>
-                    <View style={[styles.statusPill, { backgroundColor: meta.bg }]}> 
-                      <Text style={[styles.statusPillText, { color: meta.color }]}>{meta.label}</Text>
-                    </View>
-                  </View>
-                  {step.key === 'wallet' && walletAddress && (
-                    <Text style={styles.connectedText}>{texts.connectedLabel} <Text style={styles.connectedValue}>{shortWallet}</Text></Text>
-                  )}
-                </View>
-              );
-            })}
-
+          <View style={styles.ctaBlock}>
             <TouchableOpacity
               style={[styles.primaryButton, signingIn && styles.btnDisabled]}
               onPress={handleSignIn}
@@ -332,22 +310,26 @@ export default function SignInScreen() {
             >
               {signingIn ? (
                 <View style={styles.rowCenter}>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>{texts.signingIn}</Text>
+                  <ActivityIndicator color="#050C1F" size="small" />
+                  <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>{texts.buttonLoading}</Text>
                 </View>
               ) : (
-                <Text style={styles.primaryButtonText}>{texts.connectCta}</Text>
+                <Text style={styles.primaryButtonText}>{texts.button}</Text>
               )}
             </TouchableOpacity>
-
-            <View style={styles.hint}>
-              <ScanLine size={16} color="#6B7280" />
-              <Text style={styles.hintText}>{texts.helper}</Text>
-            </View>
 
             {!!statusMessage && (
               <Text style={styles.statusMessage} testID="signin-status">{statusMessage}</Text>
             )}
+
+            <View style={styles.permissionsCard}>
+              <Text style={styles.permissionsTitle}>{texts.permissionTitle}</Text>
+              <Text style={styles.permissionLine}>{texts.permissionWallet}</Text>
+              <Text style={styles.permissionLine}>{texts.permissionVerification}</Text>
+              <Text style={styles.permissionLine}>{texts.permissionStay}</Text>
+            </View>
+
+            <Text style={styles.helperText}>{texts.helper}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -358,35 +340,32 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   safe: { flex: 1 },
-  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
-  container: { flex: 1, justifyContent: 'flex-start' },
-  header: { paddingTop: 24, paddingHorizontal: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', marginTop: 8 },
-  subtitle: { fontSize: 14, color: '#E5E7EB', marginTop: 6 },
-  actions: { marginTop: 24, paddingHorizontal: 24, gap: 16 } as const,
-  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 10, marginHorizontal: 24, marginTop: 16 },
+  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, height: 320 },
+  container: { flex: 1, justifyContent: 'space-between', paddingBottom: 32 },
+  hero: { paddingTop: 48, paddingHorizontal: 24, gap: 10 },
+  iconWrap: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: 'rgba(255,255,255,0.72)', letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 12, fontWeight: '600' },
+  title: { fontSize: 32, fontWeight: '800', color: '#FFFFFF', marginTop: 4 },
+  subtitle: { fontSize: 15, color: '#E5E7EB', lineHeight: 22 },
+  connectedText: { color: '#93C5FD', fontSize: 12 },
+  connectedValue: { fontWeight: '700', color: '#FFFFFF' },
+  fallbackCard: { backgroundColor: '#0B1221', borderRadius: 20, marginHorizontal: 24, padding: 20, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)', gap: 12 },
+  fallbackTitle: { color: '#F87171', fontSize: 16, fontWeight: '700' },
+  fallbackBody: { color: '#E5E7EB', fontSize: 13, lineHeight: 20 },
+  fallbackPrimary: { backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  fallbackPrimaryText: { color: '#04121C', fontWeight: '700' },
+  fallbackSecondary: { borderColor: '#1F2937', borderWidth: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  fallbackSecondaryText: { color: '#9CA3AF', fontWeight: '600' },
+  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 10, marginHorizontal: 24 },
   errorText: { color: '#B91C1C', fontSize: 12 },
-  worldWarning: { backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 16, padding: 16, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)' },
-  worldWarningTitle: { color: '#34D399', fontSize: 14, fontWeight: '700' },
-  worldWarningBody: { color: '#D1FAE5', fontSize: 12, marginTop: 6, lineHeight: 18 },
-  stepCard: { backgroundColor: '#111827', borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: '#1F2937' } as const,
-  cardActive: { borderColor: '#FBBF24' },
-  cardComplete: { borderColor: '#10B981' },
-  stepHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' } as const,
-  stepHeaderText: { flex: 1 } as const,
-  stepLabel: { color: '#F9FAFB', fontSize: 16, fontWeight: '700' },
-  stepDescription: { color: '#9CA3AF', fontSize: 13, marginTop: 2 },
-  stepIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center' },
-  stepIconComplete: { backgroundColor: '#065F46' },
-  primaryButton: { backgroundColor: '#6366F1', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  ctaBlock: { paddingHorizontal: 24, gap: 16 },
+  primaryButton: { backgroundColor: '#F9FAFB', paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  primaryButtonText: { color: '#050C1F', fontSize: 16, fontWeight: '700' },
   btnDisabled: { opacity: 0.7 },
-  hint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 6 } as const,
-  hintText: { color: '#6B7280', fontSize: 12, marginLeft: 6, textAlign: 'center' },
   rowCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  statusMessage: { textAlign: 'center', fontSize: 12, color: '#9CA3AF' },
-  connectedText: { color: '#9CA3AF', fontSize: 12 },
-  connectedValue: { color: '#F9FAFB', fontSize: 12, fontWeight: '600' },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  statusPillText: { fontSize: 11, fontWeight: '700' },
+  statusMessage: { textAlign: 'center', fontSize: 12, color: '#E5E7EB' },
+  permissionsCard: { backgroundColor: 'rgba(15,23,42,0.65)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(148,163,184,0.25)', gap: 6 },
+  permissionsTitle: { color: '#F9FAFB', fontWeight: '700', fontSize: 14 },
+  permissionLine: { color: '#CBD5F5', fontSize: 13 },
+  helperText: { fontSize: 12, color: '#9CA3AF', textAlign: 'center' },
 });

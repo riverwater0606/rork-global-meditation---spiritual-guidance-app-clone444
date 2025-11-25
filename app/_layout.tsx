@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -123,67 +123,10 @@ function RootLayoutNav() {
   );
 }
 
-type WorldEnv = 'unknown' | 'world' | 'browser';
-
 function AppBootstrap() {
   const [bootState, setBootState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [bootError, setBootError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [worldEnv, setWorldEnv] = useState<WorldEnv>('unknown');
-  const [webOverride, setWebOverride] = useState(false);
-  const gateStyles = useMemo(() => StyleSheet.create({
-    container: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#030712',
-      padding: 32,
-      gap: 16,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: '#F9FAFB',
-      textAlign: 'center',
-    },
-    subtitle: {
-      fontSize: 14,
-      color: '#9CA3AF',
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-    primary: {
-      backgroundColor: '#10B981',
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 999,
-    },
-    primaryText: {
-      color: '#FFFFFF',
-      fontWeight: '700',
-    },
-    secondary: {
-      borderColor: '#374151',
-      borderWidth: 1,
-      paddingVertical: 12,
-      paddingHorizontal: 24,
-      borderRadius: 999,
-    },
-    secondaryText: {
-      color: '#9CA3AF',
-      fontWeight: '600',
-    },
-  }), []);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      setWorldEnv('world');
-      return;
-    }
-    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') ?? '';
-    const detected = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(ua);
-    setWorldEnv(detected ? 'world' : 'browser');
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -235,39 +178,6 @@ function AppBootstrap() {
     console.log('[Boot] Retry requested');
     setAttempt((prev) => prev + 1);
   }, []);
-
-  const handleOpenWorldApp = useCallback(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        window.open('https://app.worldcoin.org', '_blank', 'noopener');
-      } catch (err) {
-        console.log('[Boot] Failed to open World App link', err);
-      }
-    }
-  }, []);
-
-  const handleContinueOnWeb = useCallback(() => {
-    setWebOverride(true);
-  }, []);
-
-  const shouldShowWorldFallback = Platform.OS === 'web' && worldEnv === 'browser' && !webOverride;
-
-  if (shouldShowWorldFallback) {
-    return (
-      <View style={gateStyles.container} testID="world-gate">
-        <Text style={gateStyles.title}>Please open in World App</Text>
-        <Text style={gateStyles.subtitle}>
-          World ID verification requires the in-app browser. Scan this page with the World App QR scanner or tap below to learn more.
-        </Text>
-        <TouchableOpacity style={gateStyles.primary} onPress={handleOpenWorldApp} testID="world-gate-open">
-          <Text style={gateStyles.primaryText}>Open World App Guide</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={gateStyles.secondary} onPress={handleContinueOnWeb} testID="world-gate-continue">
-          <Text style={gateStyles.secondaryText}>Continue in browser (debug)</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   if (bootState === 'loading') {
     return (
