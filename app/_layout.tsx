@@ -5,7 +5,7 @@ import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useMemo
 import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { MiniKit } from "@/constants/minikit";
+import { ensureMiniKitLoaded } from "@/components/worldcoin/IDKitWeb";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
@@ -194,12 +194,12 @@ function AppBootstrap() {
       let localError: string | null = null;
       try {
         if (Platform.OS === 'web') {
-          // Safe check for MiniKit
-          if (MiniKit && typeof MiniKit.install === 'function') {
-            await MiniKit.install();
+          const mk = await ensureMiniKitLoaded();
+          if (mk && typeof mk.install === 'function') {
+            await mk.install();
             console.log('[Boot] MiniKit.install resolved');
           } else {
-             console.log('[Boot] MiniKit not available or not a function');
+            console.log('[Boot] MiniKit not available or not a function');
           }
         }
       } catch (error) {
