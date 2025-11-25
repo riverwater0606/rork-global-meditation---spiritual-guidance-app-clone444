@@ -1,0 +1,2 @@
+legacy-peer-deps=true
+overrides={"lucide-react-native":{"peerDependencies":{"react":">=18.0.0","react-native":">=0.72.0"}}}

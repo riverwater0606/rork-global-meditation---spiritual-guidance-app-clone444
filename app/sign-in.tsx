@@ -48,12 +48,24 @@ export default function SignInScreen() {
 
   const lang = settings.language;
 
+  const defaultCallbackUrl = useMemo(() => process.env.EXPO_PUBLIC_WORLD_ID_CALLBACK_URL ?? 'https://444-two.vercel.app/callback', []);
+
   const callbackUrl = useMemo(() => {
-    if (typeof window !== 'undefined' && (window.location?.host?.includes('localhost') || window.location?.host?.includes('127.0.0.1'))) {
-      return 'http://localhost:3000/callback';
+    if (typeof window === 'undefined') {
+      return defaultCallbackUrl;
     }
-    return 'https://444-two.vercel.app/callback';
-  }, []);
+    try {
+      const { origin, hostname } = window.location;
+      const normalizedOrigin = origin?.endsWith('/') ? origin.slice(0, -1) : origin;
+      const shouldUseOrigin = hostname?.includes('localhost') || hostname?.includes('127.0.0.1') || hostname?.endsWith('.vercel.app');
+      if (normalizedOrigin && shouldUseOrigin) {
+        return `${normalizedOrigin}/callback`;
+      }
+    } catch (err) {
+      console.log('[SignIn] callbackUrl derivation failed', err);
+    }
+    return defaultCallbackUrl;
+  }, [defaultCallbackUrl]);
 
   const texts = useMemo(() => {
     const zh = lang === 'zh';
@@ -260,6 +272,8 @@ export default function SignInScreen() {
     complete: { label: texts.completeLabel, color: '#10B981', bg: '#052E16' },
   }), [texts.activeLabel, texts.completeLabel, texts.pendingLabel]);
 
+  const showWorldWarning = Platform.OS === 'web' && !isWorldEnv;
+
   return (
     <View style={[styles.root, { backgroundColor: currentTheme.background }]}> 
       <LinearGradient colors={currentTheme.gradient as any} style={styles.heroBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
@@ -270,6 +284,13 @@ export default function SignInScreen() {
             <Text style={styles.title} testID="signin-title">{texts.title}</Text>
             <Text style={styles.subtitle}>{texts.subtitle}</Text>
           </View>
+
+          {showWorldWarning && (
+            <View style={styles.worldWarning} testID="world-warning">
+              <Text style={styles.worldWarningTitle}>{texts.openWorld}</Text>
+              <Text style={styles.worldWarningBody}>{texts.helper}</Text>
+            </View>
+          )}
 
           {!!error && (
             <View style={styles.errorBox}>
@@ -345,6 +366,9 @@ const styles = StyleSheet.create({
   actions: { marginTop: 24, paddingHorizontal: 24, gap: 16 } as const,
   errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 10, marginHorizontal: 24, marginTop: 16 },
   errorText: { color: '#B91C1C', fontSize: 12 },
+  worldWarning: { backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 16, padding: 16, marginHorizontal: 24, marginTop: 16, borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)' },
+  worldWarningTitle: { color: '#34D399', fontSize: 14, fontWeight: '700' },
+  worldWarningBody: { color: '#D1FAE5', fontSize: 12, marginTop: 6, lineHeight: 18 },
   stepCard: { backgroundColor: '#111827', borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: '#1F2937' } as const,
   cardActive: { borderColor: '#FBBF24' },
   cardComplete: { borderColor: '#10B981' },
