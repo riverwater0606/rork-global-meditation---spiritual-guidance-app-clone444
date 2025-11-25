@@ -5,16 +5,20 @@ import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useStat
 import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { MiniKit } from "@worldcoin/minikit-js";
+import { MiniKit } from "@/constants/minikit";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
 
 console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
-SplashScreen.preventAutoHideAsync()
-  .then(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - done'))
-  .catch(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - already prevented or failed'));
+try {
+  SplashScreen.preventAutoHideAsync()
+    .then(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - done'))
+    .catch((e) => console.log('[WorldID] SplashScreen.preventAutoHideAsync() error', e));
+} catch (e) {
+  console.log('[WorldID] SplashScreen.preventAutoHideAsync() crashed', e);
+}
 
 const queryClient = new QueryClient();
 
@@ -132,9 +136,14 @@ function AppBootstrap() {
       setBootError(null);
       let localError: string | null = null;
       try {
-        if (Platform.OS === 'web' && typeof MiniKit?.install === 'function') {
-          await Promise.resolve(MiniKit.install());
-          console.log('[Boot] MiniKit.install resolved');
+        if (Platform.OS === 'web') {
+          // Safe check for MiniKit
+          if (MiniKit && typeof MiniKit.install === 'function') {
+            await MiniKit.install();
+            console.log('[Boot] MiniKit.install resolved');
+          } else {
+             console.log('[Boot] MiniKit not available or not a function');
+          }
         }
       } catch (error) {
         localError = (error as Error)?.message ?? 'MiniKit initialization failed';
