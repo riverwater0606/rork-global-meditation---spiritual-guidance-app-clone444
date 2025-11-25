@@ -1,40 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { Component, ErrorInfo, ReactNode, useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ensureMiniKitLoaded } from "@/components/worldcoin/IDKitWeb";
 import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
 
-console.log('[WorldID] SplashScreen.preventAutoHideAsync() - start');
-try {
-  SplashScreen.preventAutoHideAsync()
-    .then(() => console.log('[WorldID] SplashScreen.preventAutoHideAsync() - done'))
-    .catch((e) => console.log('[WorldID] SplashScreen.preventAutoHideAsync() error', e));
-} catch (e) {
-  console.log('[WorldID] SplashScreen.preventAutoHideAsync() crashed', e);
-}
-
 const queryClient = new QueryClient();
-const MINIKIT_TIMEOUT_MS = 8000;
-
-async function installMiniKitWithTimeout() {
-  if (Platform.OS !== 'web') return;
-  const mk = await Promise.race<any>([
-    ensureMiniKitLoaded(),
-    new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS);
-    }),
-  ]); // Timeout per MiniKit Quick Start: https://docs.world.org/mini-apps/quick-start/installing
-  if (mk && typeof mk.install === 'function') {
-    await mk.install();
-  }
-}
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -112,7 +88,6 @@ const errorStyles = StyleSheet.create({
   },
 });
 
-
 function RootLayoutNav() {
   const { isVerified } = useUser();
   const pathname = usePathname();
@@ -137,81 +112,13 @@ function RootLayoutNav() {
   );
 }
 
-function AppBootstrap() {
-  const [bootState, setBootState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [bootError, setBootError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
+export default function RootLayout() {
   useEffect(() => {
-    let isMounted = true;
-    const prepare = async () => {
-      console.log(`[Boot] Preparing app (attempt ${attempt + 1})`);
-      setBootState('loading');
-      setBootError(null);
-      let localError: string | null = null;
-      try {
-        if (Platform.OS === 'web') {
-          await installMiniKitWithTimeout();
-          console.log('[Boot] MiniKit.install resolved');
-        }
-      } catch (error) {
-        localError = (error as Error)?.message ?? 'MiniKit initialization failed';
-        console.log('[Boot] MiniKit.install error', error);
-      } finally {
-        try {
-          await SplashScreen.hideAsync();
-          console.log('[Boot] SplashScreen hidden');
-        } catch (hideError) {
-          console.log('[Boot] SplashScreen.hideAsync failed', hideError);
-        }
-        if (!isMounted) {
-          return;
-        }
-        if (localError) {
-          setBootError(localError);
-          console.log('[Boot] MiniKit fallback to sign-in due to:', localError);
-        }
-        setBootState('ready');
-      }
-    };
-
-    void prepare();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [attempt]);
-
-  const handleRetry = useCallback(() => {
-    console.log('[Boot] Retry requested');
-    setAttempt((prev) => prev + 1);
+    SplashScreen.hideAsync().catch((error) => {
+      console.log('[RootLayout] SplashScreen.hideAsync failed', error);
+    });
   }, []);
 
-  if (bootState === 'loading') {
-    return (
-      <View style={bootStyles.container} testID="boot-loading">
-        <ActivityIndicator size="large" color="#8B5CF6" />
-        <Text style={bootStyles.message}>Preparing immersive experience…</Text>
-      </View>
-    );
-  }
-
-  if (bootState === 'error') {
-    return (
-      <View style={bootStyles.container} testID="boot-error">
-        <Text style={bootStyles.errorTitle}>啟動失敗</Text>
-        <Text style={bootStyles.errorMessage}>{bootError ?? 'MiniKit 無法啟動，請重試'}</Text>
-        <TouchableOpacity style={bootStyles.retryButton} onPress={handleRetry} testID="boot-retry">
-          <Text style={bootStyles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return <RootLayoutNav />;
-}
-
-export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -221,7 +128,7 @@ export default function RootLayout() {
               <SettingsProvider>
                 <UserProvider>
                   <MeditationProvider>
-                    <AppBootstrap />
+                    <RootLayoutNav />
                   </MeditationProvider>
                 </UserProvider>
               </SettingsProvider>
@@ -236,44 +143,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-});
-
-const bootStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#050C1F',
-    padding: 24,
-  },
-  message: {
-    marginTop: 16,
-    color: '#E5E7EB',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F87171',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    color: '#F3F4F6',
-    textAlign: 'center',
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  retryButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
 });
