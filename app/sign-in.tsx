@@ -2,73 +2,51 @@ import React, { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ensureMiniKitLoaded } from '@/components/worldcoin/IDKitWeb';
-
-interface MiniKitVerifyPayload {
-  status?: string;
-  [key: string]: unknown;
-}
-
-declare global {
-  interface Window {
-    MiniKit?: {
-      isInstalled: () => boolean;
-      commands?: {
-        verify: (args: { action: string; verification_level: string; signal?: string }) => void;
-      };
-      commandsAsync?: {
-        verify: (args: { action: string; verification_level: string; signal?: string }) => Promise<{ finalPayload?: MiniKitVerifyPayload } | MiniKitVerifyPayload>;
-      };
-    };
-  }
-}
+import { ensureMiniKitLoaded, getMiniKit, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
+import { useUser } from '@/providers/UserProvider';
+import { useRouter } from 'expo-router';
 
 const MINIKIT_TIMEOUT_MS = 8000;
 
 export default function SignInScreen() {
-  const handleSignIn = useCallback(async () => {
-    if (typeof window === 'undefined' || !window.MiniKit?.isInstalled?.()) {
-      return;
-    }
+  const { setVerified, connectWallet } = useUser();
+  const router = useRouter();
 
+  const handleSignIn = useCallback(async () => {
     try {
       await Promise.race([
         ensureMiniKitLoaded(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
       ]);
 
-      if (!window.MiniKit?.isInstalled?.()) {
+      const mk = getMiniKit();
+      if (!mk?.isInstalled?.()) {
         return;
       }
 
-      console.log('[SignIn] MiniKit installed');
+      console.log('[SignIn] Calling walletAuth');
 
-      const verifyPayload = {
-        action: 'psig',
-        verification_level: 'orb',
-        signal: '0x12312',
-      } as const;
+      const result = await runWalletAuth({
+        mk,
+        nonce: `psig-${Date.now()}`,
+        statement: 'Sign in to PSI-G',
+      });
 
-      console.log('[SignIn] verify called');
+      if (result?.status === 'success') {
+        console.log('[SignIn] WalletAuth success', result);
 
-      const verifyResult = await window.MiniKit.commandsAsync?.verify?.(verifyPayload);
-      if (!verifyResult) {
-        return;
+        if (result.address) {
+          await connectWallet(result.address);
+        }
+
+        await setVerified(result);
+
+        router.replace('/(tabs)');
       }
-
-      const normalizedResult = (verifyResult as { finalPayload?: MiniKitVerifyPayload })?.finalPayload;
-      const finalPayload: MiniKitVerifyPayload | undefined = normalizedResult ?? (verifyResult as MiniKitVerifyPayload | undefined);
-      if (finalPayload?.status === 'success') {
-        await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload: finalPayload }),
-        }).catch(() => undefined);
-      }
-    } catch {
-      return;
+    } catch (err) {
+      console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
     }
-  }, []);
+  }, [setVerified, connectWallet, router]);
 
   return (
     <View style={styles.root}>
