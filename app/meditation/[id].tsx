@@ -22,11 +22,11 @@ const { width } = Dimensions.get("window");
 
 const AMBIENT_SOUNDS = [
   { id: "none", name: "None", url: null },
-  { id: "tibetan", name: "Tibetan Bowl", url: "https://cdn.freesound.org/previews/270/270156_5123851-lq.mp3" },
-  { id: "rain", name: "Rain", url: "https://cdn.freesound.org/previews/523/523537_5674468-lq.mp3" },
-  { id: "ocean", name: "Ocean Waves", url: "https://cdn.freesound.org/previews/233/233156_4168150-lq.mp3" },
-  { id: "forest", name: "Forest Birds", url: "https://cdn.freesound.org/previews/449/449066_7037284-lq.mp3" },
-  { id: "whitenoise", name: "White Noise", url: "https://cdn.freesound.org/previews/334/334236_5121236-lq.mp3" },
+  { id: "tibetan", name: "Tibetan Bowl", url: "https://cdn.freesound.org/previews/640/640928_5674468-lq.mp3" },
+  { id: "rain", name: "Rain", url: "https://cdn.freesound.org/previews/635/635924_5674468-lq.mp3" },
+  { id: "ocean", name: "Ocean Waves", url: "https://cdn.freesound.org/previews/612/612990_5674468-lq.mp3" },
+  { id: "forest", name: "Forest Birds", url: "https://cdn.freesound.org/previews/467/467523_7037-lq.mp3" },
+  { id: "whitenoise", name: "White Noise", url: "https://cdn.freesound.org/previews/142/142608_512123-lq.mp3" },
   { id: "hz432", name: "432Hz Tone", url: "https://cdn.freesound.org/previews/411/411090_5121236-lq.mp3" },
 ];
 

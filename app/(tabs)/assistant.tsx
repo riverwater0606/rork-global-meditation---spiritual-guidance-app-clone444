@@ -253,6 +253,8 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
         language,
       });
 
+      console.log("AI meditation saved & TTS started", customMeditation);
+
       if (Platform.OS === "web") {
         const playConfirm = confirm(
           language === 'zh'
@@ -261,7 +263,7 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
         );
         if (playConfirm) {
           Speech.speak(script, {
-            language: language === 'zh' ? 'zh-TW' : 'en-US',
+            language: language === 'zh' ? 'zh-CN' : 'en-US',
             rate: 0.8,
           });
         }
@@ -275,7 +277,7 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
               text: t.playNow,
               onPress: () => {
                 Speech.speak(script, {
-                  language: language === 'zh' ? 'zh-TW' : 'en-US',
+                  language: language === 'zh' ? 'zh-CN' : 'en-US',
                   rate: 0.8,
                 });
               }

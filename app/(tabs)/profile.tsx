@@ -339,7 +339,7 @@ export default function ProfileScreen() {
 
                 const sendPayload = {
                   address: "0xf683cbce6d42918907df66040015fcbdad411d9d",
-                  amount: 68,
+                  amount: 9.99,
                   description: "PSI-G VIP Membership"
                 };
 
@@ -369,7 +369,7 @@ export default function ProfileScreen() {
           >
             <Crown size={20} color="#FFFFFF" />
             <Text style={styles.vipButtonText}>
-              {lang === "zh" ? "升級 VIP · 68 WLD" : "Go VIP · 68 WLD"}
+              {lang === "zh" ? "升級 VIP · 9.99 WLD" : "Go VIP · 9.99 WLD"}
             </Text>
           </TouchableOpacity>
         )}
