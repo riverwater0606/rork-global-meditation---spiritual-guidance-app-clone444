@@ -10,12 +10,15 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  Alert,
 } from "react-native";
-import { Send, Bot, User, Sparkles, PlayCircle, Globe } from "lucide-react-native";
+import { Send, Bot, User, Sparkles, PlayCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useMeditation } from "@/providers/MeditationProvider";
+import * as Speech from "expo-speech";
 
 interface Message {
   id: string;
@@ -51,6 +54,10 @@ const TRANSLATIONS = {
     quickPrompts: "Quick prompts:",
     guidedMeditations: "Guided Meditation Practices",
     minutes: "minutes",
+    generateButton: "Generate My Personal Meditation",
+    generating: "Generating meditation...",
+    generatedTitle: "Custom Meditation Created!",
+    playNow: "Play with Voice Guide",
   },
   zh: {
     title: "AI 冥想助手",
@@ -61,12 +68,17 @@ const TRANSLATIONS = {
     quickPrompts: "快速提問：",
     guidedMeditations: "引導冥想練習",
     minutes: "分鐘",
+    generateButton: "為我生成專屬冥想",
+    generating: "正在生成冥想...",
+    generatedTitle: "專屬冥想已生成！",
+    playNow: "播放語音指導",
   },
 };
 
 export default function AssistantScreen() {
   const router = useRouter();
   const { currentTheme, settings } = useSettings();
+  const { addCustomMeditation } = useMeditation();
   const language = settings.language as Language;
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -78,6 +90,8 @@ export default function AssistantScreen() {
   ]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showGenerateButton, setShowGenerateButton] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const t = TRANSLATIONS[language];
 
@@ -89,13 +103,13 @@ export default function AssistantScreen() {
   }, [messages]);
 
   useEffect(() => {
-    // Update welcome message when language changes
     setMessages([{
       id: "1",
       text: TRANSLATIONS[language].welcome,
       isUser: false,
       timestamp: new Date(),
     }]);
+    setShowGenerateButton(false);
   }, [language]);
 
   const sendMessage = async () => {
@@ -111,6 +125,7 @@ export default function AssistantScreen() {
     setMessages((prev) => [...prev, userMessage]);
     setInputText("");
     setIsLoading(true);
+    setShowGenerateButton(false);
 
     try {
       const response = await fetch("https://toolkit.rork.com/text/llm/", {
@@ -164,6 +179,7 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      setShowGenerateButton(true);
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
@@ -175,6 +191,109 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateMeditation = async () => {
+    setIsGenerating(true);
+    try {
+      const conversationContext = messages
+        .filter(m => m.isUser)
+        .map(m => m.text)
+        .join(" ");
+
+      const response = await fetch("https://toolkit.rork.com/text/llm/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "system",
+              content: language === 'en'
+                ? `Generate a personalized guided meditation script based on the user's conversation. Format:
+Title: [Meditation title in English]
+Duration: [Duration in minutes, e.g. "10"]
+Script: [Full meditation script with pauses marked as "..." and guidance in gentle, calming language]
+
+Keep the script 200-300 words, suitable for reading aloud with TTS. Use present tense, second person ("you"). Include breathing cues and visualization.`
+                : `根據用戶的對話生成個性化的引導冥想腳本。格式：
+標題：[中文冥想標題]
+時長：[分鐘數，例如 "10"]
+腳本：[完整的冥想腳本，用"..."標記停頓，語言溫和平靜]
+
+腳本保持200-300字，適合TTS朗讀。使用現在式、第二人稱（"你"）。包含呼吸提示和觀想引導。`
+            },
+            {
+              role: "user",
+              content: language === 'en'
+                ? `Generate a meditation for me based on: ${conversationContext}`
+                : `請根據以下內容為我生成冥想：${conversationContext}`
+            }
+          ],
+        }),
+      });
+
+      const data = await response.json();
+      const meditationText = data.completion;
+
+      const titleMatch = meditationText.match(/(?:Title|標題)[：:]\s*(.+)/i);
+      const durationMatch = meditationText.match(/(?:Duration|時長)[：:]\s*(\d+)/i);
+      const scriptMatch = meditationText.match(/(?:Script|腳本)[：:]\s*([\s\S]+)/i);
+
+      const title = titleMatch ? titleMatch[1].trim() : (language === 'en' ? "Personal Meditation" : "專屬冥想");
+      const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
+      const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+
+      const customMeditation = await addCustomMeditation({
+        title,
+        script,
+        duration,
+        language,
+      });
+
+      if (Platform.OS === "web") {
+        const playConfirm = confirm(
+          language === 'zh'
+            ? `已生成"${title}"（${duration}分鐘）。立即播放語音指導？`
+            : `Generated "${title}" (${duration} min). Play voice guide now?`
+        );
+        if (playConfirm) {
+          Speech.speak(script, {
+            language: language === 'zh' ? 'zh-TW' : 'en-US',
+            rate: 0.8,
+          });
+        }
+      } else {
+        Alert.alert(
+          t.generatedTitle,
+          `${title} (${duration} ${t.minutes})`,
+          [
+            { text: language === 'zh' ? "取消" : "Cancel", style: "cancel" },
+            {
+              text: t.playNow,
+              onPress: () => {
+                Speech.speak(script, {
+                  language: language === 'zh' ? 'zh-TW' : 'en-US',
+                  rate: 0.8,
+                });
+              }
+            }
+          ]
+        );
+      }
+
+      setShowGenerateButton(false);
+    } catch (error) {
+      console.error("Error generating meditation:", error);
+      if (Platform.OS === "web") {
+        alert(t.error);
+      } else {
+        Alert.alert(language === 'zh' ? "錯誤" : "Error", t.error);
+      }
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -254,6 +373,28 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
               <Text style={[styles.loadingText, { color: currentTheme.textSecondary }]}>
                 {t.thinking}
               </Text>
+            </View>
+          )}
+
+          {showGenerateButton && !isLoading && (
+            <View style={styles.generateButtonContainer}>
+              <TouchableOpacity
+                style={[styles.generateButton, { backgroundColor: currentTheme.primary }]}
+                onPress={generateMeditation}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.generateButtonText}>{t.generating}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.generateButtonText}>{t.generateButton}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
@@ -357,25 +498,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 10,
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  languageButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-    gap: 4,
-  },
-  languageText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
@@ -459,6 +581,30 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: "#6B7280",
     fontSize: 14,
+  },
+  generateButtonContainer: {
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  generateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
   promptsContainer: {
     paddingHorizontal: 16,

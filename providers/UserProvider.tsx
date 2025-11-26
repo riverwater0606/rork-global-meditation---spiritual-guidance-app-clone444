@@ -6,6 +6,7 @@ interface UserProfile {
   name: string;
   email: string;
   avatarUrl?: string;
+  isVIP?: boolean;
 }
 
 interface VerificationPayload {
@@ -23,6 +24,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState<boolean>(false);
   const [verification, setVerification] = useState<VerificationPayload | null>(null);
+  const [isVIP, setIsVIP] = useState<boolean>(false);
 
   useEffect(() => {
     loadProfile();
@@ -34,6 +36,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       const savedWallet = await AsyncStorage.getItem("walletAddress");
       const savedVerified = await AsyncStorage.getItem("isVerified");
       const savedVerification = await AsyncStorage.getItem("verificationPayload");
+      const savedVIP = await AsyncStorage.getItem("isVIP");
       
       if (savedProfile) {
         setProfile(JSON.parse(savedProfile));
@@ -53,6 +56,10 @@ export const [UserProvider, useUser] = createContextHook(() => {
         } catch (e) {
           console.log('[UserProvider] Failed to parse verification payload');
         }
+      }
+
+      if (savedVIP) {
+        setIsVIP(savedVIP === 'true');
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -94,15 +101,22 @@ export const [UserProvider, useUser] = createContextHook(() => {
     console.log('[UserProvider] Logout complete');
   };
 
+  const unlockVIP = async () => {
+    setIsVIP(true);
+    await AsyncStorage.setItem('isVIP', 'true');
+  };
+
   return {
     profile,
     walletAddress,
     isVerified,
     verification,
+    isVIP,
     updateProfile,
     connectWallet,
     disconnectWallet,
     setVerified,
     logout,
+    unlockVIP,
   };
 });

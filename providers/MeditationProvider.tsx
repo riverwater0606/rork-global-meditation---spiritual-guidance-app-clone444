@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -16,6 +16,15 @@ interface Achievement {
   description: string;
   icon: string;
   unlocked: boolean;
+}
+
+interface CustomMeditation {
+  id: string;
+  title: string;
+  script: string;
+  duration: number;
+  language: "en" | "zh";
+  createdAt: string;
 }
 
 const INITIAL_STATS: MeditationStats = {
@@ -60,9 +69,11 @@ const ACHIEVEMENTS: Achievement[] = [
 export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [stats, setStats] = useState<MeditationStats>(INITIAL_STATS);
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
+  const [customMeditations, setCustomMeditations] = useState<CustomMeditation[]>([]);
 
   useEffect(() => {
     loadStats();
+    loadCustomMeditations();
   }, []);
 
   const loadStats = async () => {
@@ -81,6 +92,17 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  };
+
+  const loadCustomMeditations = async () => {
+    try {
+      const saved = await AsyncStorage.getItem("customMeditations");
+      if (saved) {
+        setCustomMeditations(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error("Error loading custom meditations:", error);
     }
   };
 
@@ -156,9 +178,23 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
+  const addCustomMeditation = async (meditation: Omit<CustomMeditation, "id" | "createdAt">) => {
+    const newMeditation: CustomMeditation = {
+      ...meditation,
+      id: `custom-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...customMeditations, newMeditation];
+    setCustomMeditations(updated);
+    await AsyncStorage.setItem("customMeditations", JSON.stringify(updated));
+    return newMeditation;
+  };
+
   return {
     stats,
     achievements,
+    customMeditations,
     completeMeditation,
+    addCustomMeditation,
   };
 });

@@ -25,11 +25,12 @@ import {
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { router } from "expo-router";
+import { ensureMiniKitLoaded, getMiniKit } from "@/components/worldcoin/IDKitWeb";
 
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, logout } = useUser();
+  const { profile, updateProfile, logout, isVIP, unlockVIP } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
@@ -313,30 +314,74 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* VIP Upgrade */}
-        <TouchableOpacity
-          style={[styles.vipButton, { backgroundColor: currentTheme.primary }]}
-          onPress={async () => {
-            if (Platform.OS === "web") {
-              alert(lang === "zh" ? "VIP 升級功能即將推出" : "VIP Upgrade Coming Soon");
-            } else {
-              Alert.alert(
-                lang === "zh" ? "升級 VIP" : "Upgrade to VIP",
-                lang === "zh" ? "解鎖無限 AI、所有音效和 VIP 徽章" : "Unlock unlimited AI, all sounds, and VIP badge",
-                [
-                  { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
-                  { text: lang === "zh" ? "68 WLD 升級" : "Upgrade 68 WLD" }
-                ]
-              );
-            }
-          }}
-          testID="vip-upgrade-button"
-        >
-          <Crown size={20} color="#FFFFFF" />
-          <Text style={styles.vipButtonText}>
-            {lang === "zh" ? "升級 VIP · 68 WLD" : "Go VIP · 68 WLD"}
-          </Text>
-        </TouchableOpacity>
+        {!isVIP && (
+          <TouchableOpacity
+            style={[styles.vipButton, { backgroundColor: currentTheme.primary }]}
+            onPress={async () => {
+              try {
+                await Promise.race([
+                  ensureMiniKitLoaded(),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000))
+                ]);
+
+                const mk = getMiniKit();
+                if (!mk?.isInstalled?.()) {
+                  if (Platform.OS === "web") {
+                    alert(lang === "zh" ? "請在 World App 中打開" : "Please open in World App");
+                  } else {
+                    Alert.alert(
+                      lang === "zh" ? "需要 World App" : "World App Required",
+                      lang === "zh" ? "請在 World App 中打開此應用" : "Please open this app in World App"
+                    );
+                  }
+                  return;
+                }
+
+                const sendPayload = {
+                  address: "0xf683cbce6d42918907df66040015fcbdad411d9d",
+                  amount: 68,
+                  description: "PSI-G VIP Membership"
+                };
+
+                console.log("[VIP] Sending payment", sendPayload);
+
+                const result = await mk.commands.sendPayment(sendPayload);
+
+                if (result?.status === "success") {
+                  console.log("[VIP] Payment success", result);
+                  await unlockVIP();
+                  if (Platform.OS === "web") {
+                    alert(lang === "zh" ? "歡迎成為 VIP！" : "Welcome to VIP!");
+                  } else {
+                    Alert.alert(
+                      lang === "zh" ? "成功" : "Success",
+                      lang === "zh" ? "您已成功升級為 VIP！" : "You are now a VIP member!"
+                    );
+                  }
+                } else {
+                  console.log("[VIP] Payment cancelled or failed", result);
+                }
+              } catch (error) {
+                console.error("[VIP] Payment error", error);
+              }
+            }}
+            testID="vip-upgrade-button"
+          >
+            <Crown size={20} color="#FFFFFF" />
+            <Text style={styles.vipButtonText}>
+              {lang === "zh" ? "升級 VIP · 68 WLD" : "Go VIP · 68 WLD"}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {isVIP && (
+          <View style={[styles.vipBadge, { backgroundColor: currentTheme.primary }]}>
+            <Crown size={20} color="#FFFFFF" />
+            <Text style={styles.vipBadgeText}>
+              {lang === "zh" ? "VIP 會員" : "VIP Member"}
+            </Text>
+          </View>
+        )}
 
         {/* Settings */}
         <View style={styles.settingsContainer}>
@@ -557,6 +602,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   vipButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginLeft: 8,
+  },
+  vipBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: "#8B5CF6",
+    borderRadius: 12,
+  },
+  vipBadgeText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",

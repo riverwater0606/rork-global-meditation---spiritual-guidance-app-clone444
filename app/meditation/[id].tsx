@@ -6,17 +6,29 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
-  Platform,
-  Alert,
+  ScrollView,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2, VolumeX } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX, Music } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
+import { Audio } from "expo-av";
+import Slider from "@react-native-community/slider";
 
 const { width } = Dimensions.get("window");
+
+const AMBIENT_SOUNDS = [
+  { id: "none", name: "None", url: null },
+  { id: "tibetan", name: "Tibetan Bowl", url: "https://cdn.freesound.org/previews/270/270156_5123851-lq.mp3" },
+  { id: "rain", name: "Rain", url: "https://cdn.freesound.org/previews/523/523537_5674468-lq.mp3" },
+  { id: "ocean", name: "Ocean Waves", url: "https://cdn.freesound.org/previews/233/233156_4168150-lq.mp3" },
+  { id: "forest", name: "Forest Birds", url: "https://cdn.freesound.org/previews/449/449066_7037284-lq.mp3" },
+  { id: "whitenoise", name: "White Noise", url: "https://cdn.freesound.org/previews/334/334236_5121236-lq.mp3" },
+  { id: "hz432", name: "432Hz Tone", url: "https://cdn.freesound.org/previews/411/411090_5121236-lq.mp3" },
+];
 
 export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
@@ -25,10 +37,12 @@ export default function MeditationPlayerScreen() {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
-
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [selectedSound, setSelectedSound] = useState("none");
+  const [volume, setVolume] = useState(0.5);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -36,7 +50,58 @@ export default function MeditationPlayerScreen() {
       duration: 1000,
       useNativeDriver: true,
     }).start();
+
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    const loadSound = async () => {
+      try {
+        if (soundRef.current) {
+          await soundRef.current.unloadAsync();
+        }
+
+        const sound = AMBIENT_SOUNDS.find(s => s.id === selectedSound);
+        if (sound && sound.url) {
+          const { sound: audioSound } = await Audio.Sound.createAsync(
+            { uri: sound.url },
+            { shouldPlay: isPlaying, isLooping: true, volume }
+          );
+          soundRef.current = audioSound;
+        }
+      } catch (error) {
+        console.error('Error loading sound:', error);
+      }
+    };
+
+    loadSound();
+  }, [selectedSound]);
+
+  useEffect(() => {
+    const updateSound = async () => {
+      if (soundRef.current) {
+        if (isPlaying) {
+          await soundRef.current.playAsync();
+        } else {
+          await soundRef.current.pauseAsync();
+        }
+      }
+    };
+    updateSound();
+  }, [isPlaying]);
+
+  useEffect(() => {
+    const updateVolume = async () => {
+      if (soundRef.current) {
+        await soundRef.current.setVolumeAsync(volume);
+      }
+    };
+    updateVolume();
+  }, [volume]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -97,7 +162,6 @@ export default function MeditationPlayerScreen() {
     >
       <SafeAreaView style={styles.safeArea}>
         <Animated.View style={[styles.content, { opacity: fadeAnimation }]}>
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.closeButton}
@@ -108,12 +172,10 @@ export default function MeditationPlayerScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Main Content */}
           <View style={styles.mainContent}>
             <Text style={styles.sessionTitle}>{session.title}</Text>
             <Text style={styles.sessionNarrator}>with {session.narrator}</Text>
 
-            {/* Breathing Circle */}
             <View style={styles.breathingContainer}>
               <Animated.View
                 style={[
@@ -137,28 +199,13 @@ export default function MeditationPlayerScreen() {
             <Text style={styles.description}>{session.description}</Text>
           </View>
 
-          {/* Controls */}
           <View style={styles.controls}>
             <TouchableOpacity 
               style={styles.secondaryButton}
-              onPress={() => {
-                if (Platform.OS === "web") {
-                  setIsMuted(!isMuted);
-                } else {
-                  Alert.alert(
-                    "Volume",
-                    "Adjust volume using device volume buttons",
-                    [{ text: "OK" }]
-                  );
-                }
-              }}
-              testID="volume-button"
+              onPress={() => setShowSoundPicker(true)}
+              testID="sound-picker-button"
             >
-              {isMuted ? (
-                <VolumeX size={24} color="#FFFFFF" />
-              ) : (
-                <Volume2 size={24} color="#FFFFFF" />
-              )}
+              <Music size={24} color="#FFFFFF" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -173,10 +220,78 @@ export default function MeditationPlayerScreen() {
               )}
             </TouchableOpacity>
 
-            <View style={styles.secondaryButton} />
+            <TouchableOpacity 
+              style={styles.secondaryButton}
+              onPress={() => setVolume(v => v > 0 ? 0 : 0.5)}
+              testID="volume-button"
+            >
+              {volume === 0 ? (
+                <VolumeX size={24} color="#FFFFFF" />
+              ) : (
+                <Volume2 size={24} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
           </View>
         </Animated.View>
       </SafeAreaView>
+
+      <Modal
+        visible={showSoundPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSoundPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.soundPickerModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ambient Sound</Text>
+              <TouchableOpacity onPress={() => setShowSoundPicker(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.soundList}>
+              {AMBIENT_SOUNDS.map((sound) => (
+                <TouchableOpacity
+                  key={sound.id}
+                  style={[
+                    styles.soundOption,
+                    selectedSound === sound.id && styles.soundOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedSound(sound.id);
+                    setShowSoundPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.soundOptionText,
+                    selectedSound === sound.id && styles.soundOptionTextSelected
+                  ]}>
+                    {sound.name}
+                  </Text>
+                  {selectedSound === sound.id && (
+                    <View style={styles.selectedIndicator} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.volumeControl}>
+              <VolumeX size={20} color="#6B7280" />
+              <Slider
+                style={styles.volumeSlider}
+                minimumValue={0}
+                maximumValue={1}
+                value={volume}
+                onValueChange={setVolume}
+                minimumTrackTintColor="#8B5CF6"
+                maximumTrackTintColor="#E5E7EB"
+              />
+              <Volume2 size={20} color="#6B7280" />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -283,5 +398,72 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  soundPickerModal: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: "70%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  soundList: {
+    maxHeight: 300,
+  },
+  soundOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  soundOptionSelected: {
+    backgroundColor: "#F3F4F6",
+  },
+  soundOptionText: {
+    fontSize: 16,
+    color: "#4B5563",
+  },
+  soundOptionTextSelected: {
+    color: "#8B5CF6",
+    fontWeight: "600",
+  },
+  selectedIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#8B5CF6",
+  },
+  volumeControl: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  volumeSlider: {
+    flex: 1,
+    height: 40,
   },
 });
