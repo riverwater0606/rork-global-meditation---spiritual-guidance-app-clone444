@@ -8,6 +8,8 @@ import {
   Dimensions,
   ScrollView,
   Modal,
+  Easing,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -115,9 +117,10 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const breathAnimation = useRef(new Animated.Value(0.8)).current;
+  const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const originalVolume = useRef(0.5);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -130,7 +133,9 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      Speech.stop();
+      if (isSpeaking) {
+        Speech.stop();
+      }
     };
   }, []);
 
@@ -181,13 +186,18 @@ export default function MeditationPlayerScreen() {
   }, [isPlaying]);
 
   useEffect(() => {
+    originalVolume.current = volume;
+  }, [volume]);
+
+  useEffect(() => {
     const updateVolume = async () => {
       if (soundRef.current) {
-        await soundRef.current.setVolumeAsync(volume);
+        const targetVolume = isSpeaking ? volume * 0.3 : volume;
+        await soundRef.current.setVolumeAsync(targetVolume);
       }
     };
     updateVolume();
-  }, [volume]);
+  }, [volume, isSpeaking]);
 
   const handleVoiceGuidance = async () => {
     if (!isCustom || !customSession) return;
@@ -195,15 +205,32 @@ export default function MeditationPlayerScreen() {
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
-    } else {
+      return;
+    }
+    
+    try {
       setIsSpeaking(true);
-      Speech.speak(customSession.script, {
-        language: customSession.language === 'zh' ? 'zh-CN' : 'en-US',
-        rate: 0.8,
-        onDone: () => setIsSpeaking(false),
-        onStopped: () => setIsSpeaking(false),
-      });
       console.log("TTS started");
+      Speech.speak(customSession.script, {
+        language: lang === 'zh' ? 'zh-CN' : 'en-US',
+        pitch: 1.0,
+        rate: 0.9,
+        onDone: () => {
+          console.log("TTS finished");
+          setIsSpeaking(false);
+        },
+        onStopped: () => {
+          console.log("TTS stopped");
+          setIsSpeaking(false);
+        },
+        onError: (error) => {
+          console.error("TTS error:", error);
+          setIsSpeaking(false);
+        },
+      });
+    } catch (error) {
+      console.error("Error starting TTS:", error);
+      setIsSpeaking(false);
     }
   };
 
@@ -212,13 +239,15 @@ export default function MeditationPlayerScreen() {
       const breathingAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(breathAnimation, {
-            toValue: 1.2,
-            duration: 4000,
+            toValue: 1.15,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
           Animated.timing(breathAnimation, {
-            toValue: 0.8,
-            duration: 4000,
+            toValue: 1.0,
+            duration: 3000,
+            easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
         ])
@@ -240,6 +269,8 @@ export default function MeditationPlayerScreen() {
         clearInterval(timer);
         breathingAnimation.stop();
       };
+    } else {
+      breathAnimation.setValue(1.0);
     }
   }, [isPlaying, session]);
 
@@ -293,24 +324,39 @@ export default function MeditationPlayerScreen() {
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   {isPlaying && (
                     <Text style={styles.breathText}>
-                      {Math.floor(timeRemaining % 8) < 4 ? "Breathe In" : "Breathe Out"}
+                      {Math.floor(timeRemaining % 6) < 3 ? (lang === 'zh' ? '吸氣' : 'Breathe In') : (lang === 'zh' ? '呼氣' : 'Breathe Out')}
                     </Text>
                   )}
                 </View>
               </Animated.View>
             </View>
 
-            <Text style={styles.description}>{session.description}</Text>
+            {isCustom && customSession ? (
+              <ScrollView 
+                style={styles.scriptScrollView}
+                contentContainerStyle={styles.scriptContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.scriptText} selectable>{customSession.script}</Text>
+              </ScrollView>
+            ) : (
+              <Text style={styles.description}>{session.description}</Text>
+            )}
           </View>
 
           <View style={styles.controls}>
             {isCustom && (
               <TouchableOpacity 
-                style={styles.secondaryButton}
+                style={[styles.secondaryButton, isSpeaking && styles.speakingButton]}
                 onPress={handleVoiceGuidance}
                 testID="voice-guidance-button"
+                disabled={isSpeaking && false}
               >
-                <MessageSquare size={24} color={isSpeaking ? "#FFD700" : "#FFFFFF"} />
+                {isSpeaking ? (
+                  <ActivityIndicator size="small" color="#FFD700" />
+                ) : (
+                  <MessageSquare size={24} color="#FFFFFF" />
+                )}
               </TouchableOpacity>
             )}
             <TouchableOpacity 
@@ -515,6 +561,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
     lineHeight: 24,
+  },
+  scriptScrollView: {
+    maxHeight: 200,
+    width: "100%",
+    marginBottom: 20,
+  },
+  scriptContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  scriptText: {
+    fontSize: 18,
+    color: "#E0E7FF",
+    lineHeight: 28,
+    textAlign: "left",
+  },
+  speakingButton: {
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
   },
   controls: {
     flexDirection: "row",
