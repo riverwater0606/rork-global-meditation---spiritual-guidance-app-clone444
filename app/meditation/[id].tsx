@@ -116,7 +116,7 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-5' | 'free'>('4-7-8');
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>('4-7-8');
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -247,19 +247,39 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.2,
               duration: 4000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.2,
-              duration: 7000,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
+            Animated.sequence([
+              Animated.timing(breathAnimation, {
+                toValue: 1.22,
+                duration: 1750,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(breathAnimation, {
+                toValue: 1.18,
+                duration: 1750,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(breathAnimation, {
+                toValue: 1.22,
+                duration: 1750,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+              Animated.timing(breathAnimation, {
+                toValue: 1.2,
+                duration: 1750,
+                easing: Easing.inOut(Easing.ease),
+                useNativeDriver: true,
+              }),
+            ]),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 8000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.out(Easing.quad),
               useNativeDriver: true,
             }),
           ])
@@ -270,7 +290,7 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.2,
               duration: 4000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
@@ -282,7 +302,7 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 4000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
@@ -293,19 +313,25 @@ export default function MeditationPlayerScreen() {
             }),
           ])
         );
-      } else if (breathingMethod === '5-5') {
+      } else if (breathingMethod === '5-2-7') {
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
               toValue: 1.2,
               duration: 5000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 2000,
+              easing: Easing.linear,
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
-              duration: 5000,
-              easing: Easing.inOut(Easing.ease),
+              duration: 7000,
+              easing: Easing.out(Easing.quad),
               useNativeDriver: true,
             }),
           ])
@@ -316,13 +342,13 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.15,
               duration: 3000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 3000,
-              easing: Easing.inOut(Easing.ease),
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
           ])
@@ -406,11 +432,11 @@ export default function MeditationPlayerScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.methodButton, breathingMethod === '5-5' && styles.methodButtonActive]}
-                onPress={() => setBreathingMethod('5-5')}
+                style={[styles.methodButton, breathingMethod === '5-2-7' && styles.methodButtonActive]}
+                onPress={() => setBreathingMethod('5-2-7')}
               >
-                <Text style={[styles.methodText, breathingMethod === '5-5' && styles.methodTextActive]}>
-                  {lang === 'zh' ? '腹式呼吸' : 'Deep Breathing'}
+                <Text style={[styles.methodText, breathingMethod === '5-2-7' && styles.methodTextActive]}>
+                  {lang === 'zh' ? '腹式慢呼吸' : 'Deep Belly'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -418,7 +444,7 @@ export default function MeditationPlayerScreen() {
                 onPress={() => setBreathingMethod('free')}
               >
                 <Text style={[styles.methodText, breathingMethod === 'free' && styles.methodTextActive]}>
-                  {lang === 'zh' ? '自由呼吸' : 'Free Flow'}
+                  {lang === 'zh' ? '自由呼吸' : 'Free Breathing'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -649,6 +675,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
   },
   innerCircle: {
     width: "70%",
