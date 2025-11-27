@@ -116,7 +116,9 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>('4-7-8');
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(
+    (isCustom && customSession?.breathingMethod as any) || '4-7-8'
+  );
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -200,7 +202,7 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  const handleVoiceGuidance = async () => {
+  const handleVoiceGuidance = () => {
     if (!isCustom || !customSession) return;
     
     if (isSpeaking) {
@@ -209,33 +211,29 @@ export default function MeditationPlayerScreen() {
       return;
     }
     
-    try {
-      setIsSpeaking(true);
-      console.log("TTS started", { language: lang, script: customSession.script.substring(0, 50) });
-      Speech.speak(customSession.script, {
-        language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
-        rate: 0.9,
-        pitch: 1.0,
-        onStart: () => {
-          console.log("TTS onStart callback");
-        },
-        onDone: () => {
-          console.log("TTS finished");
-          setIsSpeaking(false);
-        },
-        onStopped: () => {
-          console.log("TTS stopped");
-          setIsSpeaking(false);
-        },
-        onError: (e) => {
-          console.log("TTS ERROR:", e);
-          setIsSpeaking(false);
-        },
-      });
-    } catch (error) {
-      console.error("Error starting TTS:", error);
-      setIsSpeaking(false);
-    }
+    setIsSpeaking(true);
+    console.log("TTS triggered", { language: lang, script: customSession.script.substring(0, 50) });
+    
+    Speech.speak(customSession.script, {
+      language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+      rate: 0.9,
+      pitch: 1.0,
+      onStart: () => {
+        console.log("TTS onStart callback");
+      },
+      onDone: () => {
+        console.log("TTS finished");
+        setIsSpeaking(false);
+      },
+      onStopped: () => {
+        console.log("TTS stopped");
+        setIsSpeaking(false);
+      },
+      onError: (e) => {
+        console.log("TTS ERROR:", e);
+        setIsSpeaking(false);
+      },
+    });
   };
 
   useEffect(() => {

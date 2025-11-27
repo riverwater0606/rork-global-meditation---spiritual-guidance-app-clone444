@@ -25,6 +25,7 @@ interface CustomMeditation {
   duration: number;
   language: "en" | "zh";
   createdAt: string;
+  breathingMethod?: string;
 }
 
 const INITIAL_STATS: MeditationStats = {
@@ -183,6 +184,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       ...meditation,
       id: `custom-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      breathingMethod: "4-7-8",
     };
     const updated = [...customMeditations, newMeditation];
     setCustomMeditations(updated);
