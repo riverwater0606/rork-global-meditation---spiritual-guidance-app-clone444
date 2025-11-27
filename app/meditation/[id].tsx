@@ -9,7 +9,6 @@ import {
   ScrollView,
   Modal,
   Easing,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -117,6 +116,7 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-5' | 'free'>('4-7-8');
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -209,12 +209,15 @@ export default function MeditationPlayerScreen() {
     }
     
     try {
-      setIsSpeaking(true);
-      console.log("TTS started");
+      console.log("TTS started", { language: lang, script: customSession.script.substring(0, 50) });
       Speech.speak(customSession.script, {
-        language: lang === 'zh' ? 'zh-CN' : 'en-US',
+        language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
         pitch: 1.0,
-        rate: 0.9,
+        rate: 0.95,
+        onStart: () => {
+          console.log("TTS onStart callback");
+          setIsSpeaking(true);
+        },
         onDone: () => {
           console.log("TTS finished");
           setIsSpeaking(false);
@@ -236,22 +239,96 @@ export default function MeditationPlayerScreen() {
 
   useEffect(() => {
     if (isPlaying) {
-      const breathingAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(breathAnimation, {
-            toValue: 1.15,
-            duration: 3000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(breathAnimation, {
-            toValue: 1.0,
-            duration: 3000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      );
+      let breathingAnimation: Animated.CompositeAnimation;
+      
+      if (breathingMethod === '4-7-8') {
+        breathingAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 4000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 7000,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 8000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ])
+        );
+      } else if (breathingMethod === '4-4-4-4') {
+        breathingAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 4000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 4000,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 4000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 4000,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+      } else if (breathingMethod === '5-5') {
+        breathingAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathAnimation, {
+              toValue: 1.2,
+              duration: 5000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 5000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ])
+        );
+      } else {
+        breathingAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(breathAnimation, {
+              toValue: 1.15,
+              duration: 3000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 3000,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ])
+        );
+      }
+      
       breathingAnimation.start();
 
       const timer = setInterval(() => {
@@ -272,7 +349,7 @@ export default function MeditationPlayerScreen() {
     } else {
       breathAnimation.setValue(1.0);
     }
-  }, [isPlaying, session]);
+  }, [isPlaying, session, breathingMethod]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -310,6 +387,41 @@ export default function MeditationPlayerScreen() {
           <View style={styles.mainContent}>
             <Text style={styles.sessionTitle}>{session.title}</Text>
             <Text style={styles.sessionNarrator}>with {session.narrator}</Text>
+
+            <View style={styles.breathingMethodSelector}>
+              <TouchableOpacity
+                style={[styles.methodButton, breathingMethod === '4-7-8' && styles.methodButtonActive]}
+                onPress={() => setBreathingMethod('4-7-8')}
+              >
+                <Text style={[styles.methodText, breathingMethod === '4-7-8' && styles.methodTextActive]}>
+                  {lang === 'zh' ? '4-7-8 呼吸法' : '4-7-8 Breathing'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.methodButton, breathingMethod === '4-4-4-4' && styles.methodButtonActive]}
+                onPress={() => setBreathingMethod('4-4-4-4')}
+              >
+                <Text style={[styles.methodText, breathingMethod === '4-4-4-4' && styles.methodTextActive]}>
+                  {lang === 'zh' ? '箱式呼吸' : 'Box Breathing'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.methodButton, breathingMethod === '5-5' && styles.methodButtonActive]}
+                onPress={() => setBreathingMethod('5-5')}
+              >
+                <Text style={[styles.methodText, breathingMethod === '5-5' && styles.methodTextActive]}>
+                  {lang === 'zh' ? '腹式呼吸' : 'Deep Breathing'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.methodButton, breathingMethod === 'free' && styles.methodButtonActive]}
+                onPress={() => setBreathingMethod('free')}
+              >
+                <Text style={[styles.methodText, breathingMethod === 'free' && styles.methodTextActive]}>
+                  {lang === 'zh' ? '自由呼吸' : 'Free Flow'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.breathingContainer}>
               <Animated.View
@@ -350,10 +462,11 @@ export default function MeditationPlayerScreen() {
                 style={[styles.secondaryButton, isSpeaking && styles.speakingButton]}
                 onPress={handleVoiceGuidance}
                 testID="voice-guidance-button"
-                disabled={isSpeaking && false}
               >
                 {isSpeaking ? (
-                  <ActivityIndicator size="small" color="#FFD700" />
+                  <View style={styles.speakingIndicator}>
+                    <Text style={styles.speakingText}>⏸</Text>
+                  </View>
                 ) : (
                   <MessageSquare size={24} color="#FFFFFF" />
                 )}
@@ -568,17 +681,54 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scriptContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 32,
     paddingVertical: 10,
   },
   scriptText: {
-    fontSize: 18,
+    fontSize: 15,
     color: "#E0E7FF",
-    lineHeight: 28,
+    lineHeight: 24,
     textAlign: "left",
   },
   speakingButton: {
     backgroundColor: "rgba(255, 215, 0, 0.3)",
+  },
+  speakingIndicator: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  speakingText: {
+    fontSize: 24,
+    color: "#FFD700",
+  },
+  breathingMethodSelector: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  methodButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  methodButtonActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.5)",
+  },
+  methodText: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontWeight: "500",
+  },
+  methodTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   controls: {
     flexDirection: "row",
