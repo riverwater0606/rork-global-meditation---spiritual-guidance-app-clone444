@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  Animated,
 } from "react-native";
 import { Send, Bot, User, Sparkles, PlayCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,8 +18,6 @@ import { useRouter } from "expo-router";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
-import * as Speech from "expo-speech";
-import CustomModal from "@/components/CustomModal";
 
 interface Message {
   id: string;
@@ -56,8 +55,7 @@ const TRANSLATIONS = {
     minutes: "minutes",
     generateButton: "Generate My Personal Meditation",
     generating: "Generating meditation...",
-    generatedTitle: "Custom Meditation Created!",
-    playNow: "Play with Voice Guide",
+    toastSaved: "Personal meditation generated! Saved to Library",
   },
   zh: {
     title: "AI 冥想助手",
@@ -70,8 +68,7 @@ const TRANSLATIONS = {
     minutes: "分鐘",
     generateButton: "為我生成專屬冥想",
     generating: "正在生成冥想...",
-    generatedTitle: "專屬冥想已生成！",
-    playNow: "播放語音指導",
+    toastSaved: "專屬冥想已生成！已儲存至冥想圖書館",
   },
 };
 
@@ -92,9 +89,10 @@ export default function AssistantScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateButton, setShowGenerateButton] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalConfig, setModalConfig] = useState({ title: '', message: '', script: '', duration: 0 });
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
@@ -196,6 +194,24 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
     }
   };
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2500),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setToastVisible(false));
+  };
+
   const generateMeditation = async () => {
     setIsGenerating(true);
     try {
@@ -248,16 +264,6 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
       const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
       const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
 
-      setModalConfig({
-        title: t.generatedTitle,
-        message: language === 'zh' 
-          ? `已生成「${title}」（${duration}分鐘）。立即播放語音指導？`
-          : `Generated "${title}" (${duration} min). Play voice guide now?`,
-        script,
-        duration,
-      });
-      setModalVisible(true);
-
       await addCustomMeditation({
         title,
         script,
@@ -265,8 +271,9 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
         language,
       });
 
-      console.log("Meditation saved to Library & TTS ready");
+      console.log("Meditation saved to Library");
 
+      showToast(t.toastSaved);
       setShowGenerateButton(false);
     } catch (error) {
       console.error("Error generating meditation:", error);
@@ -275,13 +282,7 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
     }
   };
 
-  const handleModalConfirm = () => {
-    Speech.speak(modalConfig.script, {
-      language: language === 'zh' ? 'zh-CN' : 'en-US',
-      rate: 0.8,
-    });
-    console.log("TTS started");
-  };
+
 
   const handlePromptPress = (prompt: string) => {
     setInputText(prompt);
@@ -289,15 +290,6 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]}>
-      <CustomModal
-        isVisible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        cancelText={language === 'zh' ? '取消' : 'Cancel'}
-        confirmText={t.playNow}
-        onConfirm={handleModalConfirm}
-      />
       <LinearGradient
         colors={currentTheme.gradient as any}
         style={styles.header}
@@ -474,6 +466,20 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {toastVisible && (
+        <Animated.View
+          style={[
+            styles.toastContainer,
+            {
+              opacity: toastOpacity,
+              backgroundColor: currentTheme.primary,
+            },
+          ]}
+        >
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -695,5 +701,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
+  },
+  toastContainer: {
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: "#8B5CF6",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
+    lineHeight: 22,
   },
 });

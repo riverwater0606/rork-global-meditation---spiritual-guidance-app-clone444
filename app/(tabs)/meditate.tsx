@@ -14,16 +14,30 @@ import { Search, Clock, Headphones } from "lucide-react-native";
 import { router } from "expo-router";
 import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useMeditation } from "@/providers/MeditationProvider";
 
 const { width } = Dimensions.get("window");
 
 export default function MeditateScreen() {
   const { currentTheme, settings } = useSettings();
+  const { customMeditations } = useMeditation();
   const lang = settings.language;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const filteredSessions = MEDITATION_SESSIONS.filter((session) => {
+  const customSessionsFormatted = customMeditations.map(m => ({
+    id: m.id,
+    title: m.title,
+    description: m.script.substring(0, 50) + '...',
+    duration: m.duration,
+    narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
+    category: 'custom',
+    gradient: ['#8B5CF6', '#6366F1'] as [string, string],
+  }));
+
+  const allSessions = [...customSessionsFormatted, ...MEDITATION_SESSIONS];
+
+  const filteredSessions = allSessions.filter((session) => {
     const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       session.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "all" || session.category === selectedCategory;

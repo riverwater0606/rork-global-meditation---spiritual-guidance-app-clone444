@@ -11,11 +11,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Play, Pause, X, Volume2, VolumeX, Music } from "lucide-react-native";
+import { Play, Pause, X, Volume2, VolumeX, Music, MessageSquare } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
+import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
 
@@ -91,16 +92,29 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
 
 export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
-  const session = MEDITATION_SESSIONS.find(s => s.id === id);
-  const { completeMeditation } = useMeditation();
+  const sessionFromLibrary = MEDITATION_SESSIONS.find(s => s.id === id);
+  const { completeMeditation, customMeditations } = useMeditation();
   const { settings } = useSettings();
   const lang = settings.language;
+  
+  const customSession = customMeditations.find(m => m.id === id);
+  const isCustom = !!customSession;
+  const session = isCustom ? {
+    id: customSession.id,
+    title: customSession.title,
+    description: customSession.script.substring(0, 100) + '...',
+    duration: customSession.duration,
+    narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
+    category: 'custom',
+    gradient: ['#8B5CF6', '#6366F1'],
+  } : sessionFromLibrary;
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const breathAnimation = useRef(new Animated.Value(0.8)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -116,6 +130,7 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
+      Speech.stop();
     };
   }, []);
 
@@ -173,6 +188,24 @@ export default function MeditationPlayerScreen() {
     };
     updateVolume();
   }, [volume]);
+
+  const handleVoiceGuidance = async () => {
+    if (!isCustom || !customSession) return;
+    
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+    } else {
+      setIsSpeaking(true);
+      Speech.speak(customSession.script, {
+        language: customSession.language === 'zh' ? 'zh-CN' : 'en-US',
+        rate: 0.8,
+        onDone: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+      });
+      console.log("TTS started");
+    }
+  };
 
   useEffect(() => {
     if (isPlaying) {
@@ -271,6 +304,15 @@ export default function MeditationPlayerScreen() {
           </View>
 
           <View style={styles.controls}>
+            {isCustom && (
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={handleVoiceGuidance}
+                testID="voice-guidance-button"
+              >
+                <MessageSquare size={24} color={isSpeaking ? "#FFD700" : "#FFFFFF"} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
               style={styles.secondaryButton}
               onPress={() => setShowSoundPicker(true)}

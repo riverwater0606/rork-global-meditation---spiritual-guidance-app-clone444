@@ -7,17 +7,20 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
 import { ArrowLeft, Bell, Clock } from "lucide-react-native";
 import { useSettings } from "@/providers/SettingsProvider";
+import CustomModal from "@/components/CustomModal";
 
 export default function NotificationsScreen() {
   const { settings, updateNotificationSettings, currentTheme } = useSettings();
   const [reminderTime, setReminderTime] = useState(settings.notifications.reminderTime);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: () => {} });
+  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
 
   const handleToggle = async (key: keyof typeof settings.notifications, value: boolean) => {
     await updateNotificationSettings({ [key]: value });
@@ -30,20 +33,15 @@ export default function NotificationsScreen() {
         setReminderTime(time);
         updateNotificationSettings({ reminderTime: time });
       } else if (time) {
-        Alert.alert("Invalid Time", "Please enter time in HH:MM format (e.g., 09:30)");
+        setModalConfig({
+          title: "Invalid Time",
+          message: "Please enter time in HH:MM format (e.g., 09:30)",
+          onConfirm: () => setModalVisible(false),
+        });
+        setModalVisible(true);
       }
     } else {
-      Alert.alert(
-        "Set Reminder Time",
-        "Choose your preferred meditation reminder time:",
-        [
-          { text: "9:00 AM", onPress: () => updateTime("09:00") },
-          { text: "12:00 PM", onPress: () => updateTime("12:00") },
-          { text: "6:00 PM", onPress: () => updateTime("18:00") },
-          { text: "9:00 PM", onPress: () => updateTime("21:00") },
-          { text: "Cancel", style: "cancel" },
-        ]
-      );
+      setShowTimePickerModal(true);
     }
   };
 
@@ -140,6 +138,23 @@ export default function NotificationsScreen() {
 
   return (
     <View style={themedStyles.container}>
+      <CustomModal
+        isVisible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmText="OK"
+        onConfirm={modalConfig.onConfirm}
+      />
+      <CustomModal
+        isVisible={showTimePickerModal}
+        onClose={() => setShowTimePickerModal(false)}
+        title="Set Reminder Time"
+        message="Choose your preferred meditation reminder time"
+        cancelText="Cancel"
+        confirmText="OK"
+        onConfirm={() => setShowTimePickerModal(false)}
+      />
       <Stack.Screen
         options={{
           headerShown: false,
@@ -191,17 +206,47 @@ export default function NotificationsScreen() {
           </View>
 
           {settings.notifications.dailyReminder && (
-            <TouchableOpacity
-              style={themedStyles.timeSelector}
-              onPress={handleTimeChange}
-              testID="time-selector"
-            >
-              <Clock size={20} color={currentTheme.textSecondary} />
-              <View style={styles.timeInfo}>
-                <Text style={themedStyles.timeTitle}>Reminder Time</Text>
-                <Text style={themedStyles.timeValue}>{formatTime(reminderTime)}</Text>
-              </View>
-            </TouchableOpacity>
+            <View>
+              <TouchableOpacity
+                style={themedStyles.timeSelector}
+                onPress={handleTimeChange}
+                testID="time-selector"
+              >
+                <Clock size={20} color={currentTheme.textSecondary} />
+                <View style={styles.timeInfo}>
+                  <Text style={themedStyles.timeTitle}>Reminder Time</Text>
+                  <Text style={themedStyles.timeValue}>{formatTime(reminderTime)}</Text>
+                </View>
+              </TouchableOpacity>
+              {showTimePickerModal && (
+                <View style={{ marginTop: 12, marginLeft: 16 }}>
+                  <TouchableOpacity
+                    style={[themedStyles.settingItem, { marginBottom: 8 }]}
+                    onPress={() => { updateTime("09:00"); setShowTimePickerModal(false); }}
+                  >
+                    <Text style={themedStyles.settingTitle}>9:00 AM</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[themedStyles.settingItem, { marginBottom: 8 }]}
+                    onPress={() => { updateTime("12:00"); setShowTimePickerModal(false); }}
+                  >
+                    <Text style={themedStyles.settingTitle}>12:00 PM</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[themedStyles.settingItem, { marginBottom: 8 }]}
+                    onPress={() => { updateTime("18:00"); setShowTimePickerModal(false); }}
+                  >
+                    <Text style={themedStyles.settingTitle}>6:00 PM</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[themedStyles.settingItem, { marginBottom: 8 }]}
+                    onPress={() => { updateTime("21:00"); setShowTimePickerModal(false); }}
+                  >
+                    <Text style={themedStyles.settingTitle}>9:00 PM</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           )}
 
           <View style={themedStyles.settingItem}>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,9 +21,12 @@ import {
   AlertTriangle
 } from "lucide-react-native";
 import { useSettings } from "@/providers/SettingsProvider";
+import CustomModal from "@/components/CustomModal";
 
 export default function PrivacyScreen() {
   const { settings, updatePrivacySettings, exportData, clearAllData, currentTheme } = useSettings();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: () => {}, destructive: false });
 
   const handleToggle = async (key: keyof typeof settings.privacy, value: boolean) => {
     await updatePrivacySettings({ [key]: value });
@@ -33,39 +35,54 @@ export default function PrivacyScreen() {
   const handleExportData = async () => {
     try {
       const data = await exportData();
-      Alert.alert(
-        "Data Export",
-        "Your data has been prepared for export. In a production app, this would be saved to your device or shared via email.",
-        [
-          { text: "OK" }
-        ]
-      );
+      setModalConfig({
+        title: "Data Export",
+        message: "Your data has been prepared for export. In a production app, this would be saved to your device or shared via email.",
+        onConfirm: () => setModalVisible(false),
+        destructive: false,
+      });
+      setModalVisible(true);
       console.log("Exported data:", data);
     } catch (error) {
-      Alert.alert("Error", "Failed to export data. Please try again.");
+      setModalConfig({
+        title: "Error",
+        message: "Failed to export data. Please try again.",
+        onConfirm: () => setModalVisible(false),
+        destructive: false,
+      });
+      setModalVisible(true);
     }
   };
 
   const handleClearData = () => {
-    Alert.alert(
-      "Clear All Data",
-      "This will permanently delete all your meditation progress, settings, and personal data. This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete All", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              await clearAllData();
-              Alert.alert("Success", "All data has been cleared.");
-            } catch (error) {
-              Alert.alert("Error", "Failed to clear data. Please try again.");
-            }
-          }
+    setModalConfig({
+      title: "Clear All Data",
+      message: "This will permanently delete all your meditation progress, settings, and personal data. This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          await clearAllData();
+          setModalVisible(false);
+          setModalConfig({
+            title: "Success",
+            message: "All data has been cleared.",
+            onConfirm: () => setModalVisible(false),
+            destructive: false,
+          });
+          setModalVisible(true);
+        } catch (error) {
+          setModalVisible(false);
+          setModalConfig({
+            title: "Error",
+            message: "Failed to clear data. Please try again.",
+            onConfirm: () => setModalVisible(false),
+            destructive: false,
+          });
+          setModalVisible(true);
         }
-      ]
-    );
+      },
+      destructive: true,
+    });
+    setModalVisible(true);
   };
 
   const privacySettings = [
@@ -178,6 +195,16 @@ export default function PrivacyScreen() {
 
   return (
     <View style={themedStyles.container}>
+      <CustomModal
+        isVisible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        cancelText="Cancel"
+        confirmText={modalConfig.destructive ? "Delete All" : "OK"}
+        onConfirm={modalConfig.onConfirm}
+        confirmDestructive={modalConfig.destructive}
+      />
       <Stack.Screen
         options={{
           headerShown: false,
