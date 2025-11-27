@@ -210,14 +210,14 @@ export default function MeditationPlayerScreen() {
     }
     
     try {
+      setIsSpeaking(true);
       console.log("TTS started", { language: lang, script: customSession.script.substring(0, 50) });
       Speech.speak(customSession.script, {
         language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+        rate: 0.9,
         pitch: 1.0,
-        rate: 0.95,
         onStart: () => {
           console.log("TTS onStart callback");
-          setIsSpeaking(true);
         },
         onDone: () => {
           console.log("TTS finished");
@@ -227,8 +227,8 @@ export default function MeditationPlayerScreen() {
           console.log("TTS stopped");
           setIsSpeaking(false);
         },
-        onError: (error) => {
-          console.error("TTS error:", error);
+        onError: (e) => {
+          console.log("TTS ERROR:", e);
           setIsSpeaking(false);
         },
       });
@@ -260,41 +260,21 @@ export default function MeditationPlayerScreen() {
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.25,
+              toValue: 1.3,
               duration: 4000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.out(Easing.quad),
               useNativeDriver: true,
             }),
-            Animated.sequence([
-              Animated.timing(breathAnimation, {
-                toValue: 1.27,
-                duration: 1750,
-                easing: Easing.inOut(Easing.sin),
-                useNativeDriver: true,
-              }),
-              Animated.timing(breathAnimation, {
-                toValue: 1.23,
-                duration: 1750,
-                easing: Easing.inOut(Easing.sin),
-                useNativeDriver: true,
-              }),
-              Animated.timing(breathAnimation, {
-                toValue: 1.27,
-                duration: 1750,
-                easing: Easing.inOut(Easing.sin),
-                useNativeDriver: true,
-              }),
-              Animated.timing(breathAnimation, {
-                toValue: 1.25,
-                duration: 1750,
-                easing: Easing.inOut(Easing.sin),
-                useNativeDriver: true,
-              }),
-            ]),
+            Animated.timing(breathAnimation, {
+              toValue: 1.3,
+              duration: 7000,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 8000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.in(Easing.quad),
               useNativeDriver: true,
             }),
           ])
@@ -318,27 +298,25 @@ export default function MeditationPlayerScreen() {
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.25,
+              toValue: 1.3,
               duration: 4000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.inOut(Easing.ease),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
-              toValue: 1.25,
+              toValue: 1.3,
               duration: 4000,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 4000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 4000,
-              easing: Easing.linear,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(breathAnimation, {
+              toValue: 1.0,
+              duration: 4000,
               useNativeDriver: true,
             }),
           ])
@@ -360,21 +338,20 @@ export default function MeditationPlayerScreen() {
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.25,
+              toValue: 1.3,
               duration: 5000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.out(Easing.quad),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
-              toValue: 1.25,
+              toValue: 1.3,
               duration: 2000,
-              easing: Easing.linear,
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 7000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.in(Easing.quad),
               useNativeDriver: true,
             }),
           ])
@@ -394,15 +371,15 @@ export default function MeditationPlayerScreen() {
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.18,
+              toValue: 1.3,
               duration: 3000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.inOut(Easing.ease),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 3000,
-              easing: Easing.bezier(0.42, 0, 0.58, 1),
+              easing: Easing.inOut(Easing.ease),
               useNativeDriver: true,
             }),
           ])
@@ -765,7 +742,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   scriptScrollView: {
-    maxHeight: 200,
+    flex: 1,
     width: "100%",
     marginBottom: 20,
   },
@@ -774,9 +751,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   scriptText: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#E0E7FF",
-    lineHeight: 24,
+    lineHeight: 26,
     textAlign: "left",
   },
   speakingButton: {
