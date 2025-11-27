@@ -121,6 +121,7 @@ export default function MeditationPlayerScreen() {
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
   const originalVolume = useRef(0.5);
+  const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -240,61 +241,90 @@ export default function MeditationPlayerScreen() {
   useEffect(() => {
     if (isPlaying) {
       let breathingAnimation: Animated.CompositeAnimation;
+      let phaseInterval: ReturnType<typeof setInterval>;
       
       if (breathingMethod === '4-7-8') {
+        let cycleTime = 0;
+        const totalCycleTime = 19000;
+        phaseInterval = setInterval(() => {
+          cycleTime = (cycleTime + 100) % totalCycleTime;
+          if (cycleTime < 4000) {
+            setBreathingPhase('inhale');
+          } else if (cycleTime < 11000) {
+            setBreathingPhase('hold');
+          } else {
+            setBreathingPhase('exhale');
+          }
+        }, 100);
+
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.2,
+              toValue: 1.25,
               duration: 4000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.sequence([
               Animated.timing(breathAnimation, {
-                toValue: 1.22,
+                toValue: 1.27,
                 duration: 1750,
-                easing: Easing.inOut(Easing.ease),
+                easing: Easing.inOut(Easing.sin),
                 useNativeDriver: true,
               }),
               Animated.timing(breathAnimation, {
-                toValue: 1.18,
+                toValue: 1.23,
                 duration: 1750,
-                easing: Easing.inOut(Easing.ease),
+                easing: Easing.inOut(Easing.sin),
                 useNativeDriver: true,
               }),
               Animated.timing(breathAnimation, {
-                toValue: 1.22,
+                toValue: 1.27,
                 duration: 1750,
-                easing: Easing.inOut(Easing.ease),
+                easing: Easing.inOut(Easing.sin),
                 useNativeDriver: true,
               }),
               Animated.timing(breathAnimation, {
-                toValue: 1.2,
+                toValue: 1.25,
                 duration: 1750,
-                easing: Easing.inOut(Easing.ease),
+                easing: Easing.inOut(Easing.sin),
                 useNativeDriver: true,
               }),
             ]),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 8000,
-              easing: Easing.out(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
           ])
         );
       } else if (breathingMethod === '4-4-4-4') {
+        let cycleTime = 0;
+        const totalCycleTime = 16000;
+        phaseInterval = setInterval(() => {
+          cycleTime = (cycleTime + 100) % totalCycleTime;
+          if (cycleTime < 4000) {
+            setBreathingPhase('inhale');
+          } else if (cycleTime < 8000) {
+            setBreathingPhase('hold');
+          } else if (cycleTime < 12000) {
+            setBreathingPhase('exhale');
+          } else {
+            setBreathingPhase('rest');
+          }
+        }, 100);
+
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.2,
+              toValue: 1.25,
               duration: 4000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
-              toValue: 1.2,
+              toValue: 1.25,
               duration: 4000,
               easing: Easing.linear,
               useNativeDriver: true,
@@ -302,7 +332,7 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 4000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
@@ -314,16 +344,29 @@ export default function MeditationPlayerScreen() {
           ])
         );
       } else if (breathingMethod === '5-2-7') {
+        let cycleTime = 0;
+        const totalCycleTime = 14000;
+        phaseInterval = setInterval(() => {
+          cycleTime = (cycleTime + 100) % totalCycleTime;
+          if (cycleTime < 5000) {
+            setBreathingPhase('inhale');
+          } else if (cycleTime < 7000) {
+            setBreathingPhase('hold');
+          } else {
+            setBreathingPhase('exhale');
+          }
+        }, 100);
+
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.2,
+              toValue: 1.25,
               duration: 5000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
-              toValue: 1.2,
+              toValue: 1.25,
               duration: 2000,
               easing: Easing.linear,
               useNativeDriver: true,
@@ -331,24 +374,35 @@ export default function MeditationPlayerScreen() {
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 7000,
-              easing: Easing.out(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
           ])
         );
       } else {
+        let cycleTime = 0;
+        const totalCycleTime = 6000;
+        phaseInterval = setInterval(() => {
+          cycleTime = (cycleTime + 100) % totalCycleTime;
+          if (cycleTime < 3000) {
+            setBreathingPhase('inhale');
+          } else {
+            setBreathingPhase('exhale');
+          }
+        }, 100);
+
         breathingAnimation = Animated.loop(
           Animated.sequence([
             Animated.timing(breathAnimation, {
-              toValue: 1.15,
+              toValue: 1.18,
               duration: 3000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
             Animated.timing(breathAnimation, {
               toValue: 1.0,
               duration: 3000,
-              easing: Easing.inOut(Easing.quad),
+              easing: Easing.bezier(0.42, 0, 0.58, 1),
               useNativeDriver: true,
             }),
           ])
@@ -370,10 +424,12 @@ export default function MeditationPlayerScreen() {
 
       return () => {
         clearInterval(timer);
+        if (phaseInterval) clearInterval(phaseInterval);
         breathingAnimation.stop();
       };
     } else {
       breathAnimation.setValue(1.0);
+      setBreathingPhase('inhale');
     }
   }, [isPlaying, session, breathingMethod]);
 
@@ -462,7 +518,10 @@ export default function MeditationPlayerScreen() {
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   {isPlaying && (
                     <Text style={styles.breathText}>
-                      {Math.floor(timeRemaining % 6) < 3 ? (lang === 'zh' ? '吸氣' : 'Breathe In') : (lang === 'zh' ? '呼氣' : 'Breathe Out')}
+                      {breathingPhase === 'inhale' && (lang === 'zh' ? '吸氣' : 'Inhale')}
+                      {breathingPhase === 'hold' && (lang === 'zh' ? '屏氣' : 'Hold')}
+                      {breathingPhase === 'exhale' && (lang === 'zh' ? '呼氣' : 'Exhale')}
+                      {breathingPhase === 'rest' && (lang === 'zh' ? '屏氣' : 'Hold')}
                     </Text>
                   )}
                 </View>
