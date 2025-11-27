@@ -6,8 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,6 +24,7 @@ import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { router } from "expo-router";
 import { ensureMiniKitLoaded, getMiniKit } from "@/components/worldcoin/IDKitWeb";
+import CustomModal from "@/components/CustomModal";
 
 
 
@@ -34,6 +33,9 @@ export default function ProfileScreen() {
   const { settings, currentTheme, isDarkMode } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [vipModalVisible, setVipModalVisible] = useState(false);
+  const [vipModalMessage, setVipModalMessage] = useState("");
   const lang = settings.language;
 
 
@@ -42,50 +44,18 @@ export default function ProfileScreen() {
     setIsEditing(false);
   };
 
-  const handleSignOut = async () => {
-    if (Platform.OS === "web") {
-      const confirmed = confirm(
-        lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?"
-      );
-      if (!confirmed) return;
-      
-      try {
-        console.log("[ProfileScreen] Logging out...");
-        await logout();
-        console.log("[ProfileScreen] Logout successful, redirecting...");
-        router.replace("/sign-in");
-      } catch (error) {
-        console.error("[ProfileScreen] Logout error:", error);
-        alert(
-          lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
-        );
-      }
-    } else {
-      Alert.alert(
-        lang === "zh" ? "登出" : "Sign Out",
-        lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?",
-        [
-          { text: lang === "zh" ? "取消" : "Cancel", style: "cancel" },
-          {
-            text: lang === "zh" ? "登出" : "Sign Out",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                console.log("[ProfileScreen] Logging out...");
-                await logout();
-                console.log("[ProfileScreen] Logout successful, redirecting...");
-                router.replace("/sign-in");
-              } catch (error) {
-                console.error("[ProfileScreen] Logout error:", error);
-                Alert.alert(
-                  lang === "zh" ? "錯誤" : "Error",
-                  lang === "zh" ? "登出失敗，請重試。" : "Failed to sign out. Please try again."
-                );
-              }
-            },
-          },
-        ]
-      );
+  const handleSignOut = () => {
+    setLogoutModalVisible(true);
+  };
+
+  const confirmSignOut = async () => {
+    try {
+      console.log("[ProfileScreen] Logging out...");
+      await logout();
+      console.log("[ProfileScreen] Logout successful, redirecting...");
+      router.replace("/sign-in");
+    } catch (error) {
+      console.error("[ProfileScreen] Logout error:", error);
     }
   };
 
@@ -241,6 +211,24 @@ export default function ProfileScreen() {
 
   return (
     <View style={themedStyles.container}>
+      <CustomModal
+        isVisible={logoutModalVisible}
+        onClose={() => setLogoutModalVisible(false)}
+        title={lang === "zh" ? "登出" : "Sign Out"}
+        message={lang === "zh" ? "您確定要登出嗎？" : "Are you sure you want to sign out?"}
+        cancelText={lang === "zh" ? "取消" : "Cancel"}
+        confirmText={lang === "zh" ? "登出" : "Sign Out"}
+        onConfirm={confirmSignOut}
+        confirmDestructive
+      />
+      <CustomModal
+        isVisible={vipModalVisible}
+        onClose={() => setVipModalVisible(false)}
+        title={lang === "zh" ? "成功" : "Success"}
+        message={vipModalMessage}
+        confirmText="OK"
+        onConfirm={() => setVipModalVisible(false)}
+      />
       <LinearGradient
         colors={currentTheme.gradient as any}
         style={styles.header}
@@ -326,14 +314,6 @@ export default function ProfileScreen() {
 
                 const mk = getMiniKit();
                 if (!mk?.isInstalled?.()) {
-                  if (Platform.OS === "web") {
-                    alert(lang === "zh" ? "請在 World App 中打開" : "Please open in World App");
-                  } else {
-                    Alert.alert(
-                      lang === "zh" ? "需要 World App" : "World App Required",
-                      lang === "zh" ? "請在 World App 中打開此應用" : "Please open this app in World App"
-                    );
-                  }
                   return;
                 }
 
@@ -350,19 +330,18 @@ export default function ProfileScreen() {
                 if (result?.status === "success") {
                   console.log("[VIP] Payment success", result);
                   await unlockVIP();
-                  if (Platform.OS === "web") {
-                    alert(lang === "zh" ? "歡迎成為 VIP！" : "Welcome to VIP!");
-                  } else {
-                    Alert.alert(
-                      lang === "zh" ? "成功" : "Success",
-                      lang === "zh" ? "您已成功升級為 VIP！" : "You are now a VIP member!"
-                    );
-                  }
+                  setVipModalMessage(lang === "zh" ? "您已成功升級為 VIP！" : "You are now a VIP member!");
+                  setVipModalVisible(true);
                 } else {
                   console.log("[VIP] Payment cancelled or failed", result);
                 }
               } catch (error) {
                 console.error("[VIP] Payment error", error);
+                const currentMk = getMiniKit();
+                if (!currentMk?.isInstalled?.()) {
+                  setVipModalMessage(lang === "zh" ? "請在 World App 中打開" : "Please open in World App");
+                  setVipModalVisible(true);
+                }
               }
             }}
             testID="vip-upgrade-button"

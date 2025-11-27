@@ -10,7 +10,6 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
-  Alert,
 } from "react-native";
 import { Send, Bot, User, Sparkles, PlayCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +18,7 @@ import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
 import * as Speech from "expo-speech";
+import CustomModal from "@/components/CustomModal";
 
 interface Message {
   id: string;
@@ -92,6 +92,8 @@ export default function AssistantScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateButton, setShowGenerateButton] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ title: '', message: '', script: '', duration: 0 });
   const scrollViewRef = useRef<ScrollView>(null);
   const t = TRANSLATIONS[language];
 
@@ -246,57 +248,39 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
       const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
       const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
 
-      const customMeditation = await addCustomMeditation({
+      setModalConfig({
+        title: t.generatedTitle,
+        message: language === 'zh' 
+          ? `已生成「${title}」（${duration}分鐘）。立即播放語音指導？`
+          : `Generated "${title}" (${duration} min). Play voice guide now?`,
+        script,
+        duration,
+      });
+      setModalVisible(true);
+
+      await addCustomMeditation({
         title,
         script,
         duration,
         language,
       });
 
-      console.log("AI meditation saved & TTS started", customMeditation);
-
-      if (Platform.OS === "web") {
-        const playConfirm = confirm(
-          language === 'zh'
-            ? `已生成"${title}"（${duration}分鐘）。立即播放語音指導？`
-            : `Generated "${title}" (${duration} min). Play voice guide now?`
-        );
-        if (playConfirm) {
-          Speech.speak(script, {
-            language: language === 'zh' ? 'zh-CN' : 'en-US',
-            rate: 0.8,
-          });
-        }
-      } else {
-        Alert.alert(
-          t.generatedTitle,
-          `${title} (${duration} ${t.minutes})`,
-          [
-            { text: language === 'zh' ? "取消" : "Cancel", style: "cancel" },
-            {
-              text: t.playNow,
-              onPress: () => {
-                Speech.speak(script, {
-                  language: language === 'zh' ? 'zh-CN' : 'en-US',
-                  rate: 0.8,
-                });
-              }
-            }
-          ]
-        );
-      }
+      console.log("Meditation saved to Library & TTS ready");
 
       setShowGenerateButton(false);
     } catch (error) {
       console.error("Error generating meditation:", error);
-      if (Platform.OS === "web") {
-        alert(t.error);
-      } else {
-        Alert.alert(language === 'zh' ? "錯誤" : "Error", t.error);
-      }
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleModalConfirm = () => {
+    Speech.speak(modalConfig.script, {
+      language: language === 'zh' ? 'zh-CN' : 'en-US',
+      rate: 0.8,
+    });
+    console.log("TTS started");
   };
 
   const handlePromptPress = (prompt: string) => {
@@ -305,6 +289,15 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]}>
+      <CustomModal
+        isVisible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        cancelText={language === 'zh' ? '取消' : 'Cancel'}
+        confirmText={t.playNow}
+        onConfirm={handleModalConfirm}
+      />
       <LinearGradient
         colors={currentTheme.gradient as any}
         style={styles.header}
