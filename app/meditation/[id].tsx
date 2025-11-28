@@ -9,7 +9,6 @@ import {
   ScrollView,
   Modal,
   Easing,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -122,9 +121,7 @@ export default function MeditationPlayerScreen() {
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
   const originalVolume = useRef(0.5);
-  const isPlayingRef = useRef(isPlaying);
   const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
-  const [availableVoices, setAvailableVoices] = useState<Speech.Voice[]>([]);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -137,9 +134,11 @@ export default function MeditationPlayerScreen() {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      Speech.stop();
+      if (isSpeaking) {
+        Speech.stop();
+      }
     };
-  }, [fadeAnimation]);
+  }, []);
 
   useEffect(() => {
     if (isCustom && customSession?.breathingMethod) {
@@ -150,25 +149,6 @@ export default function MeditationPlayerScreen() {
       }
     }
   }, [isCustom, customSession]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchVoices = async () => {
-      try {
-        const voices = await Speech.getAvailableVoicesAsync();
-        if (isMounted && voices) {
-          setAvailableVoices(voices);
-          console.log("Loaded speech voices", voices.length);
-        }
-      } catch (error) {
-        console.log("Error loading speech voices", error);
-      }
-    };
-    fetchVoices();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     const loadSound = async () => {
@@ -190,12 +170,9 @@ export default function MeditationPlayerScreen() {
           if (soundUrl) {
             const { sound: audioSound } = await Audio.Sound.createAsync(
               { uri: soundUrl },
-              { shouldPlay: false, isLooping: true, volume: originalVolume.current }
+              { shouldPlay: isPlaying, isLooping: true, volume }
             );
             soundRef.current = audioSound;
-            if (isPlayingRef.current) {
-              await audioSound.playAsync();
-            }
           }
         }
       } catch (error) {
@@ -207,7 +184,6 @@ export default function MeditationPlayerScreen() {
   }, [selectedSound]);
 
   useEffect(() => {
-    isPlayingRef.current = isPlaying;
     const updateSound = async () => {
       if (soundRef.current) {
         if (isPlaying) {
@@ -236,23 +212,19 @@ export default function MeditationPlayerScreen() {
 
   const handleVoiceGuidance = () => {
     if (!isCustom || !customSession) return;
-
+    
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
       return;
     }
-
-    const sessionLanguage = customSession.language ?? lang;
-    const languagePrefix = sessionLanguage === 'zh' ? 'zh' : 'en';
-    const fallbackLanguage = languagePrefix === 'zh' ? 'zh-CN' : 'en-US';
-    const matchedVoice = availableVoices.find((voice) =>
-      voice.language?.toLowerCase().startsWith(languagePrefix)
-    );
-
-    const speechOptions: Speech.SpeechOptions = {
-      language: matchedVoice?.language ?? fallbackLanguage,
-      rate: languagePrefix === 'zh' ? 0.9 : 0.95,
+    
+    setIsSpeaking(true);
+    console.log("TTS triggered", { language: lang, script: customSession.script.substring(0, 50) });
+    
+    Speech.speak(customSession.script, {
+      language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+      rate: 0.9,
       pitch: 1.0,
       onStart: () => {
         console.log("TTS onStart callback");
@@ -269,27 +241,7 @@ export default function MeditationPlayerScreen() {
         console.log("TTS ERROR:", e);
         setIsSpeaking(false);
       },
-    };
-
-    if (matchedVoice?.identifier) {
-      speechOptions.voice = matchedVoice.identifier;
-    }
-
-    setIsSpeaking(true);
-    const snippet = customSession.script.substring(0, 60);
-    console.log("TTS triggered", {
-      requestedLanguage: languagePrefix,
-      voice: speechOptions.voice,
-      language: speechOptions.language,
-      snippet,
     });
-
-    try {
-      Speech.speak(customSession.script, speechOptions);
-    } catch (error) {
-      console.log("TTS speak invocation failed", error);
-      setIsSpeaking(false);
-    }
   };
 
   useEffect(() => {
@@ -464,16 +416,7 @@ export default function MeditationPlayerScreen() {
       breathAnimation.setValue(1.0);
       setBreathingPhase('inhale');
     }
-  }, [
-    isPlaying,
-    breathingMethod,
-    breathAnimation,
-    completeMeditation,
-    session?.id,
-    session?.duration,
-    isCustom,
-    customSession,
-  ]);
+  }, [isPlaying, breathingMethod]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -591,7 +534,9 @@ export default function MeditationPlayerScreen() {
                 testID="voice-guidance-button"
               >
                 {isSpeaking ? (
-                  <ActivityIndicator size="small" color="#FFD700" />
+                  <View style={styles.speakingIndicator}>
+                    <Text style={styles.speakingText}>⏸</Text>
+                  </View>
                 ) : (
                   <MessageSquare size={24} color="#FFFFFF" />
                 )}
@@ -629,13 +574,6 @@ export default function MeditationPlayerScreen() {
               )}
             </TouchableOpacity>
           </View>
-          {isCustom && (
-            <Text style={styles.voiceStatusText}>
-              {isSpeaking
-                ? (lang === 'zh' ? '語音播放中… 點擊上方按鈕停止' : 'Voice guidance playing… tap button to stop')
-                : (lang === 'zh' ? '點擊開始語音引導' : 'Tap to start voice guidance')}
-            </Text>
-          )}
         </Animated.View>
       </SafeAreaView>
 
@@ -829,12 +767,13 @@ const styles = StyleSheet.create({
   speakingButton: {
     backgroundColor: "rgba(255, 215, 0, 0.3)",
   },
-  voiceStatusText: {
-    textAlign: "center",
-    color: "#E0E7FF",
-    fontSize: 14,
-    marginTop: -20,
-    marginBottom: 20,
+  speakingIndicator: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  speakingText: {
+    fontSize: 24,
+    color: "#FFD700",
   },
   breathingMethodSelector: {
     flexDirection: "row",
