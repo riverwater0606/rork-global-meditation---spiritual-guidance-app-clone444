@@ -210,39 +210,35 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  const handleVoiceGuidance = () => {
-    if (!isCustom || !customSession) return;
-    
-    if (isSpeaking) {
-      Speech.stop();
-      setIsSpeaking(false);
-      return;
-    }
-    
-    setIsSpeaking(true);
-    console.log("TTS triggered", { language: lang, script: customSession.script.substring(0, 50) });
-    
-    Speech.speak(customSession.script, {
-      language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
-      rate: 0.9,
-      pitch: 1.0,
-      onStart: () => {
-        console.log("TTS onStart callback");
-      },
-      onDone: () => {
-        console.log("TTS finished");
-        setIsSpeaking(false);
-      },
-      onStopped: () => {
-        console.log("TTS stopped");
-        setIsSpeaking(false);
-      },
-      onError: (e) => {
-        console.log("TTS ERROR:", e);
-        setIsSpeaking(false);
-      },
-    });
-  };
+const handleVoiceGuidance = () => {
+  if (!isCustom || !customSession) return;
+
+  if (isSpeaking) {
+    Speech.stop();
+    setIsSpeaking(false);
+    return;
+  }
+
+  setIsSpeaking(true);
+  console.log("TTS triggered");
+
+  // 關鍵 3 行：完全同步呼叫，不能 async，不能 await，不能包在 Promise 裡
+  Speech.speak(customSession.script, {
+    language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+    rate: 0.9,
+    pitch: 1.0,
+  });
+
+  // 直接監聽全局事件（expo-speech 官方推薦的 web 環境做法）
+  const doneListener = Speech.addListener("onDone", () => {
+    setIsSpeaking(false);
+    doneListener.remove();
+  });
+  const errorListener = Speech.addListener("onError", () => {
+    setIsSpeaking(false);
+    errorListener.remove();
+  });
+};
 
   useEffect(() => {
     console.log("Breathing animation effect triggered", { isPlaying, breathingMethod, isCustom });
