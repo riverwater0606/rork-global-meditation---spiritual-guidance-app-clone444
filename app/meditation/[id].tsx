@@ -220,21 +220,22 @@ const handleVoiceGuidance = () => {
   }
 
   setIsSpeaking(true);
-  console.log("TTS triggered");
 
-  // 關鍵 3 行：完全同步呼叫，不能 async，不能 await，不能包在 Promise 裡
+  // 關鍵：web 環境必須直接呼叫，不能包在任何 async / await / Promise
   Speech.speak(customSession.script, {
     language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
     rate: 0.9,
     pitch: 1.0,
   });
 
-  // 直接監聽全局事件（expo-speech 官方推薦的 web 環境做法）
-  const doneListener = Speech.addListener("onDone", () => {
+  // 用全局事件監聽結束（expo-speech 在 web 上唯一穩定的做法）
+  const doneListener = Speech.addListener("tts-finish", () => {
     setIsSpeaking(false);
     doneListener.remove();
   });
-  const errorListener = Speech.addListener("onError", () => {
+
+  const errorListener = Speech.addListener("tts-error", () => {
+    console.log("TTS failed - likely autoplay blocked");
     setIsSpeaking(false);
     errorListener.remove();
   });
