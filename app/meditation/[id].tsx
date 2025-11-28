@@ -54,7 +54,7 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
   {
     id: "nature",
     name: { zh: "大自然", en: "Nature" },
-    sounds: [
+: [
       { id: "ocean-waves", name: { zh: "海洋浪潮", en: "Ocean Waves" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%A4%8F%E5%A4%A9%E7%9A%84%E6%B8%85%E6%99%A8%2C%E5%B1%B1%E6%9D%91%E9%87%8C%E5%85%AC%E9%B8%A1%E6%89%93%E9%B8%A3%2C%E5%A5%BD%E5%90%AC%E7%9A%84%E9%B8%9F%E5%8F%AB.mp3" },
       { id: "pure-ocean", name: { zh: "海浪聲", en: "Pure Ocean Waves" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%BA%AF%E6%B5%B7%E6%B5%AA%E7%9A%84%E5%A3%B0%E9%9F%B3.mp3" },
       { id: "gentle-stream", name: { zh: "緩緩流水", en: "Gentle Stream" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%BC%93%E7%BC%93%E6%B5%81%E6%B0%B4.mp3" },
@@ -86,7 +86,7 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
     sounds: [
       { id: "rowing-boat", name: { zh: "划船聲音", en: "Rowing Boat" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E8%8D%A1%E8%B5%B7%E5%8F%8C%E6%A1%A8%2C%E5%88%92%E8%88%B9%E7%9A%84%E5%A3%B0%E9%9F%B3.mp3" },
       { id: "temple-bell", name: { zh: "寺院鐘聲", en: "Temple Bell" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%B9%BD%E9%9D%99%E5%AF%BA%E9%99%A2%E7%9A%84%E9%92%9F%E5%A3%B0.mp3" },
-      { id: "wind-chime-daily", name: { zh: "風鈴缽聲清脆", en: "Wind Chime Bowl" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%A3%8E%E9%93%83%E9%93%9B%2C%E6%B8%85%E8%84%86%E6%82%A6%E8%80%B3.mp3" },
+      { id: "wind-chime-daily", name: { zh: "風鈴缽聲清脆", en: "Wind Chime Bowl" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%A3%8E%E9%93%83%E9%93%9B%2C%E6%B8%85%E8%84%96%E6%82%A6%E8%80%B3.mp3" },
     ],
   },
 ];
@@ -219,16 +219,14 @@ export default function MeditationPlayerScreen() {
     }
 
     setIsSpeaking(true);
+    console.log("TTS triggered");
 
-    // 關鍵：完全同步呼叫 + 強制指定 voice（web 環境唯一 100% 有效的寫法）
     Speech.speak(customSession.script, {
       language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
-      voice: lang.startsWith('zh') ? 'zh-CN' : 'en-US', // 強制指定 voice
       rate: 0.9,
       pitch: 1.0,
     });
 
-    // 暴力監聽結束
     const timer = setTimeout(() => setIsSpeaking(false), customSession.duration * 60 * 1000 + 5000);
     const listener = Speech.addListener("tts-finish", () => {
       setIsSpeaking(false);
@@ -280,6 +278,23 @@ export default function MeditationPlayerScreen() {
 
     return () => animation.stop();
   }, [isPlaying, breathingMethod]);
+
+  useEffect(() => {
+    if (isPlaying && timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            setIsPlaying(false);
+            completeMeditation(session?.id || "", session?.duration || 10);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [isPlaying, timeRemaining]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
