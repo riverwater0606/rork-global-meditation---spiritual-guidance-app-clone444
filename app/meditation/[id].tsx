@@ -116,8 +116,7 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const defaultBreathingMethod: '4-7-8' | '4-4-4-4' | '5-2-7' | 'free' = '4-7-8';
-  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(defaultBreathingMethod);
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>('4-7-8');
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -131,20 +130,6 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
-    if (isCustom && customSession?.breathingMethod) {
-      const method = customSession.breathingMethod;
-      if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
-        console.log("Setting breathing method from custom session:", method);
-        setBreathingMethod(method);
-      } else {
-        console.log("Invalid breathing method, using default:", defaultBreathingMethod);
-        setBreathingMethod(defaultBreathingMethod);
-      }
-    } else if (isCustom) {
-      console.log("Custom session has no breathing method, using default:", defaultBreathingMethod);
-      setBreathingMethod(defaultBreathingMethod);
-    }
-
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -153,6 +138,16 @@ export default function MeditationPlayerScreen() {
         Speech.stop();
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (isCustom && customSession?.breathingMethod) {
+      const method = customSession.breathingMethod;
+      if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
+        console.log("Setting breathing method from custom session:", method);
+        setBreathingMethod(method);
+      }
+    }
   }, [isCustom, customSession]);
 
   useEffect(() => {
@@ -421,7 +416,7 @@ export default function MeditationPlayerScreen() {
       breathAnimation.setValue(1.0);
       setBreathingPhase('inhale');
     }
-  }, [isPlaying, session, breathingMethod]);
+  }, [isPlaying, session, breathingMethod, isCustom, customSession]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
