@@ -258,11 +258,22 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
 
       const titleMatch = meditationText.match(/(?:Title|標題)[：:]\s*(.+)/i);
       const durationMatch = meditationText.match(/(?:Duration|時長)[：:]\s*(\d+)/i);
+      // More robust script matching: finds Script: or 腳本: and takes everything after, ignoring case
       const scriptMatch = meditationText.match(/(?:Script|腳本)[：:]\s*([\s\S]+)/i);
 
       const title = titleMatch ? titleMatch[1].trim() : (language === 'en' ? "Personal Meditation" : "專屬冥想");
       const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
-      const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+      
+      let script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+      
+      // Clean up markdown artifacts if present (e.g. if AI wrapped in ```)
+      script = script.replace(/^```\w*\s*/, '').replace(/\s*```$/, '');
+      
+      console.log("Generated meditation:", { title, duration, scriptLength: script.length });
+
+      if (!script) {
+        throw new Error("Empty script generated");
+      }
 
       await addCustomMeditation({
         title,
