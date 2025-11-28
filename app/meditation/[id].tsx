@@ -117,15 +117,7 @@ export default function MeditationPlayerScreen() {
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const defaultBreathingMethod: '4-7-8' | '4-4-4-4' | '5-2-7' | 'free' = '4-7-8';
-  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(() => {
-    if (isCustom && customSession?.breathingMethod) {
-      const method = customSession.breathingMethod;
-      if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
-        return method;
-      }
-    }
-    return defaultBreathingMethod;
-  });
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(defaultBreathingMethod);
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -139,6 +131,20 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
+    if (isCustom && customSession?.breathingMethod) {
+      const method = customSession.breathingMethod;
+      if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
+        console.log("Setting breathing method from custom session:", method);
+        setBreathingMethod(method);
+      } else {
+        console.log("Invalid breathing method, using default:", defaultBreathingMethod);
+        setBreathingMethod(defaultBreathingMethod);
+      }
+    } else if (isCustom) {
+      console.log("Custom session has no breathing method, using default:", defaultBreathingMethod);
+      setBreathingMethod(defaultBreathingMethod);
+    }
+
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -147,7 +153,7 @@ export default function MeditationPlayerScreen() {
         Speech.stop();
       }
     };
-  }, []);
+  }, [isCustom, customSession]);
 
   useEffect(() => {
     const loadSound = async () => {
@@ -244,6 +250,7 @@ export default function MeditationPlayerScreen() {
   };
 
   useEffect(() => {
+    console.log("Breathing animation effect triggered", { isPlaying, breathingMethod, isCustom });
     if (isPlaying) {
       let breathingAnimation: Animated.CompositeAnimation;
       let phaseInterval: ReturnType<typeof setInterval>;
@@ -392,6 +399,7 @@ export default function MeditationPlayerScreen() {
       }
       
       breathingAnimation.start();
+      console.log("Breathing animation started with method:", breathingMethod);
 
       const timer = setInterval(() => {
         setTimeRemaining((prev) => {
