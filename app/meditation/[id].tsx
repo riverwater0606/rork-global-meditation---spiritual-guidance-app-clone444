@@ -144,7 +144,6 @@ export default function MeditationPlayerScreen() {
     if (isCustom && customSession?.breathingMethod) {
       const method = customSession.breathingMethod;
       if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
-        console.log("Setting breathing method from custom session:", method);
         setBreathingMethod(method);
       }
     }
@@ -210,208 +209,76 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-const handleVoiceGuidance = () => {
-  if (!isCustom || !customSession) return;
+  const handleVoiceGuidance = () => {
+    if (!isCustom || !customSession) return;
 
-  if (isSpeaking) {
-    Speech.stop();
-    setIsSpeaking(false);
-    return;
-  }
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+      return;
+    }
 
-  // 關鍵：強制用 system voice + 完全同步呼叫
-  Speech.speak(customSession.script, {
-    language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
-    rate: 0.9,
-    pitch: 1.0,
-    voice: lang.startsWith('zh') ? 'zh-CN' : 'en-US', // 強制指定
- 2025 版必加
-  });
+    setIsSpeaking(true);
 
-  // 用最暴力方式確保狀態更新
-  setIsSpeaking(true);
-  console.log("TTS FORCE STARTED");
+    // 關鍵：完全同步呼叫 + 強制指定 voice（web 環境唯一 100% 有效的寫法）
+    Speech.speak(customSession.script, {
+      language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+      voice: lang.startsWith('zh') ? 'zh-CN' : 'en-US', // 強制指定 voice
+      rate: 0.9,
+      pitch: 1.0,
+    });
 
-  // 暴力監聽（雙保險）
-  const timer = setInterval(() => {
-    // 5 秒後自動關閉（防止卡住）
-    clearInterval(timer);
-    setIsSpeaking(false);
-  }, 5000);
-};
+    // 暴力監聽結束
+    const timer = setTimeout(() => setIsSpeaking(false), customSession.duration * 60 * 1000 + 5000);
+    const listener = Speech.addListener("tts-finish", () => {
+      setIsSpeaking(false);
+      clearTimeout(timer);
+      listener.remove();
+    });
+  };
 
   useEffect(() => {
-    console.log("Breathing animation effect triggered", { isPlaying, breathingMethod, isCustom });
-    if (isPlaying) {
-      let breathingAnimation: Animated.CompositeAnimation;
-      let phaseInterval: ReturnType<typeof setInterval>;
-      
-      if (breathingMethod === '4-7-8') {
-        let cycleTime = 0;
-        const totalCycleTime = 19000;
-        phaseInterval = setInterval(() => {
-          cycleTime = (cycleTime + 100) % totalCycleTime;
-          if (cycleTime < 4000) {
-            setBreathingPhase('inhale');
-          } else if (cycleTime < 11000) {
-            setBreathingPhase('hold');
-          } else {
-            setBreathingPhase('exhale');
-          }
-        }, 100);
-
-        breathingAnimation = Animated.loop(
-          Animated.sequence([
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 4000,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 7000,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 8000,
-              easing: Easing.in(Easing.quad),
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      } else if (breathingMethod === '4-4-4-4') {
-        let cycleTime = 0;
-        const totalCycleTime = 16000;
-        phaseInterval = setInterval(() => {
-          cycleTime = (cycleTime + 100) % totalCycleTime;
-          if (cycleTime < 4000) {
-            setBreathingPhase('inhale');
-          } else if (cycleTime < 8000) {
-            setBreathingPhase('hold');
-          } else if (cycleTime < 12000) {
-            setBreathingPhase('exhale');
-          } else {
-            setBreathingPhase('rest');
-          }
-        }, 100);
-
-        breathingAnimation = Animated.loop(
-          Animated.sequence([
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 4000,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 4000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 4000,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 4000,
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      } else if (breathingMethod === '5-2-7') {
-        let cycleTime = 0;
-        const totalCycleTime = 14000;
-        phaseInterval = setInterval(() => {
-          cycleTime = (cycleTime + 100) % totalCycleTime;
-          if (cycleTime < 5000) {
-            setBreathingPhase('inhale');
-          } else if (cycleTime < 7000) {
-            setBreathingPhase('hold');
-          } else {
-            setBreathingPhase('exhale');
-          }
-        }, 100);
-
-        breathingAnimation = Animated.loop(
-          Animated.sequence([
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 5000,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 7000,
-              easing: Easing.in(Easing.quad),
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      } else {
-        let cycleTime = 0;
-        const totalCycleTime = 6000;
-        phaseInterval = setInterval(() => {
-          cycleTime = (cycleTime + 100) % totalCycleTime;
-          if (cycleTime < 3000) {
-            setBreathingPhase('inhale');
-          } else {
-            setBreathingPhase('exhale');
-          }
-        }, 100);
-
-        breathingAnimation = Animated.loop(
-          Animated.sequence([
-            Animated.timing(breathAnimation, {
-              toValue: 1.3,
-              duration: 3000,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(breathAnimation, {
-              toValue: 1.0,
-              duration: 3000,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      }
-      
-      breathingAnimation.start();
-      console.log("Breathing animation started with method:", breathingMethod);
-
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            setIsPlaying(false);
-            completeMeditation(session?.id || "", session?.duration || 10);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        clearInterval(timer);
-        if (phaseInterval) clearInterval(phaseInterval);
-        breathingAnimation.stop();
-      };
-    } else {
-      breathAnimation.setValue(1.0);
+    if (!isPlaying) {
+      breathAnimation.setValue(1);
       setBreathingPhase('inhale');
+      return;
     }
+
+    const animations = {
+      '4-7-8': Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 4000, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 7000, useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.0, duration: 8000, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ])
+      ),
+      '4-4-4-4': Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 4000, useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.0, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.0, duration: 4000, useNativeDriver: true }),
+        ])
+      ),
+      '5-2-7': Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 5000, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.35, duration: 2000, useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.0, duration: 7000, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ])
+      ),
+      'free': Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnimation, { toValue: 1.3, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(breathAnimation, { toValue: 1.0, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ),
+    };
+
+    const animation = animations[breathingMethod] || animations['4-7-8'];
+    animation.start();
+
+    return () => animation.stop();
   }, [isPlaying, breathingMethod]);
 
   const formatTime = (seconds: number) => {
