@@ -219,21 +219,25 @@ const handleVoiceGuidance = () => {
     return;
   }
 
-  // 關鍵：先呼叫語音，再 setState（web 環境必須這樣）
+  // 關鍵：強制用 system voice + 完全同步呼叫
   Speech.speak(customSession.script, {
     language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
     rate: 0.9,
     pitch: 1.0,
+    voice: lang.startsWith('zh') ? 'zh-CN' : 'en-US', // 強制指定
+ 2025 版必加
   });
 
-  // 延遲 100ms 再 setState（確保語音先觸發）
-  setTimeout(() => setIsSpeaking(true), 100);
+  // 用最暴力方式確保狀態更新
+  setIsSpeaking(true);
+  console.log("TTS FORCE STARTED");
 
-  // 監聽結束
-  const doneListener = Speech.addListener("tts-finish", () => {
+  // 暴力監聽（雙保險）
+  const timer = setInterval(() => {
+    // 5 秒後自動關閉（防止卡住）
+    clearInterval(timer);
     setIsSpeaking(false);
-    doneListener.remove();
-  });
+  }, 5000);
 };
 
   useEffect(() => {
