@@ -219,25 +219,20 @@ const handleVoiceGuidance = () => {
     return;
   }
 
-  setIsSpeaking(true);
-
-  // 關鍵：web 環境必須直接呼叫，不能包在任何 async / await / Promise
+  // 關鍵：先呼叫語音，再 setState（web 環境必須這樣）
   Speech.speak(customSession.script, {
     language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
     rate: 0.9,
     pitch: 1.0,
   });
 
-  // 用全局事件監聽結束（expo-speech 在 web 上唯一穩定的做法）
+  // 延遲 100ms 再 setState（確保語音先觸發）
+  setTimeout(() => setIsSpeaking(true), 100);
+
+  // 監聽結束
   const doneListener = Speech.addListener("tts-finish", () => {
     setIsSpeaking(false);
     doneListener.remove();
-  });
-
-  const errorListener = Speech.addListener("tts-error", () => {
-    console.log("TTS failed - likely autoplay blocked");
-    setIsSpeaking(false);
-    errorListener.remove();
   });
 };
 
