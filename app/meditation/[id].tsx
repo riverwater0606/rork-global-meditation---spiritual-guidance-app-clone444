@@ -116,9 +116,16 @@ export default function MeditationPlayerScreen() {
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(
-    (isCustom && customSession?.breathingMethod as any) || '4-7-8'
-  );
+  const defaultBreathingMethod: '4-7-8' | '4-4-4-4' | '5-2-7' | 'free' = '4-7-8';
+  const [breathingMethod, setBreathingMethod] = useState<'4-7-8' | '4-4-4-4' | '5-2-7' | 'free'>(() => {
+    if (isCustom && customSession?.breathingMethod) {
+      const method = customSession.breathingMethod;
+      if (method === '4-7-8' || method === '4-4-4-4' || method === '5-2-7' || method === 'free') {
+        return method;
+      }
+    }
+    return defaultBreathingMethod;
+  });
   const breathAnimation = useRef(new Animated.Value(1.0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
