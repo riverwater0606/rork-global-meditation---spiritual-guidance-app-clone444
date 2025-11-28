@@ -9,8 +9,6 @@ import {
   ScrollView,
   Modal,
   Easing,
-  Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -132,27 +130,13 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
-    // Configure audio mode for playback in silent mode (iOS)
-    const configureAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        });
-      } catch (e) {
-        console.error("Error configuring audio:", e);
-      }
-    };
-    configureAudio();
-
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
       }
-      // Always stop speech on unmount to prevent background talking
-      Speech.stop();
+      if (isSpeaking) {
+        Speech.stop();
+      }
     };
   }, []);
 
@@ -226,7 +210,7 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  const handleVoiceGuidance = async () => {
+  const handleVoiceGuidance = () => {
     if (!isCustom || !customSession) return;
     
     if (isSpeaking) {
@@ -234,34 +218,16 @@ export default function MeditationPlayerScreen() {
       setIsSpeaking(false);
       return;
     }
-
-    if (!customSession.script || customSession.script.trim().length === 0) {
-      Alert.alert(lang === 'zh' ? '錯誤' : 'Error', lang === 'zh' ? '找不到冥想腳本' : 'Meditation script not found');
-      return;
-    }
     
     setIsSpeaking(true);
-    console.log("TTS triggered", { language: lang, scriptLength: customSession.script.length });
-    
-    // Stop any current speech
-    await Speech.stop();
-
-    // Configure audio again just in case
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-    });
+    console.log("TTS triggered", { language: lang, script: customSession.script.substring(0, 50) });
     
     Speech.speak(customSession.script, {
       language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
       rate: 0.9,
       pitch: 1.0,
-      volume: 1.0,
       onStart: () => {
         console.log("TTS onStart callback");
-        setIsSpeaking(true);
       },
       onDone: () => {
         console.log("TTS finished");
@@ -274,7 +240,6 @@ export default function MeditationPlayerScreen() {
       onError: (e) => {
         console.log("TTS ERROR:", e);
         setIsSpeaking(false);
-        Alert.alert(lang === 'zh' ? '語音播放錯誤' : 'TTS Error', lang === 'zh' ? '無法播放語音，請稍後再試。' : 'Could not play voice guidance.');
       },
     });
   };
@@ -451,7 +416,7 @@ export default function MeditationPlayerScreen() {
       breathAnimation.setValue(1.0);
       setBreathingPhase('inhale');
     }
-  }, [isPlaying, breathingMethod, completeMeditation, session]);
+  }, [isPlaying, breathingMethod]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
