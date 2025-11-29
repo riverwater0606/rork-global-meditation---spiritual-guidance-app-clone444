@@ -9,7 +9,6 @@ import {
   ScrollView,
   Modal,
   Easing,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -123,6 +122,7 @@ export default function MeditationPlayerScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const originalVolume = useRef(0.5);
   const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -236,10 +236,13 @@ export default function MeditationPlayerScreen() {
       return;
     }
 
-    const scriptToRead = customSession.script;
-    if (!scriptToRead) {
-      console.warn("No script to read");
-      return;
+    const scriptToRead = customSession.script || (lang === 'zh' 
+      ? "歡迎來到您的專屬冥想時光。請深呼吸，放鬆身心。" 
+      : "Welcome to your personal meditation session. Take a deep breath and relax.");
+
+    if (!customSession.script) {
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     }
     
     setIsSpeaking(true);
@@ -688,6 +691,14 @@ export default function MeditationPlayerScreen() {
           </View>
         </View>
       </Modal>
+
+      {showToast && (
+        <View style={styles.toastContainer}>
+          <Text style={styles.toastText}>
+            {lang === 'zh' ? '腳本載入中，請重試' : 'Script loading, try again'}
+          </Text>
+        </View>
+      )}
     </LinearGradient>
   );
 }
@@ -929,5 +940,21 @@ const styles = StyleSheet.create({
   volumeSlider: {
     flex: 1,
     height: 40,
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

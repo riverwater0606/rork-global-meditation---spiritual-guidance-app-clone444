@@ -256,17 +256,20 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
       const data = await response.json();
       const meditationText = data.completion;
 
-      const titleMatch = meditationText.match(/(?:Title|標題)[：:]\s*(.+)/i);
-      const durationMatch = meditationText.match(/(?:Duration|時長)[：:]\s*(\d+)/i);
-      const scriptMatch = meditationText.match(/(?:Script|腳本)[：:]\s*([\s\S]+)/i);
+      const titleMatch = meditationText.match(/(?:Title|標題|(?:\*\*Title\*\*)|(?:\*\*標題\*\*))[：:]?\s*(.+)/i);
+      const durationMatch = meditationText.match(/(?:Duration|時長|(?:\*\*Duration\*\*)|(?:\*\*時長\*\*))[：:]?\s*(\d+)/i);
+      const scriptMatch = meditationText.match(/(?:Script|腳本|(?:\*\*Script\*\*)|(?:\*\*腳本\*\*))[：:]?\s*([\s\S]+)/i);
 
-      const title = titleMatch ? titleMatch[1].trim() : (language === 'en' ? "Personal Meditation" : "專屬冥想");
+      const title = titleMatch ? titleMatch[1].trim().replace(/\*\*/g, '') : (language === 'en' ? "Personal Meditation" : "專屬冥想");
       const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
+      // If script match fails, use the whole text but warn. Or better, fallback to a default if empty.
       const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+      
+      console.log("Generated script:", script.substring(0, 100));
 
       await addCustomMeditation({
         title,
-        script,
+        script: script || (language === 'en' ? "Welcome to your personal meditation session. Take a deep breath and relax." : "歡迎來到您的專屬冥想時光。請深呼吸，放鬆身心。"),
         duration,
         language,
       });
