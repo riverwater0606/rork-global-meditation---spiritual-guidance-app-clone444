@@ -275,33 +275,43 @@ export default function MeditationPlayerScreen() {
   }, [volume, isSpeaking]);
 
   const handleVoiceGuidance = async () => {
-    if (!isCustom || !customSession?.script) return;
-    
-    if (isSpeaking) {
-      MiniKit.commands.stopAudio?.();
-      setIsSpeaking(false);
-      return;
-    }
+  if (!isCustom || !customSession?.script) return;
 
-    setIsSpeaking(true);
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          script: customSession.script,
-          language: lang.startsWith("zh") ? "zh" : "en",
-        }),
-      });
-      const { audioContent } = await res.json();
-      MiniKit.commands.playAudio?.({
-        uri: `data:audio/mp3;base64,${audioContent}`,
-      });
-    } catch (e) {
-      console.error("TTS failed:", e);
-      setIsSpeaking(false);
-    }
-  };
+  if (isSpeaking) {
+    MiniKit.stopAudio?.();
+    setIsSpeaking(false);
+    return;
+  }
+
+  setIsSpeaking(true);
+
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        script: customSession.script,
+        language: lang.startsWith("zh") ? "zh" : "en",
+      }),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const { audioContent } = await res.json();
+    if (!audioContent) throw new Error("No audio content");
+
+    // 關鍵修復：用 MiniKit.playAudio() 而不是 MiniKit.commands.playAudio()
+    MiniKit.playAudio({
+      uri: `data:audio/mp3;base64,${audioContent}`,
+      onEnd: () => {
+        setIsSpeaking(false);
+      },
+    });
+  } catch (e) {
+    console.error("TTS failed:", e);
+    setIsSpeaking(false);
+  }
+};
 
   useEffect(() => {
     if (isPlaying) {
