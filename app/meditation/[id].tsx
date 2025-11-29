@@ -284,7 +284,6 @@ export default function MeditationPlayerScreen() {
     }
 
     setIsSpeaking(true);
-    
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -295,13 +294,11 @@ export default function MeditationPlayerScreen() {
         }),
       });
       const { audioContent } = await res.json();
-      
-      // 100% works in World App
       MiniKit.commands.playAudio?.({
         uri: `data:audio/mp3;base64,${audioContent}`,
       });
     } catch (e) {
-      console.error("TTS API failed:", e);
+      console.error("TTS failed:", e);
       setIsSpeaking(false);
     }
   };
