@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   Easing,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -227,7 +228,7 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  const handleVoiceGuidance = () => {
+  const handleVoiceGuidance = async () => {
     if (!isCustom || !customSession) return;
     
     if (isSpeaking) {
@@ -236,7 +237,7 @@ export default function MeditationPlayerScreen() {
       return;
     }
 
-    const scriptToRead = customSession.script || (lang === 'zh' 
+    const script = customSession.script || (lang === 'zh' 
       ? "歡迎來到您的專屬冥想時光。請深呼吸，放鬆身心。" 
       : "Welcome to your personal meditation session. Take a deep breath and relax.");
 
@@ -249,30 +250,29 @@ export default function MeditationPlayerScreen() {
     // Use the language the meditation was generated in, or fallback to app language
     const voiceLanguage = (customSession.language || lang) === 'zh' ? 'zh-CN' : 'en-US';
     
-    console.log("TTS triggered", { language: voiceLanguage, scriptLength: scriptToRead.length });
+    console.log("TTS triggered", { language: voiceLanguage, scriptLength: script.length });
     
-    Speech.speak(scriptToRead, {
+    const options = {
       language: voiceLanguage,
       rate: 0.9,
       pitch: 1.0,
-      // @ts-ignore: volume is supported on web but might not be in types
-      volume: 1.0,
-      onStart: () => {
-        console.log("TTS onStart callback");
-      },
-      onDone: () => {
-        console.log("TTS finished");
-        setIsSpeaking(false);
-      },
-      onStopped: () => {
-        console.log("TTS stopped");
-        setIsSpeaking(false);
-      },
-      onError: (e) => {
+      onError: (e: any) => {
         console.log("TTS ERROR:", e);
         setIsSpeaking(false);
       },
-    });
+      onDone: () => {
+        if (Platform.OS !== 'web') {
+          setIsSpeaking(false);
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      await Speech.speak(script, options);
+      setIsSpeaking(false);
+    } else {
+      Speech.speak(script, options);
+    }
   };
 
   useEffect(() => {
