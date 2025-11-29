@@ -10,7 +10,6 @@ import {
   ScrollView,
   Modal,
   Easing,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,7 +18,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
-import * as Speech from "expo-speech";
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { MiniKit } from "@/constants/minikit";
 import Slider from "@react-native-community/slider";
@@ -127,49 +125,6 @@ export default function MeditationPlayerScreen() {
   const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
   const [showToast, setShowToast] = useState(false);
 
-  // --- helpers ---
-  const splitTextIntoChunks = (text: string, maxLen = 300) => {
-    if (!text) return [];
-    const sentences = text.match(/[^.!?。！？]+[.!?。！？]*/g);
-    if (!sentences) {
-      const parts: string[] = [];
-      for (let i = 0; i < text.length; i += maxLen) {
-        parts.push(text.slice(i, i + maxLen));
-      }
-      return parts;
-    }
-    const chunks: string[] = [];
-    let cur = "";
-    for (const s of sentences) {
-      if ((cur + s).length > maxLen) {
-        if (cur.length) chunks.push(cur);
-        cur = s;
-      } else {
-        cur += s;
-      }
-    }
-    if (cur.length) chunks.push(cur);
-    return chunks;
-  };
-
-  // fade volume over a short duration (ms)
-  const fadeVolume = async (from: number, to: number, duration = 400) => {
-    if (!soundRef.current) return;
-    const steps = 8;
-    const stepTime = Math.max(20, Math.floor(duration / steps));
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const v = from + (to - from) * t;
-      try {
-        await soundRef.current.setVolumeAsync(v);
-      } catch (e) {
-        console.warn("fadeVolume setVolumeAsync failed:", e);
-      }
-      // small pause between steps
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => setTimeout(r, stepTime));
-    }
-  };
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -208,9 +163,9 @@ export default function MeditationPlayerScreen() {
         }
         if (isSpeaking) {
           try {
-            Speech.stop();
+            MiniKit.commands.stopAudio?.();
           } catch (e) {
-            console.warn("Speech.stop on unmount failed:", e);
+            console.warn("MiniKit stopAudio on unmount failed:", e);
           }
         }
       })();
@@ -321,8 +276,7 @@ export default function MeditationPlayerScreen() {
 
   const handleVoiceGuidance = async () => {
     if (!isCustom || !customSession?.script) return;
-
-    // If already speaking -> stop
+    
     if (isSpeaking) {
       MiniKit.commands.stopAudio?.();
       setIsSpeaking(false);
@@ -330,6 +284,7 @@ export default function MeditationPlayerScreen() {
     }
 
     setIsSpeaking(true);
+    
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -340,13 +295,13 @@ export default function MeditationPlayerScreen() {
         }),
       });
       const { audioContent } = await res.json();
-      if (audioContent) {
-        MiniKit.commands.playAudio?.({ uri: `data:audio/mp3;base64,${audioContent}` });
-      }
+      
+      // 100% works in World App
+      MiniKit.commands.playAudio?.({
+        uri: `data:audio/mp3;base64,${audioContent}`,
+      });
     } catch (e) {
-      console.error(e);
-      setIsSpeaking(false);
-    } finally {
+      console.error("TTS API failed:", e);
       setIsSpeaking(false);
     }
   };
