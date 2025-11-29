@@ -125,16 +125,11 @@ export default function MeditationPlayerScreen() {
   const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
   const [showToast, setShowToast] = useState(false);
 
-  // ---------- BEGIN PATCH: audio / TTS helpers & improved handling ----------
-  /**
-   * Helpers: chunk long scripts into manageable pieces for Expo Speech.
-   */
+  // ---------- audio / TTS helpers ----------
   const splitTextIntoChunks = (text: string, maxLen = 300) => {
     if (!text) return [];
-    // try to split on sentence punctuation to sound more natural
     const sentences = text.match(/[^.!?。！？]+[.!?。！？]*/g);
     if (!sentences) {
-      // fallback: naive chunks
       const parts: string[] = [];
       for (let i = 0; i < text.length; i += maxLen) {
         parts.push(text.slice(i, i + maxLen));
@@ -155,20 +150,49 @@ export default function MeditationPlayerScreen() {
     return chunks;
   };
 
-  /**
-   * Utility to fade background volume down/up before/after TTS.
-   * It will try to setVolumeAsync; if no sound loaded, it just resolves.
-   */
-  const setBackgroundVolume = async (v: number) => {
+  const pauseBackground = async () => {
     try {
       if (soundRef.current) {
-        await soundRef.current.setVolumeAsync(v);
+        const status = await soundRef.current.getStatusAsync();
+        if (status.isLoaded && status.isPlaying) {
+          await soundRef.current.pauseAsync();
+          return true;
+        }
       }
     } catch (e) {
-      console.warn("setBackgroundVolume failed:", e);
+      console.warn("pauseBackground failed:", e);
+    }
+    return false;
+  };
+
+  const resumeBackground = async (shouldPlay: boolean) => {
+    try {
+      if (soundRef.current && shouldPlay) {
+        await soundRef.current.playAsync();
+        // ensure volume restored
+        await soundRef.current.setVolumeAsync(originalVolume.current);
+      }
+    } catch (e) {
+      console.warn("resumeBackground failed:", e);
     }
   };
-  // ---------- END PATCH ----------
+
+  // conservative audio mode config (use throughout)
+  const setConservativeAudioMode = async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
+        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+        playThroughEarpieceAndroid: true,
+      });
+    } catch (e) {
+      console.warn("setConservativeAudioMode failed:", e);
+    }
+  };
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -177,21 +201,10 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
-    // Configure audio for playback in silent mode — improved
     const configureAudio = async () => {
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          // pick interruption / ducking behavior:
-          // on Android, we'll avoid automatic ducking here and manually adjust volume
-          shouldDuckAndroid: false,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-          playThroughEarpieceAndroid: false,
-        });
-        console.log("Audio mode configured");
+        await setConservativeAudioMode();
+        console.log("Audio mode configured (conservative)");
       } catch (e) {
         console.error("Error configuring audio:", e);
       }
@@ -206,11 +219,9 @@ export default function MeditationPlayerScreen() {
             soundRef.current = null;
           }
         } catch (e) {
-          /* swallow unload errors but log */
           console.error("Error unloading sound on unmount:", e);
         }
         try {
-          // ensure TTS stopped
           Speech.stop();
         } catch (e) {
           console.error("Error stopping speech on unmount:", e);
@@ -230,7 +241,6 @@ export default function MeditationPlayerScreen() {
     }
   }, [isCustom, customSession]);
 
-  // ---------- BEGIN PATCH: improved loadSound (unload previous safely, set audio mode, record original volume) ----------
   useEffect(() => {
     const loadSound = async () => {
       try {
@@ -254,17 +264,7 @@ export default function MeditationPlayerScreen() {
           }
 
           if (soundUrl) {
-            // make sure audio mode allows background play
-            await Audio.setAudioModeAsync({
-              allowsRecordingIOS: false,
-              playsInSilentModeIOS: true,
-              staysActiveInBackground: true,
-              shouldDuckAndroid: false,
-              interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-              interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-              playThroughEarpieceAndroid: false,
-            });
-
+            await setConservativeAudioMode();
             const { sound: audioSound, status } = await Audio.Sound.createAsync(
               { uri: soundUrl },
               { shouldPlay: isPlaying, isLooping: true, volume }
@@ -272,6 +272,16 @@ export default function MeditationPlayerScreen() {
             soundRef.current = audioSound;
             originalVolume.current = volume;
             console.log("Ambient sound loaded", soundUrl, status);
+          }
+        } else {
+          // if user selected "None", ensure no sound playing
+          if (soundRef.current) {
+            try {
+              await soundRef.current.unloadAsync();
+            } catch (e) {
+              console.warn("Unload on none failed:", e);
+            }
+            soundRef.current = null;
           }
         }
       } catch (error) {
@@ -282,7 +292,6 @@ export default function MeditationPlayerScreen() {
     loadSound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSound]);
-  // ---------- END PATCH ----------
 
   useEffect(() => {
     const updateSound = async () => {
@@ -319,11 +328,10 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  // ---------- BEGIN PATCH: enhanced TTS handler ----------
   const handleVoiceGuidance = async () => {
     if (!isCustom || !customSession) return;
 
-    // toggle off if already speaking
+    // top-level guard: if already speaking -> stop and restore
     if (isSpeaking) {
       try {
         Speech.stop();
@@ -331,8 +339,12 @@ export default function MeditationPlayerScreen() {
         console.warn("Speech.stop() error:", e);
       }
       setIsSpeaking(false);
-      // restore background volume
-      await setBackgroundVolume(originalVolume.current);
+      // attempt resume background
+      try {
+        await resumeBackground(true);
+      } catch (e) {
+        console.warn("resumeBackground after stop failed:", e);
+      }
       return;
     }
 
@@ -350,25 +362,20 @@ export default function MeditationPlayerScreen() {
     const voiceLanguage = (customSession.language || lang) === 'zh' ? 'zh-CN' : 'en-US';
     console.log("TTS triggered", { language: voiceLanguage, scriptLength: script.length });
 
-    // split script to safe chunks
     const chunks = splitTextIntoChunks(script, 300);
 
+    // pause background if playing (prefer pause/resume for reliability)
+    let bgWasPlaying = false;
     try {
-      // lower background volume (fade step optional)
-      await setBackgroundVolume(originalVolume.current * 0.25);
+      bgWasPlaying = await pauseBackground();
+    } catch (e) {
+      console.warn("pauseBackground error:", e);
+    }
 
-      // Ensure audio mode is set to allow Speech to play even in silent mode
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-        playThroughEarpieceAndroid: false,
-      });
+    try {
+      // ensure conservative audio mode before speaking
+      await setConservativeAudioMode();
 
-      // play chunks sequentially with Promise wrappers
       for (const chunk of chunks) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise<void>((resolve, reject) => {
@@ -376,7 +383,7 @@ export default function MeditationPlayerScreen() {
             let doneCalled = false;
             Speech.speak(chunk, {
               language: voiceLanguage,
-              rate: 0.9,
+              rate: 0.95,
               pitch: 1.0,
               onStart: () => {
                 console.log("TTS start chunk", { length: chunk.length });
@@ -394,15 +401,14 @@ export default function MeditationPlayerScreen() {
               },
             });
 
-            // safety fallback: if onDone not called within X ms, resolve (prevents hang)
             const safetyTimeout = setTimeout(() => {
               if (!doneCalled) {
-                console.warn("TTS chunk safety timeout — resolving to continue", { chunkLen: chunk.length });
+                console.warn("TTS chunk safety timeout — resolving", { chunkLen: chunk.length });
                 doneCalled = true;
                 resolve();
               }
               clearTimeout(safetyTimeout);
-            }, Math.max(10000, chunk.length * 60)); // at least 10s, scale with length
+            }, Math.max(10000, chunk.length * 60));
           } catch (err) {
             console.error("Speech.speak wrapper error:", err);
             reject(err);
@@ -410,23 +416,29 @@ export default function MeditationPlayerScreen() {
         });
       }
 
-      // restore background volume
-      await setBackgroundVolume(originalVolume.current);
+      // done speaking: resume background if it was playing
+      try {
+        await resumeBackground(bgWasPlaying);
+      } catch (e) {
+        console.warn("resumeBackground error:", e);
+      }
       setIsSpeaking(false);
       console.log("TTS completed successfully");
     } catch (err) {
       console.error("TTS overall error:", err);
-      // try to stop and restore
       try {
         Speech.stop();
       } catch (stopErr) {
         console.warn("Speech.stop() after error failed:", stopErr);
       }
-      await setBackgroundVolume(originalVolume.current);
+      try {
+        await resumeBackground(bgWasPlaying);
+      } catch (resumeErr) {
+        console.warn("resumeBackground after error failed:", resumeErr);
+      }
       setIsSpeaking(false);
     }
   };
-  // ---------- END PATCH ----------
 
   useEffect(() => {
     console.log("Breathing animation effect triggered", { isPlaying, breathingMethod, isCustom });
@@ -624,7 +636,7 @@ export default function MeditationPlayerScreen() {
       end={{ x: 1, y: 1 }}
     >
       <SafeAreaView style={styles.safeArea}>
-        <Animated.View style={[styles.content, { opacity: fadeAnimation }]}>
+        <Animated.View pointerEvents="box-none" style={[styles.content, { opacity: fadeAnimation }]}>
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.closeButton}
@@ -714,7 +726,14 @@ export default function MeditationPlayerScreen() {
             {isCustom && (
               <TouchableOpacity 
                 style={[styles.secondaryButton, isSpeaking && styles.speakingButton]}
-                onPress={handleVoiceGuidance}
+                onPress={async () => {
+                  try {
+                    await handleVoiceGuidance();
+                  } catch (err) {
+                    console.error("handleVoiceGuidance top-level error:", err);
+                    setIsSpeaking(false);
+                  }
+                }}
                 testID="voice-guidance-button"
               >
                 {isSpeaking ? (
