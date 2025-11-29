@@ -20,7 +20,7 @@ import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import * as Speech from "expo-speech";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { MiniKit } from "@/constants/minikit";
 import Slider from "@react-native-community/slider";
 
@@ -186,8 +186,8 @@ export default function MeditationPlayerScreen() {
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
           shouldDuckAndroid: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+          interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
           playThroughEarpieceAndroid: false,
         });
       } catch (e) {
@@ -258,8 +258,8 @@ export default function MeditationPlayerScreen() {
                 playsInSilentModeIOS: true,
                 staysActiveInBackground: true,
                 shouldDuckAndroid: true,
-                interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-                interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+                interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+                interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
                 playThroughEarpieceAndroid: false,
               });
             } catch (e) {
