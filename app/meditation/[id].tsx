@@ -21,6 +21,7 @@ import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
+import { MiniKit } from "@/constants/minikit";
 import Slider from "@react-native-community/slider";
 
 const { width } = Dimensions.get("window");
@@ -318,131 +319,34 @@ export default function MeditationPlayerScreen() {
     updateVolume();
   }, [volume, isSpeaking]);
 
-  // NEW: robust TTS using fadeVolume instead of pause/unload
   const handleVoiceGuidance = async () => {
-    if (!isCustom || !customSession) return;
+    if (!isCustom || !customSession?.script) return;
 
     // If already speaking -> stop
     if (isSpeaking) {
-      try {
-        Speech.stop();
-      } catch (e) {
-        console.warn("Speech.stop() error:", e);
-      }
+      MiniKit.commands.stopAudio?.();
       setIsSpeaking(false);
-      // restore ambient volume explicitly
-      if (soundRef.current) {
-        try {
-          await soundRef.current.setVolumeAsync(originalVolume.current);
-        } catch (e) {
-          console.warn("restore volume after stop failed:", e);
-        }
-      }
       return;
     }
 
-    const script = customSession.script || (lang === 'zh'
-      ? "歡迎來到您的專屬冥想時光。請深呼吸，放鬆身心。"
-      : "Welcome to your personal meditation session. Take a deep breath and relax.");
-
-    if (!customSession.script) {
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }
-
     setIsSpeaking(true);
-
-    const voiceLanguage = (customSession.language || lang) === 'zh' ? 'zh-CN' : 'en-US';
-    const chunks = splitTextIntoChunks(script, 300);
-
     try {
-      // Smoothly fade ambient down to 30% (if exists)
-      if (soundRef.current) {
-        try {
-          const currentStatus = await soundRef.current.getStatusAsync();
-          const currentVol = currentStatus.isLoaded && typeof currentStatus.volume === 'number' ? currentStatus.volume : volume;
-          await fadeVolume(currentVol, currentVol * 0.3, 300);
-        } catch (e) {
-          console.warn("fade down failed:", e);
-          try { await soundRef.current.setVolumeAsync(volume * 0.3); } catch {}
-        }
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          script: customSession.script,
+          language: lang.startsWith("zh") ? "zh" : "en",
+        }),
+      });
+      const { audioContent } = await res.json();
+      if (audioContent) {
+        MiniKit.commands.playAudio?.({ uri: `data:audio/mp3;base64,${audioContent}` });
       }
-
-      // Make sure audio mode allows mixing (call safely)
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (e) {
-        console.warn("setAudioModeAsync before TTS failed:", e);
-      }
-
-      // speak chunks sequentially
-      for (const chunk of chunks) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise<void>((resolve, reject) => {
-          try {
-            let resolved = false;
-            Speech.speak(chunk, {
-              language: voiceLanguage,
-              rate: 0.92,
-              pitch: 1.0,
-              onStart: () => { /* optional logging */ },
-              onDone: () => {
-                if (!resolved) {
-                  resolved = true;
-                  resolve();
-                }
-              },
-              onError: (e: any) => {
-                if (!resolved) {
-                  resolved = true;
-                  reject(e);
-                }
-              },
-            });
-
-            // safety timeout in case onDone doesn't fire
-            const safety = setTimeout(() => {
-              if (!resolved) {
-                resolved = true;
-                console.warn("TTS chunk safety timeout, continuing");
-                resolve();
-              }
-              clearTimeout(safety);
-            }, Math.max(9000, chunk.length * 50)); // ~50ms per char baseline
-          } catch (err) {
-            reject(err);
-          }
-        });
-      }
-
-      // smooth fade ambient back to original
-      if (soundRef.current) {
-        try {
-          const status = await soundRef.current.getStatusAsync();
-          const curr = status.isLoaded && typeof status.volume === 'number' ? status.volume : volume * 0.3;
-          await fadeVolume(curr, originalVolume.current, 400);
-        } catch (e) {
-          console.warn("fade up failed:", e);
-          try { await soundRef.current.setVolumeAsync(originalVolume.current); } catch {}
-        }
-      }
-
+    } catch (e) {
+      console.error(e);
       setIsSpeaking(false);
-    } catch (err) {
-      console.error("TTS overall error:", err);
-      try { Speech.stop(); } catch (e) { console.warn("stop after error failed", e); }
-      // attempt restore
-      if (soundRef.current) {
-        try { await soundRef.current.setVolumeAsync(originalVolume.current); } catch (e) { console.warn("restore after error failed", e); }
-      }
+    } finally {
       setIsSpeaking(false);
     }
   };
