@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   Easing,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -130,6 +131,22 @@ export default function MeditationPlayerScreen() {
       useNativeDriver: true,
     }).start();
 
+    // Configure audio for playback in silent mode
+    const configureAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {
+        console.error("Error configuring audio:", e);
+      }
+    };
+    configureAudio();
+
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -218,14 +235,25 @@ export default function MeditationPlayerScreen() {
       setIsSpeaking(false);
       return;
     }
+
+    const scriptToRead = customSession.script;
+    if (!scriptToRead) {
+      console.warn("No script to read");
+      return;
+    }
     
     setIsSpeaking(true);
-    console.log("TTS triggered", { language: lang, script: customSession.script.substring(0, 50) });
+    // Use the language the meditation was generated in, or fallback to app language
+    const voiceLanguage = (customSession.language || lang) === 'zh' ? 'zh-CN' : 'en-US';
     
-    Speech.speak(customSession.script, {
-      language: lang.startsWith('zh') ? 'zh-CN' : 'en-US',
+    console.log("TTS triggered", { language: voiceLanguage, scriptLength: scriptToRead.length });
+    
+    Speech.speak(scriptToRead, {
+      language: voiceLanguage,
       rate: 0.9,
       pitch: 1.0,
+      // @ts-ignore: volume is supported on web but might not be in types
+      volume: 1.0,
       onStart: () => {
         console.log("TTS onStart callback");
       },
