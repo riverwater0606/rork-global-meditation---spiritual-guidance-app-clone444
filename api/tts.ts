@@ -1,7 +1,19 @@
-import type { NextApiRequest, NextApiResponse } from "next";
 import textToSpeech from "@google-cloud/text-to-speech";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// Simple type definitions to replace Next.js types
+interface VercelRequest {
+  method: string;
+  body: any;
+}
+
+interface VercelResponse {
+  status: (code: number) => VercelResponse;
+  json: (data: any) => void;
+  send: (data: any) => void;
+  setHeader: (name: string, value: string) => void;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -36,11 +48,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: "en-US-Wavenet-D",
       },
       audioConfig: {
-        audioEncoding: "MP3",
+        audioEncoding: "MP3" as const,
       },
     };
 
-    const [response] = await client.synthesizeSpeech(request);
+    const [response] = (await client.synthesizeSpeech(request)) as any;
 
     if (!response.audioContent) {
       return res.status(500).json({ error: "Google TTS returned no audio" });

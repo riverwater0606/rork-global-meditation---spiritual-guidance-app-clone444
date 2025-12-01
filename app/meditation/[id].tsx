@@ -20,7 +20,7 @@ import { MEDITATION_SESSIONS } from "@/constants/meditations";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import * as Speech from "expo-speech";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid, AVPlaybackStatus } from "expo-av";
 import Slider from "@react-native-community/slider";
 
 const { width } = Dimensions.get("window");
@@ -136,8 +136,8 @@ export default function MeditationPlayerScreen() {
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
           shouldDuckAndroid: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+          interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
           playThroughEarpieceAndroid: false,
         });
       } catch (e) {
@@ -207,8 +207,8 @@ export default function MeditationPlayerScreen() {
                 playsInSilentModeIOS: true,
                 staysActiveInBackground: true,
                 shouldDuckAndroid: true,
-                interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-                interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+                interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+                interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
                 playThroughEarpieceAndroid: false,
               });
             } catch (e) {
@@ -323,7 +323,7 @@ export default function MeditationPlayerScreen() {
         try {
           const status = await soundRef.current.getStatusAsync();
           const currentVol =
-            status && typeof status.volume === "number" && status.isLoaded ? status.volume : volume;
+            status.isLoaded && typeof status.volume === "number" ? status.volume : volume;
           await fadeVolume(currentVol, currentVol * 0.3, 300);
         } catch (e) {
           console.warn("fade down failed:", e);
@@ -385,14 +385,14 @@ export default function MeditationPlayerScreen() {
             try {
               if (soundRef.current) {
                 const status = await soundRef.current.getStatusAsync();
-                const curr = status && typeof status.volume === "number" && status.isLoaded ? status.volume : volume * 0.3;
+                const curr = status.isLoaded && typeof status.volume === "number" ? status.volume : volume * 0.3;
                 await fadeVolume(curr, originalVolume.current, 400);
               }
             } catch (e) {
               try { if (soundRef.current) await soundRef.current.setVolumeAsync(originalVolume.current); } catch {}
             }
             setIsSpeaking(false);
-            try { URL.revokeObjectURL(blobUrl); } catch {}
+            try { if (blobUrl) URL.revokeObjectURL(blobUrl); } catch {}
             // clear global ref
             // @ts-ignore
             globalThis.__CURRENT_TTS_AUDIO__ = null;
@@ -450,7 +450,7 @@ export default function MeditationPlayerScreen() {
             const checkStatus = async () => {
               try {
                 const status = await sound.getStatusAsync();
-                if (status.didJustFinish || !status.isLoaded) {
+                if ((status.isLoaded && status.didJustFinish) || !status.isLoaded) {
                   if (!done) {
                     done = true;
                     resolve();
@@ -477,7 +477,7 @@ export default function MeditationPlayerScreen() {
           try {
             if (soundRef.current) {
               const status = await soundRef.current.getStatusAsync();
-              const curr = status && typeof status.volume === "number" && status.isLoaded ? status.volume : volume * 0.3;
+              const curr = status.isLoaded && typeof status.volume === "number" ? status.volume : volume * 0.3;
               await fadeVolume(curr, originalVolume.current, 400);
             }
           } catch (e) {
@@ -529,7 +529,7 @@ export default function MeditationPlayerScreen() {
           try {
             if (soundRef.current) {
               const status = await soundRef.current.getStatusAsync();
-              const curr = status && typeof status.volume === "number" && status.isLoaded ? status.volume : volume * 0.3;
+              const curr = status.isLoaded && typeof status.volume === "number" ? status.volume : volume * 0.3;
               await fadeVolume(curr, originalVolume.current, 400);
             }
           } catch (e) {
