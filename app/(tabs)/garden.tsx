@@ -1,11 +1,15 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useMeditation } from "@/providers/MeditationProvider";
+import { useMeditation, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
-import { Send } from "lucide-react-native";
+import { useUser } from "@/providers/UserProvider";
+import { Send, Settings, RotateCcw, Plus, Zap, Star, Gift } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
+import Modal from "react-native-modal";
+
+const DEV_WALLET = "0xf683cbce6d42918907df66040015fcbdad411d9d";
 
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
@@ -88,19 +92,37 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
-  const { currentOrb, sendOrb, orbHistory } = useMeditation();
+  const { currentOrb, sendOrb, orbHistory, updateOrbState, updateOrbHistory } = useMeditation();
+  const { walletAddress } = useUser();
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
+  const [showDevMenu, setShowDevMenu] = useState(false);
+  const longPressTimer = useRef<any>(undefined);
   
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         interactionState.current.mode = 'gather';
+        longPressTimer.current = setTimeout(() => {
+          if (walletAddress === DEV_WALLET) {
+            setShowDevMenu(true);
+          }
+        }, 5000);
       },
       onPanResponderMove: (_, gestureState) => {
+        if (Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10) {
+            if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = undefined;
+            }
+        }
         interactionState.current.spinVelocity = gestureState.vx * 0.05;
       },
       onPanResponderRelease: () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = undefined;
+        }
         interactionState.current.mode = 'explode';
         setTimeout(() => {
           interactionState.current.mode = 'idle';
@@ -109,6 +131,80 @@ export default function GardenScreen() {
       },
     })
   ).current;
+
+  const handleDevAction = async (action: string) => {
+    setShowDevMenu(false);
+    
+    switch (action) {
+      case "add_layer": {
+        const nextLevel = currentOrb.level + 1;
+        const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+        const updatedOrb = {
+          ...currentOrb,
+          level: nextLevel,
+          layers: [...currentOrb.layers, newLayer],
+          isAwakened: nextLevel >= 7
+        };
+        await updateOrbState(updatedOrb);
+        break;
+      }
+      case "instant_awakened": {
+        const updatedOrb = {
+          ...currentOrb,
+          level: 7,
+          layers: CHAKRA_COLORS,
+          isAwakened: true,
+          createdAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        await updateOrbState(updatedOrb);
+        break;
+      }
+      case "instant_legendary": {
+        const updatedOrb = {
+          ...currentOrb,
+          level: 7,
+          layers: CHAKRA_COLORS,
+          isAwakened: true,
+          createdAt: new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        await updateOrbState(updatedOrb);
+        break;
+      }
+      case "instant_eternal": {
+        const updatedOrb = {
+          ...currentOrb,
+          level: 7,
+          layers: CHAKRA_COLORS,
+          isAwakened: true,
+          createdAt: new Date(Date.now() - 108 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        await updateOrbState(updatedOrb);
+        break;
+      }
+      case "send_self": {
+        const mockOrb = {
+          ...currentOrb,
+          id: `orb-mock-${Date.now()}`,
+          sender: "Me (Dev)",
+          message: "From the void.",
+          createdAt: new Date().toISOString()
+        };
+        await updateOrbHistory([mockOrb, ...orbHistory]);
+        break;
+      }
+      case "reset": {
+        const newOrb = {
+          id: `orb-${Date.now()}`,
+          level: 0,
+          layers: [],
+          isAwakened: false,
+          createdAt: new Date().toISOString(),
+        };
+        await updateOrbState(newOrb);
+        break;
+      }
+    }
+  };
 
   const handleSendOrb = async () => {
     if (!currentOrb.isAwakened && currentOrb.level < 1) {
@@ -173,6 +269,56 @@ export default function GardenScreen() {
            </Text>
         </View>
       </View>
+
+      <Modal
+        isVisible={showDevMenu}
+        onBackdropPress={() => setShowDevMenu(false)}
+        onBackButtonPress={() => setShowDevMenu(false)}
+        backdropOpacity={0.8}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+      >
+        <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
+          <Text style={[styles.devTitle, { color: currentTheme.text }]}>Dev Menu</Text>
+          <Text style={[styles.devSubtitle, { color: currentTheme.textSecondary }]}>{walletAddress?.slice(0, 10)}...</Text>
+          
+          <ScrollView style={{ maxHeight: 400 }}>
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('add_layer')}>
+              <Plus size={20} color={currentTheme.text} />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: +1 layer</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_awakened')}>
+              <Zap size={20} color="#F59E0B" />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Awakened (21d)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_legendary')}>
+              <Star size={20} color="#8B5CF6" />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Legendary (49d)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_eternal')}>
+              <Star size={20} color="#EC4899" />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Eternal (108d)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('send_self')}>
+              <Gift size={20} color={currentTheme.text} />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Send orb to myself</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('reset')}>
+              <RotateCcw size={20} color={currentTheme.text} />
+              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Reset orb</Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          <TouchableOpacity style={[styles.button, { marginTop: 20, backgroundColor: currentTheme.primary }]} onPress={() => setShowDevMenu(false)}>
+            <Text style={styles.buttonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       <View style={styles.controls}>
         <TouchableOpacity 
@@ -307,5 +453,34 @@ const styles = StyleSheet.create({
   orbSender: {
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  devMenu: {
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  devTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  devSubtitle: {
+    fontSize: 12,
+    marginBottom: 20,
+    fontFamily: 'monospace',
+  },
+  devOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    width: '100%',
+    gap: 10,
+  },
+  devOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

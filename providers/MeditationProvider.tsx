@@ -292,6 +292,16 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
   };
 
+  const updateOrbState = async (newOrb: Orb) => {
+    setCurrentOrb(newOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(newOrb));
+  };
+
+  const updateOrbHistory = async (newHistory: Orb[]) => {
+    setOrbHistory(newHistory);
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+  };
+
   return {
     stats,
     achievements,
@@ -303,5 +313,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
+    updateOrbState,
+    updateOrbHistory,
   };
 });
