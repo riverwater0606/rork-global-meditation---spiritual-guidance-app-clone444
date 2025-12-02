@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Search, Clock, Headphones, MoreHorizontal, Trash2, Palette, X } from "lucide-react-native";
+import { Search, Clock, MoreHorizontal, Trash2, Palette, X } from "lucide-react-native";
 import { router } from "expo-router";
 import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
@@ -187,10 +187,7 @@ export default function MeditateScreen() {
                       <Clock size={14} color="#E0E7FF" />
                       <Text style={styles.sessionCardMetaText}>{session.duration} min</Text>
                     </View>
-                    <View style={styles.sessionCardMetaItem}>
-                      <Headphones size={14} color="#E0E7FF" />
-                      <Text style={styles.sessionCardMetaText}>{session.narrator}</Text>
-                    </View>
+
                   </View>
                 </View>
               </LinearGradient>
