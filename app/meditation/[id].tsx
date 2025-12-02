@@ -453,7 +453,6 @@ export default function MeditationPlayerScreen() {
 
           <View style={styles.mainContent}>
             <Text style={styles.sessionTitle}>{session.title}</Text>
-            <Text style={styles.sessionNarrator}>with {session.narrator}</Text>
 
             <View style={styles.breathingMethodSelector}>
               <TouchableOpacity
@@ -700,11 +699,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 8,
   },
-  sessionNarrator: {
-    fontSize: 16,
-    color: "#E0E7FF",
-    marginBottom: 40,
-  },
+
   breathingContainer: {
     width: width * 0.7,
     height: width * 0.7,
@@ -752,17 +747,20 @@ const styles = StyleSheet.create({
   scriptScrollView: {
     flex: 1,
     width: "100%",
-    marginBottom: 20,
+    marginHorizontal: 20,
   },
   scriptContent: {
-    paddingHorizontal: 32,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
   },
   scriptText: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#E0E7FF",
-    lineHeight: 26,
+    lineHeight: 30,
     textAlign: "left",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 16,
   },
   speakingButton: {
     backgroundColor: "rgba(255, 215, 0, 0.3)",
