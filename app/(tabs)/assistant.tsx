@@ -276,7 +276,7 @@ The script should be 200-300 words. Use plain text.`
          // If we found title or duration but not script, likely the script is the rest of the text
          // This is a naive heuristic but better than nothing
          const lines = meditationText.split('\n');
-         const contentLines = lines.filter(line => 
+         const contentLines = lines.filter((line: string) => 
            !line.match(/(?:Title|標題)[：:]/i) && 
            !line.match(/(?:Duration|時長)[：:]/i)
          );
