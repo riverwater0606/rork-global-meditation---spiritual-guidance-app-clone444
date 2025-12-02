@@ -29,12 +29,41 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
+export interface Orb {
+  id: string;
+  level: number;
+  layers: string[]; // Colors
+  isAwakened: boolean;
+  createdAt: string;
+  completedAt?: string;
+  sender?: string;
+  message?: string;
+}
+
+export const CHAKRA_COLORS = [
+  "#FF0000", // Root - Red
+  "#FF7F00", // Sacral - Orange
+  "#FFFF00", // Solar Plexus - Yellow
+  "#00FF00", // Heart - Green
+  "#0000FF", // Throat - Blue
+  "#4B0082", // Third Eye - Indigo
+  "#9400D3", // Crown - Violet
+];
+
 const INITIAL_STATS: MeditationStats = {
   totalSessions: 0,
   totalMinutes: 0,
   currentStreak: 0,
   lastSessionDate: null,
   weekProgress: [false, false, false, false, false, false, false],
+};
+
+const INITIAL_ORB: Orb = {
+  id: "orb-init",
+  level: 0,
+  layers: [],
+  isAwakened: false,
+  createdAt: new Date().toISOString(),
 };
 
 const ACHIEVEMENTS: Achievement[] = [
@@ -72,10 +101,13 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [stats, setStats] = useState<MeditationStats>(INITIAL_STATS);
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
   const [customMeditations, setCustomMeditations] = useState<CustomMeditation[]>([]);
+  const [currentOrb, setCurrentOrb] = useState<Orb>(INITIAL_ORB);
+  const [orbHistory, setOrbHistory] = useState<Orb[]>([]);
 
   useEffect(() => {
     loadStats();
     loadCustomMeditations();
+    loadOrbData();
   }, []);
 
   const loadStats = async () => {
@@ -105,6 +137,17 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       }
     } catch (error) {
       console.error("Error loading custom meditations:", error);
+    }
+  };
+
+  const loadOrbData = async () => {
+    try {
+      const savedOrb = await AsyncStorage.getItem("currentOrb");
+      const savedHistory = await AsyncStorage.getItem("orbHistory");
+      if (savedOrb) setCurrentOrb(JSON.parse(savedOrb));
+      if (savedHistory) setOrbHistory(JSON.parse(savedHistory));
+    } catch (e) {
+      console.error("Failed to load orb data", e);
     }
   };
 
@@ -149,6 +192,24 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     setStats(newStats);
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
+
+    // Orb Logic
+    const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
+    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
+       const nextLevel = currentOrb.level + 1;
+       if (nextLevel <= 7) {
+         const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+         const updatedOrb = {
+           ...currentOrb,
+           level: nextLevel,
+           layers: [...currentOrb.layers, newLayer],
+           isAwakened: nextLevel === 7,
+           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+         };
+         setCurrentOrb(updatedOrb);
+         await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+       }
+    }
 
     // Check achievements
     const newAchievements = [...achievements];
@@ -206,13 +267,41 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     return newMeditation;
   };
 
+  const sendOrb = async (friendId: string, message: string) => {
+    const archivedOrb = { ...currentOrb, sender: "Me", message };
+    const newHistory = [archivedOrb, ...orbHistory];
+    setOrbHistory(newHistory);
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+
+    let nextOrb: Orb;
+    if (currentOrb.isAwakened) {
+       nextOrb = {
+         ...INITIAL_ORB,
+         id: `orb-${Date.now()}`,
+         createdAt: new Date().toISOString(),
+       };
+    } else {
+       nextOrb = {
+         ...INITIAL_ORB,
+         id: `orb-${Date.now()}`,
+         createdAt: new Date().toISOString(),
+       };
+    }
+    
+    setCurrentOrb(nextOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
+  };
+
   return {
     stats,
     achievements,
     customMeditations,
+    currentOrb,
+    orbHistory,
     completeMeditation,
     addCustomMeditation,
     deleteCustomMeditation,
     updateCustomMeditation,
+    sendOrb,
   };
 });

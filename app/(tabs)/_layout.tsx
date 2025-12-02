@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Activity, User, Sparkles, MessageCircle } from "lucide-react-native";
+import { Home, Activity, User, Sparkles, MessageCircle, Sprout } from "lucide-react-native";
 import React from "react";
 import { useSettings } from "@/providers/SettingsProvider";
 
@@ -13,6 +13,7 @@ export default function TabLayout() {
     progress: { en: "Progress", zh: "進度" },
     profile: { en: "Profile", zh: "個人資料" },
     assistant: { en: "AI Assistant", zh: "AI助手" },
+    garden: { en: "Garden", zh: "光球花園" },
   };
 
   return (
@@ -61,6 +62,13 @@ export default function TabLayout() {
         options={{
           title: translations.profile[lang],
           tabBarIcon: ({ color }) => <User size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="garden"
+        options={{
+          title: translations.garden[lang],
+          tabBarIcon: ({ color }) => <Sprout size={24} color={color} />,
         }}
       />
       <Tabs.Screen
