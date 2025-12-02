@@ -107,7 +107,7 @@ export default function MeditationPlayerScreen() {
     duration: customSession.duration,
     narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
     category: 'custom',
-    gradient: ['#8B5CF6', '#6366F1'],
+    gradient: customSession.gradient || ['#8B5CF6', '#6366F1'],
   } : sessionFromLibrary;
   
   const [isPlaying, setIsPlaying] = useState(false);

@@ -230,18 +230,20 @@ Please respond in a warm, supportive, and professional tone. Keep answers concis
             {
               role: "system",
               content: language === 'en'
-                ? `Generate a personalized guided meditation script based on the user's conversation. Format:
-Title: [Meditation title in English]
-Duration: [Duration in minutes, e.g. "10"]
-Script: [Full meditation script with pauses marked as "..." and guidance in gentle, calming language]
+                ? `Generate a personalized guided meditation script based on the user's conversation.
+STRICT OUTPUT FORMAT (Do not add any other text):
+Title: [Meditation title]
+Duration: [Duration in minutes, integer only]
+Script: [Full text to be spoken by TTS. Do not include 'Script:' label here, just the text.]
 
-Keep the script 200-300 words, suitable for reading aloud with TTS. Use present tense, second person ("you"). Include breathing cues and visualization.`
-                : `根據用戶的對話生成個性化的引導冥想腳本。格式：
-標題：[中文冥想標題]
-時長：[分鐘數，例如 "10"]
-腳本：[完整的冥想腳本，用"..."標記停頓，語言溫和平靜]
+The script should be 200-300 words. Use plain text.`
+                : `根據用戶的對話生成個性化的引導冥想腳本。
+嚴格輸出格式（不要添加其他文字）：
+標題：[冥想標題]
+時長：[分鐘數，僅數字]
+腳本：[TTS朗讀的完整文本。不要在此處包含'腳本：'標籤，僅包含文本。]
 
-腳本保持200-300字，適合TTS朗讀。使用現在式、第二人稱（"你"）。包含呼吸提示和觀想引導。`
+腳本保持200-300字。使用純文本。`
             },
             {
               role: "user",
@@ -256,13 +258,32 @@ Keep the script 200-300 words, suitable for reading aloud with TTS. Use present 
       const data = await response.json();
       const meditationText = data.completion;
 
-      const titleMatch = meditationText.match(/(?:Title|標題)[：:]\s*(.+)/i);
-      const durationMatch = meditationText.match(/(?:Duration|時長)[：:]\s*(\d+)/i);
-      const scriptMatch = meditationText.match(/(?:Script|腳本)[：:]\s*([\s\S]+)/i);
+      // Robust regex to handle potential markdown and spacing
+      const titleMatch = meditationText.match(/(?:^|\n)(?:[*#\s]*)(?:Title|標題)(?:[*#\s]*)\s*[:：]\s*(.+)/i);
+      const durationMatch = meditationText.match(/(?:^|\n)(?:[*#\s]*)(?:Duration|時長)(?:[*#\s]*)\s*[:：]\s*(\d+)/i);
+      
+      // Match Script label and everything after it
+      const scriptMatch = meditationText.match(/(?:^|\n)(?:[*#\s]*)(?:Script|腳本)(?:[*#\s]*)\s*[:：]\s*([\s\S]+)/i);
 
       const title = titleMatch ? titleMatch[1].trim() : (language === 'en' ? "Personal Meditation" : "專屬冥想");
       const duration = durationMatch ? parseInt(durationMatch[1]) : 10;
-      const script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+      
+      // If script match fails, try to use the whole text but strip title/duration if possible, or just use it all.
+      let script = scriptMatch ? scriptMatch[1].trim() : meditationText;
+      
+      // Fallback cleanup if regex failed but structure exists
+      if (!scriptMatch && (titleMatch || durationMatch)) {
+         // If we found title or duration but not script, likely the script is the rest of the text
+         // This is a naive heuristic but better than nothing
+         const lines = meditationText.split('\n');
+         const contentLines = lines.filter(line => 
+           !line.match(/(?:Title|標題)[：:]/i) && 
+           !line.match(/(?:Duration|時長)[：:]/i)
+         );
+         if (contentLines.length > 0) {
+           script = contentLines.join('\n').trim();
+         }
+      }
 
       await addCustomMeditation({
         title,

@@ -7,23 +7,43 @@ import {
   TouchableOpacity,
   TextInput,
   Dimensions,
+  Modal,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Search, Clock, Headphones } from "lucide-react-native";
+import { Search, Clock, Headphones, MoreHorizontal, Trash2, Palette, X } from "lucide-react-native";
 import { router } from "expo-router";
 import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
+import CustomModal from "@/components/CustomModal";
 
 const { width } = Dimensions.get("window");
 
+const COLOR_OPTIONS = [
+  { id: 'purple', colors: ['#8B5CF6', '#6366F1'], name: 'Purple' },
+  { id: 'blue', colors: ['#3B82F6', '#2563EB'], name: 'Blue' },
+  { id: 'green', colors: ['#10B981', '#059669'], name: 'Green' },
+  { id: 'orange', colors: ['#F59E0B', '#D97706'], name: 'Orange' },
+  { id: 'pink', colors: ['#EC4899', '#DB2777'], name: 'Pink' },
+  { id: 'teal', colors: ['#14B8A6', '#0D9488'], name: 'Teal' },
+  { id: 'indigo', colors: ['#6366F1', '#4F46E5'], name: 'Indigo' },
+  { id: 'rose', colors: ['#F43F5E', '#E11D48'], name: 'Rose' },
+];
+
 export default function MeditateScreen() {
   const { currentTheme, settings } = useSettings();
-  const { customMeditations } = useMeditation();
+  const { customMeditations, deleteCustomMeditation, updateCustomMeditation } = useMeditation();
   const lang = settings.language;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  
+  // Modal states
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const customSessionsFormatted = customMeditations.map(m => ({
     id: m.id,
@@ -32,10 +52,36 @@ export default function MeditateScreen() {
     duration: m.duration,
     narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
     category: 'custom',
-    gradient: ['#8B5CF6', '#6366F1'] as [string, string],
+    gradient: m.gradient || ['#8B5CF6', '#6366F1'],
   }));
 
   const allSessions = [...customSessionsFormatted, ...MEDITATION_SESSIONS];
+
+  const handleLongPress = (id: string) => {
+    // Only allow editing custom sessions
+    if (id.startsWith('custom-')) {
+      setSelectedSessionId(id);
+      setShowActionModal(true);
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedSessionId) {
+      deleteCustomMeditation(selectedSessionId);
+      setShowDeleteConfirm(false);
+      setShowActionModal(false);
+      setSelectedSessionId(null);
+    }
+  };
+
+  const handleColorUpdate = (colors: [string, string]) => {
+    if (selectedSessionId) {
+      updateCustomMeditation(selectedSessionId, { gradient: colors });
+      setShowColorModal(false);
+      setShowActionModal(false);
+      setSelectedSessionId(null);
+    }
+  };
 
   const filteredSessions = allSessions.filter((session) => {
     const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,6 +156,8 @@ export default function MeditateScreen() {
                 index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
               ]}
               onPress={() => router.push(`/meditation/${session.id}`)}
+              onLongPress={() => handleLongPress(session.id)}
+              delayLongPress={500}
               testID={`meditation-${session.id}`}
             >
               <LinearGradient
@@ -119,7 +167,17 @@ export default function MeditateScreen() {
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.sessionCardContent}>
-                  <Text style={styles.sessionCardTitle}>{session.title}</Text>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.sessionCardTitle} numberOfLines={2}>{session.title}</Text>
+                    {session.id.startsWith('custom-') && (
+                       <TouchableOpacity 
+                         onPress={() => handleLongPress(session.id)}
+                         style={styles.moreButton}
+                       >
+                         <MoreHorizontal size={16} color="rgba(255,255,255,0.7)" />
+                       </TouchableOpacity>
+                    )}
+                  </View>
                   <Text style={styles.sessionCardDescription} numberOfLines={2}>
                     {session.description}
                   </Text>
@@ -142,6 +200,115 @@ export default function MeditateScreen() {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Action Sheet Modal */}
+      <Modal
+        visible={showActionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActionModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowActionModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.actionSheet}>
+                <View style={styles.actionHeader}>
+                  <Text style={styles.actionTitle}>
+                    {lang === 'zh' ? '管理冥想' : 'Manage Meditation'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowActionModal(false)}>
+                    <X size={24} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.actionItem} 
+                  onPress={() => {
+                    setShowActionModal(false);
+                    setTimeout(() => setShowColorModal(true), 100);
+                  }}
+                >
+                  <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
+                    <Palette size={20} color="#6366F1" />
+                  </View>
+                  <Text style={styles.actionText}>
+                    {lang === 'zh' ? '更換顏色' : 'Change Color'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.actionItem, styles.actionItemDestructive]} 
+                  onPress={() => {
+                    setShowActionModal(false);
+                    setTimeout(() => setShowDeleteConfirm(true), 100);
+                  }}
+                >
+                  <View style={[styles.actionIcon, { backgroundColor: '#FEF2F2' }]}>
+                    <Trash2 size={20} color="#EF4444" />
+                  </View>
+                  <Text style={[styles.actionText, styles.actionTextDestructive]}>
+                    {lang === 'zh' ? '刪除冥想' : 'Delete Meditation'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Color Picker Modal */}
+      <Modal
+        visible={showColorModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowColorModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowColorModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.colorSheet}>
+                <View style={styles.actionHeader}>
+                  <Text style={styles.actionTitle}>
+                    {lang === 'zh' ? '選擇顏色主題' : 'Select Theme'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowColorModal(false)}>
+                    <X size={24} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.colorGrid}>
+                  {COLOR_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={styles.colorOption}
+                      onPress={() => handleColorUpdate(option.colors as [string, string])}
+                    >
+                      <LinearGradient
+                        colors={option.colors as [string, string]}
+                        style={styles.colorCircle}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <CustomModal
+        isVisible={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title={lang === 'zh' ? '刪除冥想' : 'Delete Meditation'}
+        message={lang === 'zh' ? '確定要刪除這個專屬冥想嗎？此操作無法撤銷。' : 'Are you sure you want to delete this meditation? This action cannot be undone.'}
+        cancelText={lang === 'zh' ? '取消' : 'Cancel'}
+        confirmText={lang === 'zh' ? '刪除' : 'Delete'}
+        onConfirm={handleDelete}
+        confirmDestructive
+      />
     </View>
   );
 }
@@ -225,6 +392,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FFFFFF",
     marginBottom: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  moreButton: {
+    padding: 4,
+    marginRight: -4,
+    marginTop: -4,
   },
   sessionCardDescription: {
     fontSize: 12,
@@ -247,5 +426,79 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  colorSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  actionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  actionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  actionItemDestructive: {
+    borderBottomWidth: 0,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  actionTextDestructive: {
+    color: '#EF4444',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'center',
+  },
+  colorOption: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    padding: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorCircle: {
+    flex: 1,
+    borderRadius: 30,
   },
 });

@@ -26,6 +26,7 @@ interface CustomMeditation {
   language: "en" | "zh";
   createdAt: string;
   breathingMethod?: string;
+  gradient?: [string, string];
 }
 
 const INITIAL_STATS: MeditationStats = {
@@ -179,12 +180,25 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
+  const deleteCustomMeditation = async (id: string) => {
+    const updated = customMeditations.filter(m => m.id !== id);
+    setCustomMeditations(updated);
+    await AsyncStorage.setItem("customMeditations", JSON.stringify(updated));
+  };
+
+  const updateCustomMeditation = async (id: string, updates: Partial<CustomMeditation>) => {
+    const updated = customMeditations.map(m => m.id === id ? { ...m, ...updates } : m);
+    setCustomMeditations(updated);
+    await AsyncStorage.setItem("customMeditations", JSON.stringify(updated));
+  };
+
   const addCustomMeditation = async (meditation: Omit<CustomMeditation, "id" | "createdAt">) => {
     const newMeditation: CustomMeditation = {
       ...meditation,
       id: `custom-${Date.now()}`,
       createdAt: new Date().toISOString(),
       breathingMethod: "4-7-8",
+      gradient: ["#8B5CF6", "#6366F1"],
     };
     const updated = [...customMeditations, newMeditation];
     setCustomMeditations(updated);
@@ -198,5 +212,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     customMeditations,
     completeMeditation,
     addCustomMeditation,
+    deleteCustomMeditation,
+    updateCustomMeditation,
   };
 });
