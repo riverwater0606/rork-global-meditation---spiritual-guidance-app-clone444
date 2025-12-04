@@ -29,20 +29,15 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
-export type OrbStage = 'growing' | 'awakened' | 'legendary' | 'eternal';
-
 export interface Orb {
   id: string;
   level: number;
   layers: string[]; // Colors
-  stage: OrbStage;
-  minutes: number;
-  brightness: number; // 0.0 to 1.0
+  isAwakened: boolean;
   createdAt: string;
   completedAt?: string;
   sender?: string;
   message?: string;
-  isArchived?: boolean; // If true, it's in the garden collection, not the active one
 }
 
 export const CHAKRA_COLORS = [
@@ -54,12 +49,6 @@ export const CHAKRA_COLORS = [
   "#4B0082", // Third Eye - Indigo
   "#9400D3", // Crown - Violet
 ];
-
-export const ORB_STAGES = {
-  AWAKENED: 21,
-  LEGENDARY: 49,
-  ETERNAL: 108,
-};
 
 const INITIAL_STATS: MeditationStats = {
   totalSessions: 0,
@@ -73,9 +62,7 @@ const INITIAL_ORB: Orb = {
   id: "orb-init",
   level: 0,
   layers: [],
-  stage: 'growing',
-  minutes: 0,
-  brightness: 1.0,
+  isAwakened: false,
   createdAt: new Date().toISOString(),
 };
 
@@ -208,35 +195,20 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     // Orb Logic
     const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
-    // We award minutes for every session now, or maybe limited? 
-    // Prompt says "Every 10 min meditation = stunning visual reward".
-    // Let's add minutes regardless of "already meditated", but maybe limit layers per day?
-    // Prompt: "Daily meditation → orb absorbs today's color (stack up to 7 layers)"
-    // So layers are limited to 1 per day. Minutes are cumulative.
-
-    let updatedOrb = { ...currentOrb };
-    let orbChanged = false;
-
-    // Add minutes
-    updatedOrb.minutes += duration;
-    orbChanged = true;
-
-    // Check Stage
-    if (updatedOrb.minutes >= ORB_STAGES.ETERNAL) updatedOrb.stage = 'eternal';
-    else if (updatedOrb.minutes >= ORB_STAGES.LEGENDARY) updatedOrb.stage = 'legendary';
-    else if (updatedOrb.minutes >= ORB_STAGES.AWAKENED) updatedOrb.stage = 'awakened';
-
-    // Add Layer (only once per day)
-    if (!alreadyMeditatedToday && updatedOrb.layers.length < 7) {
-       const newLayer = CHAKRA_COLORS[updatedOrb.layers.length % 7];
-       updatedOrb.layers = [...updatedOrb.layers, newLayer];
-       updatedOrb.level = updatedOrb.layers.length;
-       orbChanged = true;
-    }
-
-    if (orbChanged) {
-        setCurrentOrb(updatedOrb);
-        await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
+       const nextLevel = currentOrb.level + 1;
+       if (nextLevel <= 7) {
+         const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+         const updatedOrb = {
+           ...currentOrb,
+           level: nextLevel,
+           layers: [...currentOrb.layers, newLayer],
+           isAwakened: nextLevel === 7,
+           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+         };
+         setCurrentOrb(updatedOrb);
+         await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+       }
     }
 
     // Check achievements
@@ -296,90 +268,28 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   };
 
   const sendOrb = async (friendId: string, message: string) => {
-    // Archive current orb
-    const archivedOrb = { 
-        ...currentOrb, 
-        sender: "Me", 
-        message, 
-        isArchived: true,
-        completedAt: new Date().toISOString()
-    };
-    
-    // Add to history (Garden Collection)
+    const archivedOrb = { ...currentOrb, sender: "Me", message };
     const newHistory = [archivedOrb, ...orbHistory];
     setOrbHistory(newHistory);
     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
 
-    // Create copy if eligible (70% brightness)
     let nextOrb: Orb;
-    
-    // Check if we should keep a copy (Awakened+)
-    const canKeepCopy = currentOrb.stage !== 'growing'; // Awakened or better
-    
-    if (canKeepCopy) {
-        nextOrb = {
-            ...currentOrb,
-            id: `orb-${Date.now()}`,
-            brightness: 0.7, // Dim copy
-            message: undefined,
-            sender: undefined,
-            createdAt: new Date().toISOString(),
-        };
+    if (currentOrb.isAwakened) {
+       nextOrb = {
+         ...INITIAL_ORB,
+         id: `orb-${Date.now()}`,
+         createdAt: new Date().toISOString(),
+       };
     } else {
-        // Reset to new
-        nextOrb = {
-            ...INITIAL_ORB,
-            id: `orb-${Date.now()}`,
-            createdAt: new Date().toISOString(),
-        };
+       nextOrb = {
+         ...INITIAL_ORB,
+         id: `orb-${Date.now()}`,
+         createdAt: new Date().toISOString(),
+       };
     }
     
     setCurrentOrb(nextOrb);
     await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
-  };
-
-  const synthesizeOrbs = async (orbId1: string, orbId2: string) => {
-    // Find orbs in history
-    const orb1Index = orbHistory.findIndex(o => o.id === orbId1);
-    const orb2Index = orbHistory.findIndex(o => o.id === orbId2);
-    
-    if (orb1Index === -1 || orb2Index === -1) return;
-    
-    const orb1 = orbHistory[orb1Index];
-    const orb2 = orbHistory[orb2Index];
-    
-    // Merge Layers (Unique)
-    const combinedLayers = Array.from(new Set([...orb1.layers, ...orb2.layers])).slice(0, 7);
-    
-    // Bonus Minutes
-    const bonusMinutes = 40;
-    const totalMinutes = orb1.minutes + orb2.minutes + bonusMinutes;
-    
-    // Determine Stage
-    let newStage: OrbStage = 'growing';
-    if (totalMinutes >= ORB_STAGES.ETERNAL) newStage = 'eternal';
-    else if (totalMinutes >= ORB_STAGES.LEGENDARY) newStage = 'legendary';
-    else if (totalMinutes >= ORB_STAGES.AWAKENED) newStage = 'awakened';
-    
-    const newOrb: Orb = {
-        id: `orb-synth-${Date.now()}`,
-        level: combinedLayers.length,
-        layers: combinedLayers,
-        stage: newStage,
-        minutes: totalMinutes,
-        brightness: 1.0,
-        createdAt: new Date().toISOString(),
-        sender: "Synthesis",
-        message: "Born from fusion.",
-        isArchived: true
-    };
-    
-    // Remove old orbs and add new one
-    const newHistory = orbHistory.filter(o => o.id !== orbId1 && o.id !== orbId2);
-    const finalHistory = [newOrb, ...newHistory];
-    
-    setOrbHistory(finalHistory);
-    await AsyncStorage.setItem("orbHistory", JSON.stringify(finalHistory));
   };
 
   const updateOrbState = async (newOrb: Orb) => {
@@ -403,7 +313,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
-    synthesizeOrbs,
     updateOrbState,
     updateOrbHistory,
   };
