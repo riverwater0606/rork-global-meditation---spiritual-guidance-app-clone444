@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Dimensions, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Dimensions, Platform, Animated, Easing } from "react-native";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Stars, Sparkles, Float, Trail } from "@react-three/drei";
 import * as THREE from "three";
@@ -272,6 +272,28 @@ export default function GardenScreen() {
     const [showDevMenu, setShowDevMenu] = useState(false);
     const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
     const longPressTimer = useRef<any>(undefined);
+    const breathAnimation = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(breathAnimation, {
+                        toValue: 1.1,
+                        duration: 4000,
+                        useNativeDriver: false, // Web doesn't support native driver for some properties, safer false here or check
+                        easing: Easing.inOut(Easing.ease),
+                    }),
+                    Animated.timing(breathAnimation, {
+                        toValue: 1,
+                        duration: 4000,
+                        useNativeDriver: false,
+                        easing: Easing.inOut(Easing.ease),
+                    }),
+                ])
+            ).start();
+        }
+    }, []);
 
     const panResponder = useRef(
         PanResponder.create({
@@ -455,16 +477,29 @@ export default function GardenScreen() {
 
             {/* 3D Scene */}
             <View style={styles.sceneContainer} {...panResponder.panHandlers}>
-                 <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-                    <GardenScene 
-                        activeOrb={currentOrb} 
-                        collection={orbHistory}
-                        viewMode={viewMode}
-                        interactionState={interactionState}
-                        selectedOrbs={selectedOrbs}
-                        toggleSelection={toggleSelection}
-                    />
-                 </Canvas>
+                 {Platform.OS !== 'web' ? (
+                     <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+                        <GardenScene 
+                            activeOrb={currentOrb} 
+                            collection={orbHistory}
+                            viewMode={viewMode}
+                            interactionState={interactionState}
+                            selectedOrbs={selectedOrbs}
+                            toggleSelection={toggleSelection}
+                        />
+                     </Canvas>
+                 ) : (
+                    <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        <Text style={{color:'#fff', fontSize:24, marginBottom:40, fontWeight: 'bold', letterSpacing: 2}}>光球花園</Text>
+                        <Animated.View style={[styles.fallbackOrb, {transform:[{scale:breathAnimation}]}]}>
+                            <LinearGradient
+                                colors={['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.1)']}
+                                style={StyleSheet.absoluteFill}
+                            />
+                        </Animated.View>
+                        <Text style={{color:'#aaa', marginTop: 40, letterSpacing: 1}}>Web Version Loading...</Text>
+                    </View>
+                 )}
             </View>
 
             {/* Overlay UI */}
@@ -692,5 +727,18 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
         gap: 10,
+    },
+    fallbackOrb: {
+        width: 200,
+        height: 200,
+        borderRadius: 100,
+        backgroundColor: '#7c3aed', // A nice purple/chakra color
+        shadowColor: '#fff',
+        shadowOpacity: 0.6,
+        shadowRadius: 40,
+        shadowOffset: { width: 0, height: 0 },
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.8)',
+        overflow: 'hidden',
     },
 });
