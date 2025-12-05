@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, Component, type ErrorInfo, type ReactNode } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, TextInput } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas } from "@/lib/r3f";
@@ -9,206 +9,249 @@ import { Send, Plus, Zap, Star, Gift, RotateCcw, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import Modal from "react-native-modal";
 import { GestureDetector, Gesture, GestureHandlerRootView } from "react-native-gesture-handler";
-import { Gyroscope } from 'expo-sensors';
-import { BlurView } from 'expo-blur';
-
-// New Components
+import { Gyroscope, type GyroscopeMeasurement } from "expo-sensors";
+import { BlurView } from "expo-blur";
 import { GardenScene } from "@/components/garden/GardenScene";
 
 const DEV_WALLET = "0xf683cbce6d42918907df66040015fcbdad411d9d";
+type InteractionMode = "idle" | "gather" | "charge";
+type DevAction = "add_10_min" | "instant_awakened" | "instant_legendary" | "instant_eternal" | "send_self" | "reset";
+
+interface CanvasErrorBoundaryProps {
+  children: ReactNode;
+  onFailure: (error: Error) => void;
+}
+
+interface CanvasErrorBoundaryState {
+  hasError: boolean;
+}
+
+class CanvasErrorBoundary extends Component<CanvasErrorBoundaryProps, CanvasErrorBoundaryState> {
+  state: CanvasErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): CanvasErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.log("[Garden] Canvas crashed", error, errorInfo);
+    this.props.onFailure(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const { currentOrb, sendOrb, orbHistory, updateOrbState, updateOrbHistory, mergeOrb } = useMeditation();
   const { walletAddress } = useUser();
-  const [showDevMenu, setShowDevMenu] = useState(false);
-  const [showSendModal, setShowSendModal] = useState(false);
-  const [recipient, setRecipient] = useState("");
-  const [interactionMode, setInteractionMode] = useState<'idle' | 'gather' | 'charge'>('idle');
-  
-  // Gyroscope data for parallax
-  const [gyroData, setGyroData] = useState({ x: 0, y: 0, z: 0 });
-  const isWeb = Platform.OS === 'web';
-  
+  const [showDevMenu, setShowDevMenu] = useState<boolean>(false);
+  const [showSendModal, setShowSendModal] = useState<boolean>(false);
+  const [recipient, setRecipient] = useState<string>("");
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>("idle");
+  const [gyroData, setGyroData] = useState<GyroscopeMeasurement>({ x: 0, y: 0, z: 0, timestamp: Date.now() });
+  const [canvasFailed, setCanvasFailed] = useState<boolean>(false);
+  const isWeb = Platform.OS === "web";
+  const shouldUseGyroscope = !isWeb;
+
   useEffect(() => {
-    Gyroscope.setUpdateInterval(16);
-    const subscription = Gyroscope.addListener((data: { x: number, y: number, z: number }) => {
-      setGyroData(data);
-    });
-    return () => subscription.remove();
+    if (!shouldUseGyroscope) {
+      console.log("[Garden] Gyroscope disabled on web");
+      return;
+    }
+    let subscription: ReturnType<typeof Gyroscope.addListener> | null = null;
+    try {
+      Gyroscope.setUpdateInterval(16);
+      subscription = Gyroscope.addListener((data: GyroscopeMeasurement) => {
+        setGyroData(data);
+      });
+      console.log("[Garden] Gyroscope listener attached");
+    } catch (error) {
+      console.log("[Garden] Gyroscope listener error", error);
+      setGyroData({ x: 0, y: 0, z: 0, timestamp: Date.now() });
+    }
+    return () => {
+      subscription?.remove?.();
+    };
+  }, [shouldUseGyroscope]);
+
+  const handleCanvasFailure = useCallback((error: Error) => {
+    console.log("[Garden] Falling back to 2D backdrop", error);
+    setCanvasFailed(true);
   }, []);
 
-  const handleDevAction = async (action: string) => {
+  const handleDevAction = useCallback(async (action: DevAction) => {
     setShowDevMenu(false);
-    
+    console.log("[Garden] Dev action", action);
     switch (action) {
       case "add_10_min": {
-          const mins = (currentOrb.accumulatedMinutes || 0) + 10;
-          let status = currentOrb.status;
-          if (mins >= 108) status = 'eternal';
-          else if (mins >= 49) status = 'legendary';
-          else if (mins >= 21) status = 'awakened';
-          
-          const newLayers = [...currentOrb.layers];
-          if (newLayers.length < 7 && mins % 10 === 0) { // Rough check
-              newLayers.push(CHAKRA_COLORS[newLayers.length % 7]);
-          }
-
-          const updated = { ...currentOrb, accumulatedMinutes: mins, status: status as any, layers: newLayers };
-          await updateOrbState(updated);
-          break;
+        const minutes = (currentOrb.accumulatedMinutes || 0) + 10;
+        let status: Orb["status"] = currentOrb.status;
+        if (minutes >= 108) {
+          status = "eternal";
+        } else if (minutes >= 49) {
+          status = "legendary";
+        } else if (minutes >= 21) {
+          status = "awakened";
+        }
+        const newLayers = [...currentOrb.layers];
+        if (newLayers.length < 7 && minutes % 10 === 0) {
+          newLayers.push(CHAKRA_COLORS[newLayers.length % 7]);
+        }
+        await updateOrbState({
+          ...currentOrb,
+          accumulatedMinutes: minutes,
+          status,
+          layers: newLayers,
+        });
+        break;
       }
       case "instant_awakened": {
-        const updatedOrb = {
+        await updateOrbState({
           ...currentOrb,
           level: 3,
           accumulatedMinutes: 21,
-          status: 'awakened' as const,
+          status: "awakened",
           layers: CHAKRA_COLORS.slice(0, 3),
-          isAwakened: true,
-        };
-        await updateOrbState(updatedOrb);
+        });
         break;
       }
       case "instant_legendary": {
-        const updatedOrb = {
+        await updateOrbState({
           ...currentOrb,
           level: 5,
           accumulatedMinutes: 49,
-          status: 'legendary' as const,
+          status: "legendary",
           layers: CHAKRA_COLORS.slice(0, 5),
-          isAwakened: true,
-        };
-        await updateOrbState(updatedOrb);
+        });
         break;
       }
       case "instant_eternal": {
-        const updatedOrb = {
+        await updateOrbState({
           ...currentOrb,
           level: 7,
           accumulatedMinutes: 108,
-          status: 'eternal' as const,
+          status: "eternal",
           layers: CHAKRA_COLORS,
-          isAwakened: true,
-        };
-        await updateOrbState(updatedOrb);
+        });
         break;
       }
       case "send_self": {
-        const mockOrb = {
+        const mockOrb: Orb = {
           ...currentOrb,
           id: `orb-mock-${Date.now()}`,
           sender: "Me (Dev)",
           message: "From the void.",
           createdAt: new Date().toISOString(),
           accumulatedMinutes: 30,
-          status: 'awakened' as const
+          status: "awakened",
         };
         await updateOrbHistory([mockOrb, ...orbHistory]);
         break;
       }
       case "reset": {
-        const newOrb = {
+        const freshOrb: Orb = {
           id: `orb-${Date.now()}`,
           level: 0,
           accumulatedMinutes: 0,
-          status: 'seed' as const,
+          status: "seed",
           layers: [],
-          isAwakened: false,
           createdAt: new Date().toISOString(),
         };
-        await updateOrbState(newOrb);
+        await updateOrbState(freshOrb);
         break;
       }
+      default:
+        break;
     }
-  };
+  }, [currentOrb, orbHistory, updateOrbHistory, updateOrbState]);
 
-  const handleSendOrb = async () => {
+  const handleSendOrb = useCallback(() => {
     if ((currentOrb.accumulatedMinutes || 0) < 21) {
       Alert.alert(
-          settings.language === 'zh' ? "能量不足" : "Not Enough Energy", 
-          settings.language === 'zh' ? "需積累 21 分鐘能量才能喚醒光球。" : "Need 21 minutes of accumulated energy to awaken the orb."
+        settings.language === "zh" ? "能量不足" : "Not Enough Energy",
+        settings.language === "zh" ? "需積累 21 分鐘能量才能喚醒光球。" : "Need 21 minutes of accumulated energy to awaken the orb."
       );
       return;
     }
     setShowSendModal(true);
-  };
-  
-  // Gesture for "Hold" (Long Press) to show Dev Menu or Gather Energy
+  }, [currentOrb.accumulatedMinutes, settings.language]);
+
+  const handleSendConfirm = useCallback(async () => {
+    setShowSendModal(false);
+    try {
+      if (MiniKit && MiniKit.isInstalled()) {
+        await MiniKit.commands.transferNft({
+          collectionAddress: "0x1234567890123456789012345678901234567890",
+          tokenId: "1",
+          recipient: recipient || "0x000",
+        });
+      }
+    } catch (error) {
+      console.log("[Garden] MiniKit transfer fallback", error);
+    }
+    await sendOrb(recipient || "friend", "May light guide you.");
+    Alert.alert("Sent!", "Your orb is on its way.");
+    setRecipient("");
+  }, [recipient, sendOrb]);
+
   const longPressGesture = Gesture.LongPress()
     .minDuration(5000)
     .onStart(() => {
-        if (walletAddress === DEV_WALLET) {
-            runOnJS(setShowDevMenu)(true);
-        }
+      if (walletAddress === DEV_WALLET) {
+        runOnJS(setShowDevMenu)(true);
+      }
     });
 
   const tapGesture = Gesture.Tap()
     .onBegin(() => {
-         runOnJS(setInteractionMode)('gather');
+      runOnJS(setInteractionMode)("gather");
     })
     .onFinalize(() => {
-         runOnJS(setInteractionMode)('idle');
+      runOnJS(setInteractionMode)("idle");
     });
 
   const composedGestures = Gesture.Simultaneous(longPressGesture, tapGesture);
 
-  // Helper function to run on JS thread if needed (mimicking Reanimated behavior safely)
-  // Since we removed Reanimated, we can just call setters directly in callbacks if not using worklets
-  // But gesture handler callbacks might need care. Wrapper:
-  function runOnJS(fn: any) {
-      return (args: any) => fn(args);
+  function runOnJS<T extends (...args: any[]) => void>(fn: T) {
+    return (...args: Parameters<T>) => fn(...args);
   }
 
-  const handleSendConfirm = async () => {
-       setShowSendModal(false);
-       if (MiniKit && MiniKit.isInstalled()) {
-        try {
-            await MiniKit.commands.transferNft({
-                collectionAddress: "0x1234567890123456789012345678901234567890", 
-                tokenId: "1", 
-                recipient: recipient || "0x000", 
-            });
-        } catch (error) {
-            console.log("MiniKit transfer fallback", error);
-        }
-       }
-       await sendOrb(recipient || "friend", "May light guide you.");
-       Alert.alert("Sent!", "Your orb is on its way.");
-       setRecipient("");
-  };
-
-  // Progress calculations
   const mins = currentOrb.accumulatedMinutes || 0;
   let nextMilestone = 21;
   let prevMilestone = 0;
   let statusLabel = "Seed";
-  
+
   if (mins >= 108) {
-      nextMilestone = 9999;
-      prevMilestone = 108;
-      statusLabel = "Eternal";
+    nextMilestone = 9999;
+    prevMilestone = 108;
+    statusLabel = "Eternal";
   } else if (mins >= 49) {
-      nextMilestone = 108;
-      prevMilestone = 49;
-      statusLabel = "Legendary";
+    nextMilestone = 108;
+    prevMilestone = 49;
+    statusLabel = "Legendary";
   } else if (mins >= 21) {
-      nextMilestone = 49;
-      prevMilestone = 21;
-      statusLabel = "Awakened";
+    nextMilestone = 49;
+    prevMilestone = 21;
+    statusLabel = "Awakened";
   }
-  
+
   const progressPercent = Math.min(100, Math.max(0, ((mins - prevMilestone) / (nextMilestone - prevMilestone)) * 100));
+  const currentLayerIndex = (currentOrb.level ?? currentOrb.layers.length ?? 0) % CHAKRA_COLORS.length;
+  const progressColor = CHAKRA_COLORS[currentLayerIndex] ?? "#FFFFFF";
+  const shouldRender3D = !isWeb && !canvasFailed;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={[styles.container, { backgroundColor: '#000' }]}>
-          
-          {/* Background Scene */}
-          <View style={StyleSheet.absoluteFill}>
-            {isWeb ? (
-              <WebGardenBackdrop orb={currentOrb} interactionMode={interactionMode} />
-            ) : (
+      <View style={[styles.container, { backgroundColor: "#000" }]}>
+        <View style={StyleSheet.absoluteFill}>
+          {shouldRender3D ? (
+            <CanvasErrorBoundary onFailure={handleCanvasFailure}>
               <Canvas style={{ flex: 1 }}>
                 <GardenScene
                   orb={currentOrb}
@@ -218,126 +261,138 @@ export default function GardenScreen() {
                   onMerge={mergeOrb}
                 />
               </Canvas>
-            )}
-          </View>
-
-          {/* Overlay UI */}
-          <GestureDetector gesture={composedGestures}>
-             <View style={styles.touchLayer} />
-          </GestureDetector>
-
-          <View style={styles.header}>
-            <BlurView intensity={20} style={styles.blurHeader}>
-                <Text style={[styles.title, { color: '#FFF' }]}>
-                {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-                </Text>
-                <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{statusLabel}</Text>
-                </View>
-            </BlurView>
-          </View>
-
-          {/* Bottom Controls */}
-          <View style={styles.footer}>
-             <View style={styles.progressContainer}>
-                 <Text style={styles.progressText}>
-                    {mins} / {nextMilestone === 9999 ? "∞" : nextMilestone} min
-                 </Text>
-                 <View style={styles.progressBarBg}>
-                     <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: CHAKRA_COLORS[currentOrb.level % 7] || '#FFF' }]} />
-                 </View>
-                 <Text style={styles.progressSub}>
-                    {settings.language === 'zh' ? "距離下一階段" : "To next evolution"}
-                 </Text>
-             </View>
-             
-             <View style={styles.controls}>
-                <TouchableOpacity style={styles.sendButton} onPress={handleSendOrb}>
-                    <Send color="#000" size={24} />
-                    <Text style={styles.sendButtonText}>
-                        {settings.language === 'zh' ? "贈送" : "Gift"}
-                    </Text>
-                </TouchableOpacity>
-             </View>
-          </View>
-          
-          {/* Collection Scroll (Horizontal at bottom) */}
-          <View style={styles.collectionContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionContent}>
-                   {orbHistory.map((orb, i) => (
-                       <TouchableOpacity key={i} style={styles.miniOrb}>
-                           <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: orb.layers[orb.layers.length-1] || '#FFF', opacity: 0.8 }} />
-                       </TouchableOpacity>
-                   ))}
-              </ScrollView>
-          </View>
-
-          {/* Dev Menu Modal */}
-          <Modal isVisible={showDevMenu} onBackdropPress={() => setShowDevMenu(false)}>
-            <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
-              <Text style={[styles.devTitle, { color: currentTheme.text }]}>Dev Access</Text>
-              <ScrollView>
-                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('add_10_min')}>
-                  <Plus size={20} color={currentTheme.text} />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>+10 Minutes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_awakened')}>
-                  <Zap size={20} color="#F59E0B" />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Awakened</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_legendary')}>
-                  <Star size={20} color="#8B5CF6" />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Legendary</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_eternal')}>
-                  <Star size={20} color="#EC4899" />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Eternal</Text>
-                </TouchableOpacity>
-                 <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('send_self')}>
-                  <Gift size={20} color={currentTheme.text} />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Send Mock Orb to Me</Text>
-                </TouchableOpacity>
-                 <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('reset')}>
-                  <RotateCcw size={20} color={currentTheme.text} />
-                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Reset</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </Modal>
-
-          {/* Send Modal */}
-          <Modal isVisible={showSendModal} onBackdropPress={() => setShowSendModal(false)}>
-            <View style={[styles.modalContent, { backgroundColor: currentTheme.surface }]}>
-                <View style={styles.modalHeader}>
-                    <Text style={[styles.modalTitle, { color: currentTheme.text }]}>
-                        {settings.language === 'zh' ? "贈送光球" : "Send Orb"}
-                    </Text>
-                    <TouchableOpacity onPress={() => setShowSendModal(false)}>
-                        <X color={currentTheme.text} size={24} />
-                    </TouchableOpacity>
-                </View>
-                
-                <Text style={[styles.modalSubtitle, { color: currentTheme.textSecondary }]}>
-                    {settings.language === 'zh' ? "輸入朋友的 World ID 或名字" : "Enter friend's World ID or name"}
-                </Text>
-
-                <TextInput 
-                    style={[styles.input, { color: currentTheme.text, borderColor: currentTheme.border }]}
-                    placeholder="0x..."
-                    placeholderTextColor={currentTheme.textSecondary}
-                    value={recipient}
-                    onChangeText={setRecipient}
-                />
-
-                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: currentTheme.primary }]} onPress={handleSendConfirm}>
-                    <Text style={styles.confirmButtonText}>
-                        {settings.language === 'zh' ? "確認發送" : "Send Now"}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-          </Modal>
-
+            </CanvasErrorBoundary>
+          ) : (
+            <WebGardenBackdrop orb={currentOrb} interactionMode={interactionMode} />
+          )}
         </View>
+
+        <GestureDetector gesture={composedGestures}>
+          <View style={styles.touchLayer} testID="garden-gesture-layer" />
+        </GestureDetector>
+
+        <View style={styles.header}>
+          <BlurView intensity={20} style={styles.blurHeader}>
+            <Text style={[styles.title, { color: "#FFF" }]}>
+              {settings.language === "zh" ? "光球花園" : "Light Orb Garden"}
+            </Text>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>{statusLabel}</Text>
+            </View>
+          </BlurView>
+        </View>
+
+        <View style={styles.footer}>
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              {mins} / {nextMilestone === 9999 ? "∞" : nextMilestone} min
+            </Text>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: progressColor }]} />
+            </View>
+            <Text style={styles.progressSub}>
+              {settings.language === "zh" ? "距離下一階段" : "To next evolution"}
+            </Text>
+          </View>
+
+          <View style={styles.controls}>
+            <TouchableOpacity style={styles.sendButton} onPress={handleSendOrb} testID="gift-orb-button">
+              <Send color="#000" size={24} />
+              <Text style={styles.sendButtonText}>
+                {settings.language === "zh" ? "贈送" : "Gift"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.collectionContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionContent}>
+            {orbHistory.map((orb) => (
+              <TouchableOpacity key={orb.id} style={styles.miniOrb}>
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: orb.layers[orb.layers.length - 1] || "#FFF",
+                    opacity: 0.8,
+                  }}
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <Modal isVisible={showDevMenu} onBackdropPress={() => setShowDevMenu(false)}>
+          <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}
+            testID="dev-menu">
+            <Text style={[styles.devTitle, { color: currentTheme.text }]}>Dev Access</Text>
+            <ScrollView>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("add_10_min")} testID="dev-action-add-10">
+                <Plus size={20} color={currentTheme.text} />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>+10 Minutes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("instant_awakened")} testID="dev-action-awakened">
+                <Zap size={20} color="#F59E0B" />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Awakened</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("instant_legendary")} testID="dev-action-legendary">
+                <Star size={20} color="#8B5CF6" />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Legendary</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("instant_eternal")} testID="dev-action-eternal">
+                <Star size={20} color="#EC4899" />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Eternal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("send_self")} testID="dev-action-send-self">
+                <Gift size={20} color={currentTheme.text} />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Send Mock Orb to Me</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction("reset")} testID="dev-action-reset">
+                <RotateCcw size={20} color={currentTheme.text} />
+                <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Reset</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
+
+        <Modal isVisible={showSendModal} onBackdropPress={() => setShowSendModal(false)}>
+          <View style={[styles.modalContent, { backgroundColor: currentTheme.surface }]}
+            testID="send-orb-modal">
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: currentTheme.text }]}>
+                {settings.language === "zh" ? "贈送光球" : "Send Orb"}
+              </Text>
+              <TouchableOpacity onPress={() => setShowSendModal(false)}>
+                <X color={currentTheme.text} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.modalSubtitle, { color: currentTheme.textSecondary }]}>
+              {settings.language === "zh" ? "輸入朋友的 World ID 或名字" : "Enter friend's World ID or name"}
+            </Text>
+
+            <TextInput
+              style={[styles.input, { color: currentTheme.text, borderColor: currentTheme.border }]}
+              placeholder="0x..."
+              placeholderTextColor={currentTheme.textSecondary}
+              value={recipient}
+              onChangeText={setRecipient}
+              testID="recipient-input"
+            />
+
+            <TouchableOpacity
+              style={[styles.confirmButton, { backgroundColor: currentTheme.primary }]}
+              onPress={handleSendConfirm}
+              testID="confirm-send-orb"
+            >
+              <Text style={styles.confirmButtonText}>
+                {settings.language === "zh" ? "確認發送" : "Send Now"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      </View>
     </GestureHandlerRootView>
   );
 }
@@ -347,206 +402,206 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   touchLayer: {
-      flex: 1,
-      zIndex: 10, // Catch gestures
+    flex: 1,
+    zIndex: 10,
   },
   header: {
-    position: 'absolute',
+    position: "absolute",
     top: 60,
     left: 20,
     right: 20,
     zIndex: 20,
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   blurHeader: {
-      padding: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: 'rgba(20,20,30,0.4)',
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(20,20,30,0.4)",
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   statusBadge: {
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
-      color: '#FFF',
-      fontSize: 12,
-      fontWeight: '600',
-      textTransform: 'uppercase',
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   footer: {
-      position: 'absolute',
-      bottom: 100,
-      left: 20,
-      right: 20,
-      zIndex: 20,
-      alignItems: 'center',
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    zIndex: 20,
+    alignItems: "center",
   },
   progressContainer: {
-      width: '100%',
-      marginBottom: 20,
-      alignItems: 'center',
+    width: "100%",
+    marginBottom: 20,
+    alignItems: "center",
   },
   progressText: {
-      color: '#FFF',
-      fontSize: 14,
-      marginBottom: 8,
-      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-      opacity: 0.8,
+    color: "#FFF",
+    fontSize: 14,
+    marginBottom: 8,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    opacity: 0.8,
   },
   progressBarBg: {
-      width: '100%',
-      height: 4,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderRadius: 2,
+    width: "100%",
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 2,
   },
   progressBarFill: {
-      height: '100%',
-      borderRadius: 2,
+    height: "100%",
+    borderRadius: 2,
   },
   progressSub: {
-      color: 'rgba(255,255,255,0.5)',
-      fontSize: 10,
-      marginTop: 4,
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 10,
+    marginTop: 4,
   },
   controls: {
-      flexDirection: 'row',
-      gap: 20,
+    flexDirection: "row",
+    gap: 20,
   },
   sendButton: {
-      backgroundColor: '#FFF',
-      paddingHorizontal: 32,
-      paddingVertical: 16,
-      borderRadius: 40,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      shadowColor: "#FFF",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.5,
-      shadowRadius: 10,
-      elevation: 5,
+    backgroundColor: "#FFF",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#FFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 5,
   },
   sendButtonText: {
-      color: '#000',
-      fontSize: 16,
-      fontWeight: 'bold',
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   collectionContainer: {
-      position: 'absolute',
-      bottom: 30,
-      left: 0,
-      right: 0,
-      height: 50,
-      zIndex: 20,
+    position: "absolute",
+    bottom: 30,
+    left: 0,
+    right: 0,
+    height: 50,
+    zIndex: 20,
   },
   collectionContent: {
-      paddingHorizontal: 20,
-      alignItems: 'center',
-      gap: 10,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 10,
   },
   miniOrb: {
-      padding: 5,
+    padding: 5,
   },
   devMenu: {
-      padding: 20,
-      borderRadius: 16,
+    padding: 20,
+    borderRadius: 16,
   },
   devTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      marginBottom: 10,
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   devOption: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      gap: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: '#333',
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#333",
   },
   devOptionText: {
-      fontSize: 16,
+    fontSize: 16,
   },
   modalContent: {
-      padding: 24,
-      borderRadius: 24,
+    padding: 24,
+    borderRadius: 24,
   },
   modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: "bold",
   },
   modalSubtitle: {
-      fontSize: 14,
-      marginBottom: 20,
+    fontSize: 14,
+    marginBottom: 20,
   },
   input: {
-      borderWidth: 1,
-      borderRadius: 12,
-      padding: 16,
-      fontSize: 16,
-      marginBottom: 24,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    marginBottom: 24,
   },
   confirmButton: {
-      padding: 16,
-      borderRadius: 16,
-      alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
   },
   confirmButtonText: {
-      color: '#FFF',
-      fontSize: 16,
-      fontWeight: 'bold',
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   webBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
-      alignItems: 'center',
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
   },
   webOrbContainer: {
-      width: 260,
-      height: 260,
-      borderRadius: 130,
-      justifyContent: 'center',
-      alignItems: 'center',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    justifyContent: "center",
+    alignItems: "center",
   },
   webOrbRing: {
-      position: 'absolute',
-      width: 220,
-      height: 220,
-      borderRadius: 110,
-      borderWidth: 2,
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 2,
   },
   webOrbCore: {
-      width: 150,
-      height: 150,
-      borderRadius: 75,
-      shadowColor: '#FFF',
-      shadowOpacity: 0.6,
-      shadowRadius: 40,
-      shadowOffset: { width: 0, height: 8 },
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    shadowColor: "#FFF",
+    shadowOpacity: 0.6,
+    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 8 },
   },
 });
 
-function WebGardenBackdrop({ orb, interactionMode }: { orb: Orb; interactionMode: 'idle' | 'gather' | 'charge'; }) {
+function WebGardenBackdrop({ orb, interactionMode }: { orb: Orb; interactionMode: InteractionMode }) {
   const layers = orb.layers.length > 0 ? orb.layers : ["#8B5CF6"];
-  const baseScale = interactionMode === 'gather' ? 0.9 : 1;
+  const baseScale = interactionMode === "gather" ? 0.9 : 1;
 
   return (
     <LinearGradient
