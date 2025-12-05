@@ -292,6 +292,67 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
   };
 
+  // Dev Tools
+  const devAddLayer = async () => {
+     const nextLevel = currentOrb.level + 1;
+     if (nextLevel <= 7) {
+       const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+       const updatedOrb = {
+         ...currentOrb,
+         level: nextLevel,
+         layers: [...currentOrb.layers, newLayer],
+         isAwakened: nextLevel === 7,
+         completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+       };
+       setCurrentOrb(updatedOrb);
+       await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+     }
+  };
+
+  const devInstantOrb = async (days: number) => {
+    // 21 days = Awakened
+    // 49 days = Legendary
+    // 108 days = Eternal
+    
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() - days);
+    
+    const fullLayers = [...CHAKRA_COLORS]; // 7 colors
+    
+    const updatedOrb = {
+       ...currentOrb,
+       level: 7,
+       layers: fullLayers,
+       isAwakened: true,
+       createdAt: targetDate.toISOString(),
+       completedAt: new Date().toISOString()
+    };
+    setCurrentOrb(updatedOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+  };
+  
+  const devResetOrb = async () => {
+      const newOrb = { ...INITIAL_ORB, id: `orb-${Date.now()}` };
+      setCurrentOrb(newOrb);
+      await AsyncStorage.setItem("currentOrb", JSON.stringify(newOrb));
+  };
+
+  const devSendOrbToSelf = async () => {
+     const randomLayers = CHAKRA_COLORS.slice(0, Math.floor(Math.random() * 7) + 1);
+     const receivedOrb: Orb = {
+       id: `orb-dev-${Date.now()}`,
+       level: randomLayers.length,
+       layers: randomLayers,
+       isAwakened: randomLayers.length === 7,
+       createdAt: new Date().toISOString(),
+       sender: "Me (Dev)",
+       message: "Dev test orb"
+     };
+     const newHistory = [receivedOrb, ...orbHistory];
+     setOrbHistory(newHistory);
+     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+  };
+
   return {
     stats,
     achievements,
@@ -303,5 +364,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
+    devAddLayer,
+    devInstantOrb,
+    devResetOrb,
+    devSendOrbToSelf,
   };
 });

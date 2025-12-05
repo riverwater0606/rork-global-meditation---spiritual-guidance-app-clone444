@@ -4,6 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useUser } from "@/providers/UserProvider";
 import { Send } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 
@@ -88,8 +89,13 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
-  const { currentOrb, sendOrb, orbHistory } = useMeditation();
+  const { currentOrb, sendOrb, orbHistory, devAddLayer, devInstantOrb, devResetOrb, devSendOrbToSelf } = useMeditation();
+  const { walletAddress } = useUser();
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
+  
+  const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
+  const isDev = walletAddress === DEV_WALLET_ADDRESS;
+  const [showDevMenu, setShowDevMenu] = React.useState(false);
   
   const panResponder = useRef(
     PanResponder.create({
@@ -148,13 +154,59 @@ export default function GardenScreen() {
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: currentTheme.text }]}>
-          {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[styles.title, { color: currentTheme.text }]}>
+            {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
+          </Text>
+          {isDev && (
+            <TouchableOpacity 
+              style={styles.devButton} 
+              onPress={() => setShowDevMenu(true)}
+            >
+              <Text style={styles.devButtonText}>DEV</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <Text style={[styles.subtitle, { color: currentTheme.textSecondary }]}>
            {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
         </Text>
       </View>
+
+      {showDevMenu && (
+        <View style={styles.devMenuOverlay}>
+          <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
+            <Text style={[styles.devMenuTitle, { color: currentTheme.text }]}>Dev Tools</Text>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devAddLayer(); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: +1 layer</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(21); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: Instant Awakened Orb (21 days)</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(49); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: Instant Legendary Orb (49 days)</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(108); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: Instant Eternal Orb (108 days)</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devSendOrbToSelf(); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: Send orb to myself</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devResetOrb(); setShowDevMenu(false); }}>
+              <Text style={{ color: currentTheme.text }}>Dev: Reset orb</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.devMenuItem, { borderTopWidth: 1, borderColor: '#ccc' }]} onPress={() => setShowDevMenu(false)}>
+              <Text style={{ color: 'red' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
         <Canvas camera={{ position: [0, 0, 4] }}>
@@ -307,5 +359,49 @@ const styles = StyleSheet.create({
   orbSender: {
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  devButton: {
+    backgroundColor: '#333',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  devButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  devMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  devMenu: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  devMenuTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  devMenuItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    alignItems: 'center',
   },
 });
