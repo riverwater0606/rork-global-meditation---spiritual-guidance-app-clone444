@@ -1,15 +1,11 @@
-import React, { useRef, useMemo, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Pressable, Modal } from "react-native";
+import React, { useRef, useMemo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
-import { useUser } from "@/providers/UserProvider";
 import { Send } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
-
-const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d".toLowerCase();
-const DEV_WORLD_HANDLES = ["world.id/aman369", "aman369"].map((value) => value.toLowerCase());
 
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
@@ -92,81 +88,8 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
-  const { walletAddress, verification } = useUser();
-  const { currentOrb, sendOrb, orbHistory, devAddLayer, devForceStage, devSendOrbToSelf, devResetOrb } = useMeditation();
-  const [devMenuVisible, setDevMenuVisible] = useState<boolean>(false);
+  const { currentOrb, sendOrb, orbHistory } = useMeditation();
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
-
-  const verificationHandle = useMemo(() => {
-    if (!verification) {
-      return null;
-    }
-    const record = verification as Record<string, unknown>;
-    const candidateKeys = ["world_id", "worldId", "username", "handle", "id"];
-    for (const key of candidateKeys) {
-      const value = record[key];
-      if (typeof value === "string") {
-        return value.toLowerCase();
-      }
-    }
-    const nestedUser = record.user;
-    if (nestedUser && typeof nestedUser === "object") {
-      const nestedRecord = nestedUser as Record<string, unknown>;
-      for (const key of candidateKeys) {
-        const nestedValue = nestedRecord[key];
-        if (typeof nestedValue === "string") {
-          return nestedValue.toLowerCase();
-        }
-      }
-    }
-    return null;
-  }, [verification]);
-
-  const hasDevAccess = useMemo(() => {
-    const walletMatch = walletAddress?.toLowerCase() === DEV_WALLET_ADDRESS;
-    const handleMatch = verificationHandle ? DEV_WORLD_HANDLES.includes(verificationHandle) : false;
-    return walletMatch || handleMatch;
-  }, [walletAddress, verificationHandle]);
-
-  const handleDevLongPress = useCallback(() => {
-    if (!hasDevAccess) {
-      return;
-    }
-    console.log("[GardenScreen] Dev menu unlocked");
-    setDevMenuVisible(true);
-  }, [hasDevAccess]);
-
-  const closeDevMenu = useCallback(() => {
-    setDevMenuVisible(false);
-  }, []);
-
-  const runDevAction = useCallback(
-    async (action: () => Promise<void>) => {
-      try {
-        await action();
-      } catch (error) {
-        console.error("[GardenScreen] Dev action failed", error);
-      } finally {
-        setDevMenuVisible(false);
-      }
-    },
-    []
-  );
-
-  const devOptions = useMemo<{ label: string; onPress: () => void; testID: string }[]>(
-    () =>
-      !hasDevAccess
-        ? []
-        : [
-            { label: "Dev: +1 layer", onPress: () => runDevAction(devAddLayer), testID: "dev-option-add-layer" },
-            { label: "Dev: Instant Awakened Orb (21 days)", onPress: () => runDevAction(() => devForceStage("awakened", 21)), testID: "dev-option-awakened" },
-            { label: "Dev: Instant Legendary Orb (49 days)", onPress: () => runDevAction(() => devForceStage("legendary", 49)), testID: "dev-option-legendary" },
-            { label: "Dev: Instant Eternal Orb (108 days)", onPress: () => runDevAction(() => devForceStage("eternal", 108)), testID: "dev-option-eternal" },
-            { label: "Dev: Send orb to myself", onPress: () => runDevAction(devSendOrbToSelf), testID: "dev-option-send-self" },
-            { label: "Dev: Reset orb", onPress: () => runDevAction(devResetOrb), testID: "dev-option-reset" },
-          ],
-    [hasDevAccess, runDevAction, devAddLayer, devForceStage, devSendOrbToSelf, devResetOrb]
-  );
   
   const panResponder = useRef(
     PanResponder.create({
@@ -225,23 +148,9 @@ export default function GardenScreen() {
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
       <View style={styles.header}>
-        {hasDevAccess ? (
-          <Pressable
-            style={styles.titlePressable}
-            onLongPress={handleDevLongPress}
-            delayLongPress={5000}
-            disabled={!hasDevAccess}
-            testID="light-orb-dev-trigger"
-          >
-            <Text style={[styles.title, { color: currentTheme.text }]}>
-              {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-            </Text>
-          </Pressable>
-        ) : (
-          <Text style={[styles.title, { color: currentTheme.text }]}>
-            {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-          </Text>
-        )}
+        <Text style={[styles.title, { color: currentTheme.text }]}>
+          {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
+        </Text>
         <Text style={[styles.subtitle, { color: currentTheme.textSecondary }]}>
            {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
         </Text>
@@ -269,7 +178,6 @@ export default function GardenScreen() {
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: currentTheme.primary }]}
           onPress={handleSendOrb}
-          testID="send-orb-button"
         >
           <Send color="white" size={20} />
           <Text style={styles.buttonText}>
@@ -302,42 +210,6 @@ export default function GardenScreen() {
            )}
         </ScrollView>
       </View>
-
-      {hasDevAccess && (
-        <Modal
-          transparent
-          animationType="fade"
-          visible={devMenuVisible}
-          onRequestClose={closeDevMenu}
-        >
-          <View style={styles.devModalBackdrop}>
-            <View style={styles.devModalContainer}>
-              <Text style={styles.devModalTitle}>
-                {settings.language === 'zh' ? "開發者工具" : "Developer Tools"}
-              </Text>
-              {devOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.testID}
-                  style={styles.devOptionButton}
-                  onPress={option.onPress}
-                  testID={option.testID}
-                >
-                  <Text style={styles.devOptionText}>{option.label}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.devCloseButton}
-                onPress={closeDevMenu}
-                testID="dev-option-close"
-              >
-                <Text style={styles.devCloseText}>
-                  {settings.language === 'zh' ? "關閉" : "Close"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
     </View>
   );
 }
@@ -435,54 +307,5 @@ const styles = StyleSheet.create({
   orbSender: {
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  titlePressable: {
-    alignSelf: 'flex-start',
-  },
-  devModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  devModalContainer: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 24,
-    padding: 24,
-    backgroundColor: 'rgba(15,23,42,0.95)',
-    gap: 12,
-  },
-  devModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    textAlign: 'center',
-  },
-  devOptionButton: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  devOptionText: {
-    color: '#E0E7FF',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  devCloseButton: {
-    marginTop: 8,
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(248,113,113,0.2)',
-  },
-  devCloseText: {
-    color: '#FCA5A5',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 });
