@@ -1,160 +1,72 @@
-import React, { useRef, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
-import { Canvas, useFrame } from "@react-three/fiber";
+import React, { useRef, useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Platform, TextInput } from "react-native";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Send, Settings, RotateCcw, Plus, Zap, Star, Gift } from "lucide-react-native";
+import { Send, Plus, Zap, Star, Gift, RotateCcw, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import Modal from "react-native-modal";
+import { GestureDetector, Gesture, GestureHandlerRootView } from "react-native-gesture-handler";
+import { Gyroscope } from 'expo-sensors';
+import { BlurView } from 'expo-blur';
+
+// New Components
+import { GardenScene } from "@/components/garden/GardenScene";
 
 const DEV_WALLET = "0xf683cbce6d42918907df66040015fcbdad411d9d";
-
-// Orb Component
-const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
-  const pointsRef = useRef<THREE.Points>(null!);
-  
-  // Create particles based on layers
-  const { positions, colors } = useMemo(() => {
-    const particleCount = 2000;
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    
-    const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
-    
-    for (let i = 0; i < particleCount; i++) {
-      const layerIndex = Math.floor(Math.random() * layers.length);
-      const color = colorObjects[layerIndex] || new THREE.Color("#888");
-      
-      const minR = 0.5 + (layerIndex * 0.2);
-      const maxR = 0.7 + (layerIndex * 0.2);
-      const r = minR + Math.random() * (maxR - minR);
-      
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      
-      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = r * Math.cos(phi);
-      
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
-    }
-    
-    return { positions, colors };
-  }, [layers]);
-
-  useFrame((state) => {
-    if (!pointsRef.current) return;
-    
-    const time = state.clock.getElapsedTime();
-    const { mode, spinVelocity } = interactionState.current;
-    
-    pointsRef.current.rotation.y += 0.005 + spinVelocity;
-    pointsRef.current.rotation.z += 0.002;
-
-    const pulse = Math.sin(time * 2) * 0.05 + 1;
-    
-    let scale = pulse;
-    if (mode === 'gather') {
-      scale = 0.5;
-    } else if (mode === 'explode') {
-      scale = 2.0;
-    }
-    
-    pointsRef.current.scale.setScalar(THREE.MathUtils.lerp(pointsRef.current.scale.x, scale, 0.1));
-  });
-
-  return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          args={[colors, 3]}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.05}
-        vertexColors
-        transparent
-        opacity={0.8}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
-  );
-};
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
-  const { currentOrb, sendOrb, orbHistory, updateOrbState, updateOrbHistory } = useMeditation();
+  const { currentOrb, sendOrb, orbHistory, updateOrbState, updateOrbHistory, mergeOrb } = useMeditation();
   const { walletAddress } = useUser();
-  const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
   const [showDevMenu, setShowDevMenu] = useState(false);
-  const longPressTimer = useRef<any>(undefined);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [recipient, setRecipient] = useState("");
+  const [interactionMode, setInteractionMode] = useState<'idle' | 'gather' | 'charge'>('idle');
   
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        interactionState.current.mode = 'gather';
-        longPressTimer.current = setTimeout(() => {
-          if (walletAddress === DEV_WALLET) {
-            setShowDevMenu(true);
-          }
-        }, 5000);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10) {
-            if (longPressTimer.current) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = undefined;
-            }
-        }
-        interactionState.current.spinVelocity = gestureState.vx * 0.05;
-      },
-      onPanResponderRelease: () => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = undefined;
-        }
-        interactionState.current.mode = 'explode';
-        setTimeout(() => {
-          interactionState.current.mode = 'idle';
-          interactionState.current.spinVelocity = 0;
-        }, 1000);
-      },
-    })
-  ).current;
+  // Gyroscope data for parallax
+  const [gyroData, setGyroData] = useState({ x: 0, y: 0, z: 0 });
+  
+  useEffect(() => {
+    Gyroscope.setUpdateInterval(16);
+    const subscription = Gyroscope.addListener((data: { x: number, y: number, z: number }) => {
+      setGyroData(data);
+    });
+    return () => subscription.remove();
+  }, []);
 
   const handleDevAction = async (action: string) => {
     setShowDevMenu(false);
     
     switch (action) {
-      case "add_layer": {
-        const nextLevel = currentOrb.level + 1;
-        const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
-        const updatedOrb = {
-          ...currentOrb,
-          level: nextLevel,
-          layers: [...currentOrb.layers, newLayer],
-          isAwakened: nextLevel >= 7
-        };
-        await updateOrbState(updatedOrb);
-        break;
+      case "add_10_min": {
+          const mins = (currentOrb.accumulatedMinutes || 0) + 10;
+          let status = currentOrb.status;
+          if (mins >= 108) status = 'eternal';
+          else if (mins >= 49) status = 'legendary';
+          else if (mins >= 21) status = 'awakened';
+          
+          const newLayers = [...currentOrb.layers];
+          if (newLayers.length < 7 && mins % 10 === 0) { // Rough check
+              newLayers.push(CHAKRA_COLORS[newLayers.length % 7]);
+          }
+
+          const updated = { ...currentOrb, accumulatedMinutes: mins, status: status as any, layers: newLayers };
+          await updateOrbState(updated);
+          break;
       }
       case "instant_awakened": {
         const updatedOrb = {
           ...currentOrb,
-          level: 7,
-          layers: CHAKRA_COLORS,
+          level: 3,
+          accumulatedMinutes: 21,
+          status: 'awakened' as const,
+          layers: CHAKRA_COLORS.slice(0, 3),
           isAwakened: true,
-          createdAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString()
         };
         await updateOrbState(updatedOrb);
         break;
@@ -162,10 +74,11 @@ export default function GardenScreen() {
       case "instant_legendary": {
         const updatedOrb = {
           ...currentOrb,
-          level: 7,
-          layers: CHAKRA_COLORS,
+          level: 5,
+          accumulatedMinutes: 49,
+          status: 'legendary' as const,
+          layers: CHAKRA_COLORS.slice(0, 5),
           isAwakened: true,
-          createdAt: new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
         };
         await updateOrbState(updatedOrb);
         break;
@@ -174,9 +87,10 @@ export default function GardenScreen() {
         const updatedOrb = {
           ...currentOrb,
           level: 7,
+          accumulatedMinutes: 108,
+          status: 'eternal' as const,
           layers: CHAKRA_COLORS,
           isAwakened: true,
-          createdAt: new Date(Date.now() - 108 * 24 * 60 * 60 * 1000).toISOString()
         };
         await updateOrbState(updatedOrb);
         break;
@@ -187,7 +101,9 @@ export default function GardenScreen() {
           id: `orb-mock-${Date.now()}`,
           sender: "Me (Dev)",
           message: "From the void.",
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          accumulatedMinutes: 30,
+          status: 'awakened' as const
         };
         await updateOrbHistory([mockOrb, ...orbHistory]);
         break;
@@ -196,6 +112,8 @@ export default function GardenScreen() {
         const newOrb = {
           id: `orb-${Date.now()}`,
           level: 0,
+          accumulatedMinutes: 0,
+          status: 'seed' as const,
           layers: [],
           isAwakened: false,
           createdAt: new Date().toISOString(),
@@ -207,156 +125,216 @@ export default function GardenScreen() {
   };
 
   const handleSendOrb = async () => {
-    if (!currentOrb.isAwakened && currentOrb.level < 1) {
-      Alert.alert("Orb too weak", "Meditate more to grow your orb before sending.");
+    if ((currentOrb.accumulatedMinutes || 0) < 21) {
+      Alert.alert(
+          settings.language === 'zh' ? "能量不足" : "Not Enough Energy", 
+          settings.language === 'zh' ? "需積累 21 分鐘能量才能喚醒光球。" : "Need 21 minutes of accumulated energy to awaken the orb."
+      );
       return;
     }
-
-    Alert.alert(
-      "Send Orb",
-      "Choose a friend to send this energy to.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Send via World App",
-          onPress: async () => {
-             if (MiniKit && MiniKit.isInstalled()) {
-               try {
-                  const res = await MiniKit.commands.transferNft({
-                    collectionAddress: "0x1234567890123456789012345678901234567890", 
-                    tokenId: "1", 
-                    recipient: "0xFriendAddress", 
-                  });
-                  console.log(res);
-               } catch (e) {
-                 console.warn("MiniKit transfer failed/mocked", e);
-               }
-             }
-             
-             await sendOrb("friend-id", "May you be happy.");
-             Alert.alert("Sent!", "Your light has been shared.");
-          }
+    setShowSendModal(true);
+  };
+  
+  // Gesture for "Hold" (Long Press) to show Dev Menu or Gather Energy
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(5000)
+    .onStart(() => {
+        if (walletAddress === DEV_WALLET) {
+            runOnJS(setShowDevMenu)(true);
         }
-      ]
-    );
+    });
+
+  const tapGesture = Gesture.Tap()
+    .onBegin(() => {
+         runOnJS(setInteractionMode)('gather');
+    })
+    .onFinalize(() => {
+         runOnJS(setInteractionMode)('idle');
+    });
+
+  const composedGestures = Gesture.Simultaneous(longPressGesture, tapGesture);
+
+  // Helper function to run on JS thread if needed (mimicking Reanimated behavior safely)
+  // Since we removed Reanimated, we can just call setters directly in callbacks if not using worklets
+  // But gesture handler callbacks might need care. Wrapper:
+  function runOnJS(fn: any) {
+      return (args: any) => fn(args);
+  }
+
+  const handleSendConfirm = async () => {
+       setShowSendModal(false);
+       if (MiniKit && MiniKit.isInstalled()) {
+        try {
+            // Real MiniKit logic would go here
+            await MiniKit.commands.transferNft({
+                collectionAddress: "0x1234567890123456789012345678901234567890", 
+                tokenId: "1", 
+                recipient: recipient || "0x000", 
+            });
+        } catch (e) {
+            console.log("Minikit mocked");
+        }
+       }
+       await sendOrb(recipient || "friend", "May light guide you.");
+       Alert.alert("Sent!", "Your orb is on its way.");
+       setRecipient("");
   };
 
+  // Progress calculations
+  const mins = currentOrb.accumulatedMinutes || 0;
+  let nextMilestone = 21;
+  let prevMilestone = 0;
+  let statusLabel = "Seed";
+  
+  if (mins >= 108) {
+      nextMilestone = 9999;
+      prevMilestone = 108;
+      statusLabel = "Eternal";
+  } else if (mins >= 49) {
+      nextMilestone = 108;
+      prevMilestone = 49;
+      statusLabel = "Legendary";
+  } else if (mins >= 21) {
+      nextMilestone = 49;
+      prevMilestone = 21;
+      statusLabel = "Awakened";
+  }
+  
+  const progressPercent = Math.min(100, Math.max(0, ((mins - prevMilestone) / (nextMilestone - prevMilestone)) * 100));
+
   return (
-    <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: currentTheme.text }]}>
-          {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-        </Text>
-        <Text style={[styles.subtitle, { color: currentTheme.textSecondary }]}>
-           {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
-        </Text>
-      </View>
-
-      <View style={styles.sceneContainer} {...panResponder.panHandlers}>
-        <Canvas camera={{ position: [0, 0, 4] }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} />
-          <OrbParticles 
-            layers={currentOrb.layers} 
-            isAwakened={currentOrb.isAwakened}
-            interactionState={interactionState}
-          />
-        </Canvas>
-        
-        <View style={styles.instructions}>
-           <Text style={styles.instructionText}>
-             {settings.language === 'zh' ? "長按聚集 • 放開綻放 • 拖動旋轉" : "Hold to Gather • Release to Bloom • Drag to Spin"}
-           </Text>
-        </View>
-      </View>
-
-      <Modal
-        isVisible={showDevMenu}
-        onBackdropPress={() => setShowDevMenu(false)}
-        onBackButtonPress={() => setShowDevMenu(false)}
-        backdropOpacity={0.8}
-        animationIn="fadeIn"
-        animationOut="fadeOut"
-      >
-        <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
-          <Text style={[styles.devTitle, { color: currentTheme.text }]}>Dev Menu</Text>
-          <Text style={[styles.devSubtitle, { color: currentTheme.textSecondary }]}>{walletAddress?.slice(0, 10)}...</Text>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={[styles.container, { backgroundColor: '#000' }]}>
           
-          <ScrollView style={{ maxHeight: 400 }}>
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('add_layer')}>
-              <Plus size={20} color={currentTheme.text} />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: +1 layer</Text>
-            </TouchableOpacity>
+          {/* Background Scene */}
+          <View style={StyleSheet.absoluteFill}>
+             <GardenScene 
+                orb={currentOrb} 
+                collectedOrbs={orbHistory} 
+                gyro={gyroData}
+                interactionMode={interactionMode}
+                onMerge={mergeOrb}
+             />
+          </View>
 
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_awakened')}>
-              <Zap size={20} color="#F59E0B" />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Awakened (21d)</Text>
-            </TouchableOpacity>
+          {/* Overlay UI */}
+          <GestureDetector gesture={composedGestures}>
+             <View style={styles.touchLayer} />
+          </GestureDetector>
 
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_legendary')}>
-              <Star size={20} color="#8B5CF6" />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Legendary (49d)</Text>
-            </TouchableOpacity>
+          <View style={styles.header}>
+            <BlurView intensity={20} style={styles.blurHeader}>
+                <Text style={[styles.title, { color: '#FFF' }]}>
+                {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
+                </Text>
+                <View style={styles.statusBadge}>
+                    <Text style={styles.statusText}>{statusLabel}</Text>
+                </View>
+            </BlurView>
+          </View>
 
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_eternal')}>
-              <Star size={20} color="#EC4899" />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Instant Eternal (108d)</Text>
-            </TouchableOpacity>
+          {/* Bottom Controls */}
+          <View style={styles.footer}>
+             <View style={styles.progressContainer}>
+                 <Text style={styles.progressText}>
+                    {mins} / {nextMilestone === 9999 ? "∞" : nextMilestone} min
+                 </Text>
+                 <View style={styles.progressBarBg}>
+                     <View style={[styles.progressBarFill, { width: `${progressPercent}%`, backgroundColor: CHAKRA_COLORS[currentOrb.level % 7] || '#FFF' }]} />
+                 </View>
+                 <Text style={styles.progressSub}>
+                    {settings.language === 'zh' ? "距離下一階段" : "To next evolution"}
+                 </Text>
+             </View>
+             
+             <View style={styles.controls}>
+                <TouchableOpacity style={styles.sendButton} onPress={handleSendOrb}>
+                    <Send color="#000" size={24} />
+                    <Text style={styles.sendButtonText}>
+                        {settings.language === 'zh' ? "贈送" : "Gift"}
+                    </Text>
+                </TouchableOpacity>
+             </View>
+          </View>
+          
+          {/* Collection Scroll (Horizontal at bottom) */}
+          <View style={styles.collectionContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionContent}>
+                   {orbHistory.map((orb, i) => (
+                       <TouchableOpacity key={i} style={styles.miniOrb}>
+                           <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: orb.layers[orb.layers.length-1] || '#FFF', opacity: 0.8 }} />
+                       </TouchableOpacity>
+                   ))}
+              </ScrollView>
+          </View>
 
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('send_self')}>
-              <Gift size={20} color={currentTheme.text} />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Send orb to myself</Text>
-            </TouchableOpacity>
+          {/* Dev Menu Modal */}
+          <Modal isVisible={showDevMenu} onBackdropPress={() => setShowDevMenu(false)}>
+            <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
+              <Text style={[styles.devTitle, { color: currentTheme.text }]}>Dev Access</Text>
+              <ScrollView>
+                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('add_10_min')}>
+                  <Plus size={20} color={currentTheme.text} />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>+10 Minutes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_awakened')}>
+                  <Zap size={20} color="#F59E0B" />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Awakened</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_legendary')}>
+                  <Star size={20} color="#8B5CF6" />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Legendary</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('instant_eternal')}>
+                  <Star size={20} color="#EC4899" />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Instant Eternal</Text>
+                </TouchableOpacity>
+                 <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('send_self')}>
+                  <Gift size={20} color={currentTheme.text} />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Send Mock Orb to Me</Text>
+                </TouchableOpacity>
+                 <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('reset')}>
+                  <RotateCcw size={20} color={currentTheme.text} />
+                  <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Reset</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </Modal>
 
-            <TouchableOpacity style={styles.devOption} onPress={() => handleDevAction('reset')}>
-              <RotateCcw size={20} color={currentTheme.text} />
-              <Text style={[styles.devOptionText, { color: currentTheme.text }]}>Dev: Reset orb</Text>
-            </TouchableOpacity>
-          </ScrollView>
+          {/* Send Modal */}
+          <Modal isVisible={showSendModal} onBackdropPress={() => setShowSendModal(false)}>
+            <View style={[styles.modalContent, { backgroundColor: currentTheme.surface }]}>
+                <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: currentTheme.text }]}>
+                        {settings.language === 'zh' ? "贈送光球" : "Send Orb"}
+                    </Text>
+                    <TouchableOpacity onPress={() => setShowSendModal(false)}>
+                        <X color={currentTheme.text} size={24} />
+                    </TouchableOpacity>
+                </View>
+                
+                <Text style={[styles.modalSubtitle, { color: currentTheme.textSecondary }]}>
+                    {settings.language === 'zh' ? "輸入朋友的 World ID 或名字" : "Enter friend's World ID or name"}
+                </Text>
 
-          <TouchableOpacity style={[styles.button, { marginTop: 20, backgroundColor: currentTheme.primary }]} onPress={() => setShowDevMenu(false)}>
-            <Text style={styles.buttonText}>Close</Text>
-          </TouchableOpacity>
+                <TextInput 
+                    style={[styles.input, { color: currentTheme.text, borderColor: currentTheme.border }]}
+                    placeholder="0x..."
+                    placeholderTextColor={currentTheme.textSecondary}
+                    value={recipient}
+                    onChangeText={setRecipient}
+                />
+
+                <TouchableOpacity style={[styles.confirmButton, { backgroundColor: currentTheme.primary }]} onPress={handleSendConfirm}>
+                    <Text style={styles.confirmButtonText}>
+                        {settings.language === 'zh' ? "確認發送" : "Send Now"}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+          </Modal>
+
         </View>
-      </Modal>
-
-      <View style={styles.controls}>
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: currentTheme.primary }]}
-          onPress={handleSendOrb}
-        >
-          <Send color="white" size={20} />
-          <Text style={styles.buttonText}>
-            {settings.language === 'zh' ? "贈送光球" : "Send Orb"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.gardenListContainer}>
-        <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-          {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
-           {orbHistory.length === 0 ? (
-             <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
-               {settings.language === 'zh' ? "還沒有收到光球" : "No orbs collected yet"}
-             </Text>
-           ) : (
-             orbHistory.map((orb, index) => (
-               <View key={index} style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}>
-                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: orb.layers[orb.layers.length-1] || '#ccc', marginBottom: 8 }} />
-                 <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
-                   {new Date(orb.createdAt).toLocaleDateString()}
-                 </Text>
-                 <Text style={[styles.orbSender, { color: currentTheme.text }]}>
-                   {orb.sender || "Me"}
-                 </Text>
-               </View>
-             ))
-           )}
-        </ScrollView>
-      </View>
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -364,123 +342,172 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  touchLayer: {
+      flex: 1,
+      zIndex: 10, // Catch gestures
+  },
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    zIndex: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  blurHeader: {
+      padding: 16,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: 'rgba(20,20,30,0.4)',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  subtitle: {
-    fontSize: 16,
-    marginTop: 5,
+  statusBadge: {
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
   },
-  sceneContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 20,
-    margin: 10,
-    overflow: 'hidden',
-    position: 'relative',
+  statusText: {
+      color: '#FFF',
+      fontSize: 12,
+      fontWeight: '600',
+      textTransform: 'uppercase',
   },
-  instructions: {
-    position: 'absolute',
-    bottom: 20,
-    width: '100%',
-    alignItems: 'center',
+  footer: {
+      position: 'absolute',
+      bottom: 100,
+      left: 20,
+      right: 20,
+      zIndex: 20,
+      alignItems: 'center',
   },
-  instructionText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  progressContainer: {
+      width: '100%',
+      marginBottom: 20,
+      alignItems: 'center',
+  },
+  progressText: {
+      color: '#FFF',
+      fontSize: 14,
+      marginBottom: 8,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      opacity: 0.8,
+  },
+  progressBarBg: {
+      width: '100%',
+      height: 4,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 2,
+  },
+  progressBarFill: {
+      height: '100%',
+      borderRadius: 2,
+  },
+  progressSub: {
+      color: 'rgba(255,255,255,0.5)',
+      fontSize: 10,
+      marginTop: 4,
   },
   controls: {
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 20,
   },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 30,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+  sendButton: {
+      backgroundColor: '#FFF',
+      paddingHorizontal: 32,
+      paddingVertical: 16,
+      borderRadius: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      shadowColor: "#FFF",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+      elevation: 5,
   },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+  sendButtonText: {
+      color: '#000',
+      fontSize: 16,
+      fontWeight: 'bold',
   },
-  gardenListContainer: {
-    height: 180,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+  collectionContainer: {
+      position: 'absolute',
+      bottom: 30,
+      left: 0,
+      right: 0,
+      height: 50,
+      zIndex: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 20,
-    marginBottom: 10,
+  collectionContent: {
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      gap: 10,
   },
-  gardenList: {
-    paddingHorizontal: 15,
-  },
-  orbCard: {
-    width: 100,
-    height: 120,
-    borderRadius: 16,
-    marginHorizontal: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-  },
-  orbDate: {
-    fontSize: 10,
-    marginBottom: 4,
-  },
-  orbSender: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  miniOrb: {
+      padding: 5,
   },
   devMenu: {
-    padding: 20,
-    borderRadius: 20,
-    alignItems: 'center',
+      padding: 20,
+      borderRadius: 16,
   },
   devTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  devSubtitle: {
-    fontSize: 12,
-    marginBottom: 20,
-    fontFamily: 'monospace',
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 10,
   },
   devOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-    width: '100%',
-    gap: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      gap: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: '#333',
   },
   devOptionText: {
-    fontSize: 16,
-    fontWeight: '500',
+      fontSize: 16,
+  },
+  modalContent: {
+      padding: 24,
+      borderRadius: 24,
+  },
+  modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+  },
+  modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+  },
+  modalSubtitle: {
+      fontSize: 14,
+      marginBottom: 20,
+  },
+  input: {
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+      fontSize: 16,
+      marginBottom: 24,
+  },
+  confirmButton: {
+      padding: 16,
+      borderRadius: 16,
+      alignItems: 'center',
+  },
+  confirmButtonText: {
+      color: '#FFF',
+      fontSize: 16,
+      fontWeight: 'bold',
   },
 });

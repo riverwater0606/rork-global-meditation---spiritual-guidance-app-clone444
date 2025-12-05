@@ -32,8 +32,9 @@ interface CustomMeditation {
 export interface Orb {
   id: string;
   level: number;
+  accumulatedMinutes: number; // New: Total minutes fed to this orb
   layers: string[]; // Colors
-  isAwakened: boolean;
+  status: 'seed' | 'awakened' | 'legendary' | 'eternal'; // New: Explicit status
   createdAt: string;
   completedAt?: string;
   sender?: string;
@@ -61,8 +62,9 @@ const INITIAL_STATS: MeditationStats = {
 const INITIAL_ORB: Orb = {
   id: "orb-init",
   level: 0,
+  accumulatedMinutes: 0,
   layers: [],
-  isAwakened: false,
+  status: 'seed',
   createdAt: new Date().toISOString(),
 };
 
@@ -194,22 +196,42 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Orb Logic
-    const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
-    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
-       const nextLevel = currentOrb.level + 1;
-       if (nextLevel <= 7) {
-         const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
-         const updatedOrb = {
-           ...currentOrb,
-           level: nextLevel,
-           layers: [...currentOrb.layers, newLayer],
-           isAwakened: nextLevel === 7,
-           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
-         };
-         setCurrentOrb(updatedOrb);
-         await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-       }
+    const minutesAdded = duration;
+    
+    // Update current orb
+    const newAccumulatedMinutes = (currentOrb.accumulatedMinutes || 0) + minutesAdded;
+    let newStatus = currentOrb.status || 'seed';
+    
+    if (newAccumulatedMinutes >= 108) newStatus = 'eternal';
+    else if (newAccumulatedMinutes >= 49) newStatus = 'legendary';
+    else if (newAccumulatedMinutes >= 21) newStatus = 'awakened';
+    
+    // Add layer every ~10 mins or based on milestones?
+    // Let's keep the layer logic: 1 layer per day or session?
+    // Previous logic was: 1 layer per day if not awakened.
+    // New logic: Based on minutes?
+    // User wants "Progress Perception ... every 10 mins once obvious positive feedback".
+    // Let's add a layer every 10 minutes of progress effectively.
+    
+    const newLayers = [...currentOrb.layers];
+    const layersCount = Math.floor(newAccumulatedMinutes / 10);
+    // Ensure we have enough layers
+    while (newLayers.length < layersCount && newLayers.length < 7) {
+        newLayers.push(CHAKRA_COLORS[newLayers.length % 7]);
     }
+    
+    // Also keep daily layer logic if needed, but let's prioritize minutes
+    const updatedOrb: Orb = {
+        ...currentOrb,
+        accumulatedMinutes: newAccumulatedMinutes,
+        status: newStatus,
+        layers: newLayers,
+        // Sync level for backward compat or UI
+        level: newLayers.length,
+    };
+    
+    setCurrentOrb(updatedOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
 
     // Check achievements
     const newAchievements = [...achievements];
@@ -268,19 +290,70 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   };
 
   const sendOrb = async (friendId: string, message: string) => {
+    // Determine if we keep a copy based on status
+    let keepCopy = false;
+    let copyStrength = 0; // 0 = none, 1 = dim, 2 = full
+    
+    if (currentOrb.status === 'eternal' || currentOrb.status === 'legendary') {
+        keepCopy = true;
+        copyStrength = 2; // Full copy for legendary/eternal
+    } else if (currentOrb.status === 'awakened') {
+        keepCopy = true;
+        copyStrength = 1; // Dim copy
+    }
+    
     const archivedOrb = { ...currentOrb, sender: "Me", message };
     const newHistory = [archivedOrb, ...orbHistory];
     setOrbHistory(newHistory);
     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
 
     let nextOrb: Orb;
-    if (currentOrb.isAwakened) {
-       nextOrb = {
-         ...INITIAL_ORB,
-         id: `orb-${Date.now()}`,
-         createdAt: new Date().toISOString(),
-       };
+    if (keepCopy) {
+        // Reset progress but keep some essence? Or keep full?
+        // "Awakened+ orb: keep dim copy (70% brightness), can re-cultivate"
+        // "Legendary/Eternal: full copy on chain (both keep)"
+        
+        if (currentOrb.status === 'awakened') {
+            // Keep dim copy = maybe start with some minutes but not full?
+            // "can re-cultivate" implies it goes back to growing but looks like the old one?
+            // Let's restart minutes but keep visual "Ghost" layers? 
+            // For simplicity, let's reset minutes to 0 but maybe add a flag "reincarnated".
+             nextOrb = {
+                ...INITIAL_ORB,
+                id: `orb-${Date.now()}`,
+                createdAt: new Date().toISOString(),
+                // Maybe keep one layer?
+                layers: [currentOrb.layers[0] || CHAKRA_COLORS[0]],
+                accumulatedMinutes: 5, // Head start
+             };
+        } else {
+            // Legendary/Eternal -> Full copy
+            // User keeps the orb as is? But then how do they grow new one?
+            // Usually "sending" implies giving away.
+            // If they keep it, maybe it just stays in their "Collection"?
+            // But main orb should probably reset to allow new cultivation?
+            // Let's assume Main Orb resets, but a Copy is added to Collection (already done above).
+            // Wait, "both keep" implies the sender STILL has it as their MAIN orb?
+            // "Awakened+ orb: keep dim copy... can re-cultivate"
+            // This implies the Main Orb becomes the "Dim Copy".
+            
+            if (currentOrb.status === 'eternal' || currentOrb.status === 'legendary') {
+                 // Keep as is?
+                 // If I send it, and I keep it, nothing changes?
+                 // Maybe I just record the transaction?
+                 // But the prompt says "Transfer system".
+                 // Let's assume we reset to a "Copy" state.
+                 nextOrb = {
+                    ...currentOrb,
+                    id: `orb-${Date.now()}`,
+                 };
+            } else {
+                // Should not happen as logic handled above
+                 nextOrb = { ...INITIAL_ORB, id: `orb-${Date.now()}` };
+            }
+        }
     } else {
+       // Disappears
        nextOrb = {
          ...INITIAL_ORB,
          id: `orb-${Date.now()}`,
@@ -290,6 +363,50 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     
     setCurrentOrb(nextOrb);
     await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
+  };
+
+  const mergeOrb = async (sourceOrbId: string) => {
+      // Find source orb in history
+      const sourceOrbIndex = orbHistory.findIndex(o => o.id === sourceOrbId);
+      if (sourceOrbIndex === -1) return;
+      
+      const sourceOrb = orbHistory[sourceOrbIndex];
+      
+      // Calculate boost
+      // E.g. 50% of its accumulated minutes
+      const boostMinutes = Math.floor((sourceOrb.accumulatedMinutes || 0) * 0.5);
+      
+      // Remove from history (consumed)
+      const newHistory = [...orbHistory];
+      newHistory.splice(sourceOrbIndex, 1);
+      
+      // Update current orb
+      const newAccumulatedMinutes = (currentOrb.accumulatedMinutes || 0) + boostMinutes;
+      let newStatus = currentOrb.status || 'seed';
+       if (newAccumulatedMinutes >= 108) newStatus = 'eternal';
+       else if (newAccumulatedMinutes >= 49) newStatus = 'legendary';
+       else if (newAccumulatedMinutes >= 21) newStatus = 'awakened';
+      
+      const newLayers = [...currentOrb.layers];
+      // Add colors from source orb not present? Or just standard progression?
+      // Let's just run standard progression logic
+       const layersCount = Math.floor(newAccumulatedMinutes / 10);
+       while (newLayers.length < layersCount && newLayers.length < 7) {
+         newLayers.push(CHAKRA_COLORS[newLayers.length % 7]);
+       }
+
+      const updatedOrb = {
+          ...currentOrb,
+          accumulatedMinutes: newAccumulatedMinutes,
+          status: newStatus,
+          layers: newLayers,
+          level: newLayers.length
+      };
+      
+      setOrbHistory(newHistory);
+      setCurrentOrb(updatedOrb);
+      await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+      await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
   };
 
   const updateOrbState = async (newOrb: Orb) => {
@@ -313,6 +430,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
+    mergeOrb,
     updateOrbState,
     updateOrbHistory,
   };
