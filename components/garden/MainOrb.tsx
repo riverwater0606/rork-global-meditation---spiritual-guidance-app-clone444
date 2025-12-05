@@ -1,5 +1,5 @@
 import React, { useRef, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame } from "@/lib/r3f";
 import * as THREE from "three";
 import { Orb } from "@/providers/MeditationProvider";
 

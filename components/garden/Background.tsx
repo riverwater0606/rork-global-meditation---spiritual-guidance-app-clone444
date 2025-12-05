@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame } from "@/lib/r3f";
 import * as THREE from "three";
 
 export function BackgroundStars() {

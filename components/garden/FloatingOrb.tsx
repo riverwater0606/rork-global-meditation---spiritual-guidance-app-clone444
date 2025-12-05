@@ -1,24 +1,17 @@
 import React, { useRef, useState } from "react";
-import { useFrame, ThreeEvent } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@/lib/r3f";
 import * as THREE from "three";
 import { Orb } from "@/providers/MeditationProvider";
 
 export function FloatingOrb({ orb, position, onMerge }: { orb: Orb, position: [number, number, number], onMerge: () => void }) {
   const ref = useRef<THREE.Mesh>(null!);
   const [hovered, setHover] = useState(false);
-  const [dragged, setDragged] = useState(false);
   
   useFrame((state) => {
       if (!ref.current) return;
-      if (!dragged) {
-        // Float animation
-        const time = state.clock.getElapsedTime();
-        ref.current.position.y = position[1] + Math.sin(time + position[0]) * 0.2;
-        ref.current.rotation.y += 0.01;
-      } else {
-         // Move towards center if dragged (simplified for this demo as raycasting drag in R3F needs more setup)
-         // For now, let's just make click = merge
-      }
+      const time = state.clock.getElapsedTime();
+      ref.current.position.y = position[1] + Math.sin(time + position[0]) * 0.2;
+      ref.current.rotation.y += 0.01;
   });
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {

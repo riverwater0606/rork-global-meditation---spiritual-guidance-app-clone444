@@ -1,6 +1,5 @@
-import React, { useRef, useMemo, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import * as THREE from "three";
+import React from "react";
+import { useFrame, useThree } from "@/lib/r3f";
 import { Orb } from "@/providers/MeditationProvider";
 import { MainOrb } from "./MainOrb";
 import { BackgroundStars } from "./Background";

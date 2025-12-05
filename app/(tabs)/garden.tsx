@@ -1,8 +1,8 @@
-import React, { useRef, useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Platform, TextInput } from "react-native";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import * as THREE from "three";
-import { useMeditation, CHAKRA_COLORS } from "@/providers/MeditationProvider";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, TextInput } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Canvas } from "@/lib/r3f";
+import { useMeditation, CHAKRA_COLORS, type Orb } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { Send, Plus, Zap, Star, Gift, RotateCcw, X } from "lucide-react-native";
@@ -16,8 +16,6 @@ import { BlurView } from 'expo-blur';
 import { GardenScene } from "@/components/garden/GardenScene";
 
 const DEV_WALLET = "0xf683cbce6d42918907df66040015fcbdad411d9d";
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
@@ -30,6 +28,7 @@ export default function GardenScreen() {
   
   // Gyroscope data for parallax
   const [gyroData, setGyroData] = useState({ x: 0, y: 0, z: 0 });
+  const isWeb = Platform.OS === 'web';
   
   useEffect(() => {
     Gyroscope.setUpdateInterval(16);
@@ -165,14 +164,13 @@ export default function GardenScreen() {
        setShowSendModal(false);
        if (MiniKit && MiniKit.isInstalled()) {
         try {
-            // Real MiniKit logic would go here
             await MiniKit.commands.transferNft({
                 collectionAddress: "0x1234567890123456789012345678901234567890", 
                 tokenId: "1", 
                 recipient: recipient || "0x000", 
             });
-        } catch (e) {
-            console.log("Minikit mocked");
+        } catch (error) {
+            console.log("MiniKit transfer fallback", error);
         }
        }
        await sendOrb(recipient || "friend", "May light guide you.");
@@ -208,15 +206,19 @@ export default function GardenScreen() {
           
           {/* Background Scene */}
           <View style={StyleSheet.absoluteFill}>
-             <Canvas style={{ flex: 1 }}>
-                 <GardenScene 
-                    orb={currentOrb} 
-                    collectedOrbs={orbHistory} 
-                    gyro={gyroData}
-                    interactionMode={interactionMode}
-                    onMerge={mergeOrb}
-                 />
-             </Canvas>
+            {isWeb ? (
+              <WebGardenBackdrop orb={currentOrb} interactionMode={interactionMode} />
+            ) : (
+              <Canvas style={{ flex: 1 }}>
+                <GardenScene
+                  orb={currentOrb}
+                  collectedOrbs={orbHistory}
+                  gyro={gyroData}
+                  interactionMode={interactionMode}
+                  onMerge={mergeOrb}
+                />
+              </Canvas>
+            )}
           </View>
 
           {/* Overlay UI */}
@@ -512,4 +514,71 @@ const styles = StyleSheet.create({
       fontSize: 16,
       fontWeight: 'bold',
   },
+  webBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  webOrbContainer: {
+      width: 260,
+      height: 260,
+      borderRadius: 130,
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  webOrbRing: {
+      position: 'absolute',
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      borderWidth: 2,
+  },
+  webOrbCore: {
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      shadowColor: '#FFF',
+      shadowOpacity: 0.6,
+      shadowRadius: 40,
+      shadowOffset: { width: 0, height: 8 },
+  },
 });
+
+function WebGardenBackdrop({ orb, interactionMode }: { orb: Orb; interactionMode: 'idle' | 'gather' | 'charge'; }) {
+  const layers = orb.layers.length > 0 ? orb.layers : ["#8B5CF6"];
+  const baseScale = interactionMode === 'gather' ? 0.9 : 1;
+
+  return (
+    <LinearGradient
+      colors={["#020307", "#080B18", "#121F33"]}
+      style={styles.webBackdrop}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <View style={styles.webOrbContainer}>
+        {layers.map((color, index) => (
+          <View
+            key={`${color}-${index}`}
+            style={[
+              styles.webOrbRing,
+              {
+                borderColor: color,
+                opacity: 0.25 + index * 0.1,
+                transform: [{ scale: baseScale + index * 0.12 }],
+              },
+            ]}
+          />
+        ))}
+        <View
+          style={[
+            styles.webOrbCore,
+            {
+              backgroundColor: layers[layers.length - 1],
+              transform: [{ scale: baseScale }],
+            },
+          ]}
+        />
+      </View>
+    </LinearGradient>
+  );
+}
