@@ -208,13 +208,15 @@ export default function GardenScreen() {
           
           {/* Background Scene */}
           <View style={StyleSheet.absoluteFill}>
-             <GardenScene 
-                orb={currentOrb} 
-                collectedOrbs={orbHistory} 
-                gyro={gyroData}
-                interactionMode={interactionMode}
-                onMerge={mergeOrb}
-             />
+             <Canvas style={{ flex: 1 }}>
+                 <GardenScene 
+                    orb={currentOrb} 
+                    collectedOrbs={orbHistory} 
+                    gyro={gyroData}
+                    interactionMode={interactionMode}
+                    onMerge={mergeOrb}
+                 />
+             </Canvas>
           </View>
 
           {/* Overlay UI */}
