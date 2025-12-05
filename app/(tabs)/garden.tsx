@@ -12,13 +12,12 @@ import {
   LayoutRectangle,
   useWindowDimensions,
 } from "react-native";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { Svg, Circle } from "react-native-svg";
 import Modal from "react-native-modal";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
+import type { RootState } from "@react-three/fiber";
 import {
   useMeditation,
   CHAKRA_COLORS,
@@ -40,6 +39,7 @@ import {
   Activity,
   PlayCircle,
 } from "lucide-react-native";
+import { CanvasComponent, useFrame } from "@/components/orb/FiberBridge";
 
 const DEV_WALLET = "0xf683cbce6d42918907df66040015fcbdad411d9d";
 const INFUSION_AUDIO = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_b5d0c49038.mp3?filename=healing-ambient-9801.mp3";
@@ -223,7 +223,7 @@ const CrystalOrb = ({
     [],
   );
 
-  useFrame((state) => {
+  useFrame((state: RootState) => {
     if (meshRef.current) {
       meshRef.current.rotation.y += 0.003 + interactionState.current.spinVelocity * 0.5;
       meshRef.current.rotation.x = THREE.MathUtils.lerp(
@@ -253,6 +253,7 @@ const CrystalOrb = ({
     React.createElement("mesh", { ref: haloRef, geometry: haloGeometry, material: haloMaterial }),
     React.createElement("lineSegments", { ref: sacredRef, geometry: edges, material: lineMaterial }),
     React.createElement(NebulaParticles, { stage, layers }),
+    React.createElement(StarField, null),
   );
 };
 
@@ -301,13 +302,60 @@ const NebulaParticles = ({ stage, layers }: { stage: OrbStage; layers: string[] 
     [stage],
   );
 
-  useFrame((state) => {
+  useFrame((state: RootState) => {
     if (!points.current) {
       return;
     }
     points.current.rotation.y += 0.0008;
     const pulse = 0.9 + Math.sin(state.clock.elapsedTime * 0.6) * 0.08;
     points.current.scale.setScalar(pulse);
+  });
+
+  return React.createElement("points", { ref: points, geometry, material });
+};
+
+const StarField = () => {
+  const points = useRef<THREE.Points>(null);
+
+  const data = useMemo(() => {
+    const count = 2000;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
+      const radius = 6 + Math.random() * 8;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+    return positions;
+  }, []);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(data, 3));
+    return geo;
+  }, [data]);
+
+  const material = useMemo(
+    () =>
+      new THREE.PointsMaterial({
+        size: 0.01,
+        color: "#FFFFFF",
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+      }),
+    [],
+  );
+
+  useFrame((state: RootState) => {
+    if (!points.current) {
+      return;
+    }
+    points.current.rotation.y += 0.0002;
+    const breathe = 1 + Math.sin(state.clock.elapsedTime * 0.2) * 0.05;
+    points.current.scale.setScalar(breathe);
   });
 
   return React.createElement("points", { ref: points, geometry, material });
@@ -704,13 +752,12 @@ const GardenScreen = () => {
           orbAreaRef.current?.measureInWindow((x, y, width, height) => setDropZone({ x, y, width, height }));
         }}
       >
-        {shouldUse3D ? (
-          <Canvas camera={{ position: [0, 0, 4] }}>
+        {shouldUse3D && CanvasComponent ? (
+          <CanvasComponent camera={{ position: [0, 0, 4] }}>
             {React.createElement("ambientLight", { intensity: 0.4 })}
             {React.createElement("directionalLight", { position: [3, 3, 2], intensity: 1.2 })}
-            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
             <CrystalOrb layers={currentOrb.layers} stage={currentOrb.stage} interactionState={interactionState} />
-          </Canvas>
+          </CanvasComponent>
         ) : (
           <FallbackOrb stage={currentOrb.stage} layers={currentOrb.layers} />
         )}
