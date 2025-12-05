@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -29,12 +29,16 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
+type OrbStage = "growing" | "awakened" | "legendary" | "eternal";
+
 export interface Orb {
   id: string;
   level: number;
   layers: string[]; // Colors
   isAwakened: boolean;
   createdAt: string;
+  stage: OrbStage;
+  cultivationDays: number;
   completedAt?: string;
   sender?: string;
   message?: string;
@@ -64,7 +68,33 @@ const INITIAL_ORB: Orb = {
   layers: [],
   isAwakened: false,
   createdAt: new Date().toISOString(),
+  stage: "growing",
+  cultivationDays: 0,
 };
+
+const hydrateOrb = (candidate: Partial<Orb>): Orb => {
+  const normalizedLayers = Array.isArray(candidate.layers) ? candidate.layers : [];
+  const normalizedStage = candidate.stage ?? (candidate.isAwakened ? "awakened" : "growing");
+  const normalizedDays = typeof candidate.cultivationDays === "number" ? candidate.cultivationDays : 0;
+
+  return {
+    ...INITIAL_ORB,
+    ...candidate,
+    layers: normalizedLayers,
+    stage: normalizedStage,
+    cultivationDays: normalizedDays,
+  } as Orb;
+};
+
+const createFreshOrb = (): Orb => ({
+  id: `orb-${Date.now()}`,
+  level: 0,
+  layers: [],
+  isAwakened: false,
+  createdAt: new Date().toISOString(),
+  stage: "growing",
+  cultivationDays: 0,
+});
 
 const ACHIEVEMENTS: Achievement[] = [
   {
@@ -104,13 +134,28 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [currentOrb, setCurrentOrb] = useState<Orb>(INITIAL_ORB);
   const [orbHistory, setOrbHistory] = useState<Orb[]>([]);
 
-  useEffect(() => {
-    loadStats();
-    loadCustomMeditations();
-    loadOrbData();
+  const persistCurrentOrb = async (nextOrb: Orb) => {
+    setCurrentOrb(nextOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
+  };
+
+  const persistOrbHistory = async (history: Orb[]) => {
+    setOrbHistory(history);
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(history));
+  };
+
+  const updateWeekProgress = useCallback((currentStats: MeditationStats) => {
+    const today = new Date().getDay();
+    const lastSession = currentStats.lastSessionDate ? new Date(currentStats.lastSessionDate) : null;
+    
+    if (lastSession && lastSession.toDateString() === new Date().toDateString()) {
+      const newWeekProgress = [...currentStats.weekProgress];
+      newWeekProgress[today] = true;
+      setStats({ ...currentStats, weekProgress: newWeekProgress });
+    }
   }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const savedStats = await AsyncStorage.getItem("meditationStats");
       const savedAchievements = await AsyncStorage.getItem("achievements");
@@ -127,9 +172,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     } catch (error) {
       console.error("Error loading stats:", error);
     }
-  };
+  }, [updateWeekProgress]);
 
-  const loadCustomMeditations = async () => {
+  const loadCustomMeditations = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem("customMeditations");
       if (saved) {
@@ -138,29 +183,41 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     } catch (error) {
       console.error("Error loading custom meditations:", error);
     }
-  };
+  }, []);
 
-  const loadOrbData = async () => {
+  const loadOrbData = useCallback(async () => {
     try {
       const savedOrb = await AsyncStorage.getItem("currentOrb");
       const savedHistory = await AsyncStorage.getItem("orbHistory");
-      if (savedOrb) setCurrentOrb(JSON.parse(savedOrb));
-      if (savedHistory) setOrbHistory(JSON.parse(savedHistory));
+      if (savedOrb) {
+        try {
+          const parsedOrb = JSON.parse(savedOrb);
+          setCurrentOrb(hydrateOrb(parsedOrb));
+        } catch (parseError) {
+          console.error("Failed to parse stored orb", parseError);
+        }
+      }
+      if (savedHistory) {
+        try {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory)) {
+            const normalizedHistory = parsedHistory.map((entry: Partial<Orb>) => hydrateOrb(entry));
+            setOrbHistory(normalizedHistory);
+          }
+        } catch (historyError) {
+          console.error("Failed to parse orb history", historyError);
+        }
+      }
     } catch (e) {
       console.error("Failed to load orb data", e);
     }
-  };
+  }, []);
 
-  const updateWeekProgress = (currentStats: MeditationStats) => {
-    const today = new Date().getDay();
-    const lastSession = currentStats.lastSessionDate ? new Date(currentStats.lastSessionDate) : null;
-    
-    if (lastSession && lastSession.toDateString() === new Date().toDateString()) {
-      const newWeekProgress = [...currentStats.weekProgress];
-      newWeekProgress[today] = true;
-      setStats({ ...currentStats, weekProgress: newWeekProgress });
-    }
-  };
+  useEffect(() => {
+    loadStats();
+    loadCustomMeditations();
+    loadOrbData();
+  }, [loadStats, loadCustomMeditations, loadOrbData]);
 
   const completeMeditation = async (sessionId: string, duration: number) => {
     const today = new Date();
@@ -195,20 +252,20 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     // Orb Logic
     const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
-    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
-       const nextLevel = currentOrb.level + 1;
-       if (nextLevel <= 7) {
-         const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
-         const updatedOrb = {
-           ...currentOrb,
-           level: nextLevel,
-           layers: [...currentOrb.layers, newLayer],
-           isAwakened: nextLevel === 7,
-           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
-         };
-         setCurrentOrb(updatedOrb);
-         await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-       }
+    if (!alreadyMeditatedToday && currentOrb.level < 7) {
+      const nextLevel = Math.min(7, currentOrb.level + 1);
+      const nextLayerColor = CHAKRA_COLORS[currentOrb.layers.length % CHAKRA_COLORS.length];
+      const isAdvancedStage = currentOrb.stage === "legendary" || currentOrb.stage === "eternal";
+      const updatedOrb: Orb = {
+        ...currentOrb,
+        level: nextLevel,
+        layers: [...currentOrb.layers, nextLayerColor].slice(0, nextLevel),
+        isAwakened: nextLevel === 7,
+        stage: nextLevel === 7 ? (isAdvancedStage ? currentOrb.stage : "awakened") : "growing",
+        cultivationDays: (currentOrb.cultivationDays ?? 0) + 1,
+        completedAt: nextLevel === 7 ? new Date().toISOString() : currentOrb.completedAt,
+      };
+      await persistCurrentOrb(updatedOrb);
     }
 
     // Check achievements
@@ -270,26 +327,55 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const sendOrb = async (friendId: string, message: string) => {
     const archivedOrb = { ...currentOrb, sender: "Me", message };
     const newHistory = [archivedOrb, ...orbHistory];
-    setOrbHistory(newHistory);
-    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+    await persistOrbHistory(newHistory);
 
-    let nextOrb: Orb;
-    if (currentOrb.isAwakened) {
-       nextOrb = {
-         ...INITIAL_ORB,
-         id: `orb-${Date.now()}`,
-         createdAt: new Date().toISOString(),
-       };
-    } else {
-       nextOrb = {
-         ...INITIAL_ORB,
-         id: `orb-${Date.now()}`,
-         createdAt: new Date().toISOString(),
-       };
+    const nextOrb = createFreshOrb();
+    await persistCurrentOrb(nextOrb);
+  };
+
+  const devAddLayer = async () => {
+    if (currentOrb.level >= 7) {
+      console.log("[MeditationProvider] DevAddLayer ignored, already max layers");
+      return;
     }
-    
-    setCurrentOrb(nextOrb);
-    await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
+    const nextColor = CHAKRA_COLORS[currentOrb.layers.length % CHAKRA_COLORS.length];
+    const nextLevel = currentOrb.level + 1;
+    const isAdvancedStage = currentOrb.stage === "legendary" || currentOrb.stage === "eternal";
+    const updatedOrb: Orb = {
+      ...currentOrb,
+      level: nextLevel,
+      layers: [...currentOrb.layers, nextColor],
+      isAwakened: nextLevel === 7,
+      stage: nextLevel === 7 ? (isAdvancedStage ? currentOrb.stage : "awakened") : "growing",
+      cultivationDays: (currentOrb.cultivationDays ?? 0) + 1,
+      completedAt: nextLevel === 7 ? new Date().toISOString() : currentOrb.completedAt,
+    };
+    console.log("[MeditationProvider] DevAddLayer applied", updatedOrb.level);
+    await persistCurrentOrb(updatedOrb);
+  };
+
+  const devForceStage = async (stage: OrbStage, targetDays: number) => {
+    const forcedOrb: Orb = {
+      ...currentOrb,
+      level: 7,
+      layers: CHAKRA_COLORS.slice(0, 7),
+      isAwakened: true,
+      stage,
+      cultivationDays: targetDays,
+      completedAt: new Date().toISOString(),
+    };
+    console.log("[MeditationProvider] DevForceStage", stage, targetDays);
+    await persistCurrentOrb(forcedOrb);
+  };
+
+  const devSendOrbToSelf = async () => {
+    console.log("[MeditationProvider] DevSendOrbToSelf triggered");
+    await sendOrb("dev-self", "Developer self transfer");
+  };
+
+  const devResetOrb = async () => {
+    console.log("[MeditationProvider] DevResetOrb resetting to seed state");
+    await persistCurrentOrb(createFreshOrb());
   };
 
   return {
@@ -303,5 +389,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
+    devAddLayer,
+    devForceStage,
+    devSendOrbToSelf,
+    devResetOrb,
   };
 });
