@@ -11,12 +11,14 @@ import { MiniKit } from "@/constants/minikit";
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
   const pointsRef = useRef<THREE.Points>(null!);
+  const glowRef = useRef<THREE.Mesh>(null!);
   
   // Create particles based on layers
-  const { positions, colors } = useMemo(() => {
-    const particleCount = 2000;
+  const { positions, colors, sizes } = useMemo(() => {
+    const particleCount = 6000; // Increased for density
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -24,10 +26,8 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       const layerIndex = Math.floor(Math.random() * layers.length);
       const color = colorObjects[layerIndex] || new THREE.Color("#888");
       
-      const minR = 0.5 + (layerIndex * 0.2);
-      const maxR = 0.7 + (layerIndex * 0.2);
-      const r = minR + Math.random() * (maxR - minR);
-      
+      // Volumetric sphere distribution
+      const r = 0.5 + Math.random() * 0.9;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       
@@ -35,55 +35,120 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
       
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
+      colors[i * 3] = color.r + (Math.random() - 0.5) * 0.1; // Slight color variation
+      colors[i * 3 + 1] = color.g + (Math.random() - 0.5) * 0.1;
+      colors[i * 3 + 2] = color.b + (Math.random() - 0.5) * 0.1;
+      
+      sizes[i] = Math.random(); 
     }
     
-    return { positions, colors };
+    return { positions, colors, sizes };
   }, [layers]);
 
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uScale: { value: 1.0 },
+  }), []);
+
   useFrame((state) => {
-    if (!pointsRef.current) return;
-    
     const time = state.clock.getElapsedTime();
     const { mode, spinVelocity } = interactionState.current;
     
-    pointsRef.current.rotation.y += 0.005 + spinVelocity;
-    pointsRef.current.rotation.z += 0.002;
-
-    const pulse = Math.sin(time * 2) * 0.05 + 1;
-    
-    let scale = pulse;
-    if (mode === 'gather') {
-      scale = 0.5;
-    } else if (mode === 'explode') {
-      scale = 2.0;
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += 0.002 + spinVelocity;
+      pointsRef.current.rotation.z = Math.sin(time * 0.2) * 0.1;
     }
+
+    // Core pulsing
+    if (glowRef.current) {
+      const pulse = 1.0 + Math.sin(time * 2.0) * 0.05;
+      glowRef.current.scale.setScalar(pulse);
+    }
+
+    // Interaction scale
+    let targetScale = 1.0;
+    if (mode === 'gather') targetScale = 0.3;
+    else if (mode === 'explode') targetScale = 2.2;
     
-    pointsRef.current.scale.setScalar(THREE.MathUtils.lerp(pointsRef.current.scale.x, scale, 0.1));
+    uniforms.uScale.value = THREE.MathUtils.lerp(uniforms.uScale.value, targetScale, 0.1);
+    uniforms.uTime.value = time;
   });
 
   return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
+    <group>
+      {/* Core Glow - Solid Center */}
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[0.5, 32, 32]} />
+        <meshBasicMaterial
+          color={layers[layers.length - 1] || "#ffffff"}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
         />
-        <bufferAttribute
-          attach="attributes-color"
-          args={[colors, 3]}
+      </mesh>
+
+      {/* Particles */}
+      <points ref={pointsRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            args={[positions, 3]}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            args={[colors, 3]}
+          />
+          <bufferAttribute
+            attach="attributes-size"
+            args={[sizes, 1]}
+          />
+        </bufferGeometry>
+        <shaderMaterial
+          uniforms={uniforms}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          vertexShader={`
+            attribute float size;
+            varying vec3 vColor;
+            uniform float uTime;
+            uniform float uScale;
+            
+            void main() {
+              vColor = color;
+              vec3 pos = position;
+              vec3 n = normalize(pos); // Calculate normal for sphere
+              
+              // Organic noise movement
+              float noise = sin(pos.x * 4.0 + uTime) * 0.05 + 
+                           sin(pos.y * 4.0 + uTime) * 0.05 + 
+                           sin(pos.z * 4.0 + uTime) * 0.05;
+              
+              pos += n * noise;
+              pos *= uScale;
+              
+              vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+              gl_PointSize = size * (150.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `}
+          fragmentShader={`
+            varying vec3 vColor;
+            void main() {
+              vec2 xy = gl_PointCoord.xy - vec2(0.5);
+              float r = length(xy);
+              if (r > 0.5) discard;
+              
+              // Soft gradient glow
+              float alpha = 1.0 - smoothstep(0.0, 0.5, r);
+              alpha = pow(alpha, 1.5);
+              
+              gl_FragColor = vec4(vColor, alpha);
+            }
+          `}
         />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.05}
-        vertexColors
-        transparent
-        opacity={0.8}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
+      </points>
+    </group>
   );
 };
 
