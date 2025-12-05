@@ -108,6 +108,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings/language" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/privacy" options={{ presentation: "modal" }} />
       <Stack.Screen name="callback" options={{ presentation: "modal" }} />
+      <Stack.Screen name="garden-magic" options={{ presentation: "fullScreenModal", headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
