@@ -267,33 +267,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     return newMeditation;
   };
 
-  const addOrbLayer = async (color: string) => {
-    const updatedOrb = {
-      ...currentOrb,
-      layers: [...currentOrb.layers, color],
-      level: currentOrb.level + 1,
-    };
-    setCurrentOrb(updatedOrb);
-    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-  };
-
-  const setOrbLevel = async (level: number) => {
-    const newLayers: string[] = [];
-    for (let i = 0; i < Math.min(level, 7); i++) {
-      newLayers.push(CHAKRA_COLORS[i % 7]);
-    }
-    
-    const updatedOrb = {
-      ...currentOrb,
-      level,
-      layers: newLayers,
-      isAwakened: level >= 21,
-      completedAt: level >= 21 ? new Date().toISOString() : undefined,
-    };
-    setCurrentOrb(updatedOrb);
-    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-  };
-
   const sendOrb = async (friendId: string, message: string) => {
     const archivedOrb = { ...currentOrb, sender: "Me", message };
     const newHistory = [archivedOrb, ...orbHistory];
@@ -330,7 +303,5 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
-    addOrbLayer,
-    setOrbLevel,
   };
 });
