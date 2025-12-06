@@ -5,9 +5,8 @@ import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Send, Wand2 } from "lucide-react-native";
+import { Send } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
-import { useRouter } from "expo-router";
 
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
@@ -92,7 +91,6 @@ export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const { currentOrb, sendOrb, orbHistory, devAddLayer, devInstantOrb, devResetOrb, devSendOrbToSelf } = useMeditation();
   const { walletAddress } = useUser();
-  const router = useRouter();
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
@@ -228,17 +226,7 @@ export default function GardenScreen() {
         </View>
       </View>
 
-      <View style={[styles.controls, { gap: 12 }]}>
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.primary }]}
-          onPress={() => router.push('/garden-magic')}
-        >
-          <Wand2 color={currentTheme.primary} size={20} />
-          <Text style={[styles.buttonText, { color: currentTheme.primary }]}>
-            {settings.language === 'zh' ? "創造" : "Create"}
-          </Text>
-        </TouchableOpacity>
-
+      <View style={styles.controls}>
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: currentTheme.primary }]}
           onPress={handleSendOrb}

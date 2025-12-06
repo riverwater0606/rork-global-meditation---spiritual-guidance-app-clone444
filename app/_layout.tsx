@@ -3,7 +3,7 @@ import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { MiniKit } from "@/constants/minikit";
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MeditationProvider } from "@/providers/MeditationProvider";
@@ -108,21 +108,12 @@ function RootLayoutNav() {
       <Stack.Screen name="settings/language" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/privacy" options={{ presentation: "modal" }} />
       <Stack.Screen name="callback" options={{ presentation: "modal" }} />
-      <Stack.Screen name="garden-magic" options={{ presentation: "fullScreenModal", headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
-  if (Platform.OS === 'web') {
-    return (
-      <View style={{flex:1, backgroundColor:'#000033', justifyContent:'center', alignItems:'center'}}>
-        <Text style={{color:'#fff', fontSize:24}}>光球花園載入中…</Text>
-      </View>
-    );
-  }
-
   useEffect(() => {
     SplashScreen.hideAsync().catch((error) => {
       console.log('[RootLayout] SplashScreen.hideAsync failed', error);
