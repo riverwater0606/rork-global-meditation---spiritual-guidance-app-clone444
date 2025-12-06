@@ -70,13 +70,22 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
     
     if (mode === 'gather') {
       // Shrink to core as progress increases (1.0 -> 0.3)
-      targetScale = 1.2 - (progress * 0.9);
-      if (targetScale < 0.3) targetScale = 0.3;
+      targetScale = 1.2 - (progress * 0.95); // Tighter gather
+      if (targetScale < 0.1) targetScale = 0.1;
+      
+      // Add wobble effect
+      const wobble = Math.sin(time * 20) * 0.05 * progress;
+      pointsRef.current.position.x = wobble;
+      pointsRef.current.position.y = wobble;
     } else if (mode === 'explode') {
-      targetScale = 2.5;
+      targetScale = 3.5; // Bigger explosion
+      pointsRef.current.position.x = 0;
+      pointsRef.current.position.y = 0;
     } else {
       // Idle
       targetScale = 1.0;
+      pointsRef.current.position.x = 0;
+      pointsRef.current.position.y = 0;
     }
     
     // Smooth lerp
@@ -127,7 +136,7 @@ export default function GardenScreen() {
   // Interaction State
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const [gatheringProgress, setGatheringProgress] = useState(0);
-  const progressInterval = useRef<NodeJS.Timeout | null>(null);
+  const progressInterval = useRef<any>(null);
   const GATHER_DURATION = 10000; // 10 seconds to cultivate
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
@@ -263,7 +272,14 @@ export default function GardenScreen() {
           )}
         </View>
         <Text style={[styles.subtitle, { color: currentTheme.textSecondary }]}>
-           {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
+           {currentOrb.level >= 108 
+              ? (settings.language === 'zh' ? "永恆光球" : "Eternal Orb")
+              : currentOrb.level >= 49
+              ? (settings.language === 'zh' ? `${108 - currentOrb.level} 天後達成永恆` : `${108 - currentOrb.level} days to Eternal`)
+              : currentOrb.level >= 21
+              ? (settings.language === 'zh' ? `${49 - currentOrb.level} 天後達成傳說` : `${49 - currentOrb.level} days to Legendary`)
+              : (settings.language === 'zh' ? `${21 - currentOrb.level} 天後覺醒` : `${21 - currentOrb.level} days to Awaken`)
+           }
         </Text>
       </View>
 
@@ -320,6 +336,11 @@ export default function GardenScreen() {
              <Text style={styles.progressText}>
                {Math.floor(gatheringProgress * 100)}%
              </Text>
+             <Text style={[styles.progressSubText, { color: 'rgba(255,255,255,0.8)' }]}>
+               {settings.language === 'zh' 
+                 ? `還需 ${Math.ceil((1 - gatheringProgress) * 10)} 秒` 
+                 : `${Math.ceil((1 - gatheringProgress) * 10)}s remaining`}
+             </Text>
              <View style={styles.progressBarBg}>
                <View style={[styles.progressBarFill, { width: `${gatheringProgress * 100}%`, backgroundColor: currentTheme.primary }]} />
              </View>
@@ -337,11 +358,11 @@ export default function GardenScreen() {
           <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
              <Clock size={20} color={currentTheme.textSecondary} />
              <Text style={[styles.infoText, { color: currentTheme.text }]}>
-               {currentOrb.isAwakened 
+               {currentOrb.level >= 21 
                  ? (settings.language === 'zh' ? "已覺醒" : "Awakened")
                  : (settings.language === 'zh' 
-                     ? `${7 - currentOrb.layers.length} 天後覺醒`
-                     : `${7 - currentOrb.layers.length} days to awaken`)
+                     ? `${21 - currentOrb.level} 天後覺醒`
+                     : `${21 - currentOrb.level} days to awaken`)
                }
              </Text>
           </View>
@@ -438,7 +459,15 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  progressBarBg: {
+    progressSubText: {
+        fontSize: 16,
+        marginBottom: 8,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+    progressBarBg: {
     width: 200,
     height: 6,
     backgroundColor: 'rgba(255,255,255,0.3)',

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -195,16 +195,23 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     // Orb Logic
     const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
-    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
+    // Allow leveling up even if already awakened, to reach higher tiers (Legendary 49, Eternal 108)
+    // But per user request "Mint... when orb reaches Awakened (21 days)".
+    // Let's assume we cap at 108 or infinite?
+    // User mentioned: Awakened (21), Legendary (49), Eternal (108).
+    // So we should allow leveling up to 108.
+    
+    if (!alreadyMeditatedToday) { 
        const nextLevel = currentOrb.level + 1;
-       if (nextLevel <= 7) {
+       // Cap at 108 for now
+       if (nextLevel <= 108) {
          const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
          const updatedOrb = {
            ...currentOrb,
            level: nextLevel,
            layers: [...currentOrb.layers, newLayer],
-           isAwakened: nextLevel === 7,
-           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+           isAwakened: nextLevel >= 21, // Awakened at 21
+           completedAt: nextLevel === 108 ? new Date().toISOString() : undefined
          };
          setCurrentOrb(updatedOrb);
          await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
@@ -295,14 +302,14 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   // Dev Tools
   const devAddLayer = async () => {
      const nextLevel = currentOrb.level + 1;
-     if (nextLevel <= 7) {
+     if (nextLevel <= 108) {
        const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
        const updatedOrb = {
          ...currentOrb,
          level: nextLevel,
          layers: [...currentOrb.layers, newLayer],
-         isAwakened: nextLevel === 7,
-         completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+         isAwakened: nextLevel >= 21,
+         completedAt: nextLevel === 108 ? new Date().toISOString() : undefined
        };
        setCurrentOrb(updatedOrb);
        await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
@@ -360,7 +367,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   }, [stats.lastSessionDate]);
 
   const cultivateDailyOrb = async () => {
-    if (hasMeditatedToday || currentOrb.isAwakened) return;
+    // Allow cultivation if not meditated today, even if awakened (to reach next tier)
+    if (hasMeditatedToday) return;
+    if (currentOrb.level >= 108) return; // Max level
 
     // Count as a mini session
     const duration = 1; // 1 minute equivalent
