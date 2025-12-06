@@ -127,7 +127,7 @@ export default function GardenScreen() {
   // Interaction State
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const [gatheringProgress, setGatheringProgress] = useState(0);
-  const progressInterval = useRef<NodeJS.Timeout | null>(null);
+  const progressInterval = useRef<any>(null);
   const GATHER_DURATION = 10000; // 10 seconds to cultivate
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
@@ -318,6 +318,9 @@ export default function GardenScreen() {
         {gatheringProgress > 0 && (
           <View style={styles.progressContainer}>
              <Text style={styles.progressText}>
+               {Math.ceil((1 - gatheringProgress) * (GATHER_DURATION / 1000))}s
+             </Text>
+             <Text style={styles.progressSubText}>
                {Math.floor(gatheringProgress * 100)}%
              </Text>
              <View style={styles.progressBarBg}>
@@ -434,6 +437,15 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  progressSubText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    marginBottom: 10,
+    fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
