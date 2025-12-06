@@ -1,22 +1,24 @@
-import React, { useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
+import React, { useRef, useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Dimensions } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Send } from "lucide-react-native";
+import { Send, Clock, Zap } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
+import { BlurView } from "expo-blur";
 
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   // Create particles based on layers
-  const { positions, colors } = useMemo(() => {
-    const particleCount = 2000;
+  const { positions, colors, randoms } = useMemo(() => {
+    const particleCount = 3000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
+    const randoms = new Float32Array(particleCount * 3);
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -24,10 +26,8 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       const layerIndex = Math.floor(Math.random() * layers.length);
       const color = colorObjects[layerIndex] || new THREE.Color("#888");
       
-      const minR = 0.5 + (layerIndex * 0.2);
-      const maxR = 0.7 + (layerIndex * 0.2);
-      const r = minR + Math.random() * (maxR - minR);
-      
+      // Initial distribution - sphere with some randomness
+      const r = 1.0 + Math.random() * 0.5;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       
@@ -38,30 +38,50 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
+
+      randoms[i * 3] = Math.random();
+      randoms[i * 3 + 1] = Math.random();
+      randoms[i * 3 + 2] = Math.random();
     }
     
-    return { positions, colors };
+    return { positions, colors, randoms };
   }, [layers]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
     
     const time = state.clock.getElapsedTime();
-    const { mode, spinVelocity } = interactionState.current;
+    const { mode, spinVelocity, progress } = interactionState.current;
     
-    pointsRef.current.rotation.y += 0.005 + spinVelocity;
-    pointsRef.current.rotation.z += 0.002;
-
-    const pulse = Math.sin(time * 2) * 0.05 + 1;
-    
-    let scale = pulse;
+    // Rotation logic
+    let rotationSpeed = 0.002 + spinVelocity;
     if (mode === 'gather') {
-      scale = 0.5;
-    } else if (mode === 'explode') {
-      scale = 2.0;
+       rotationSpeed = 0.01 + (progress * 0.05); // Spin faster as we gather
     }
     
-    pointsRef.current.scale.setScalar(THREE.MathUtils.lerp(pointsRef.current.scale.x, scale, 0.1));
+    pointsRef.current.rotation.y += rotationSpeed;
+    pointsRef.current.rotation.z += 0.001;
+
+    // Pulse effect
+    const pulse = Math.sin(time * 2) * 0.05 + 1;
+    
+    // Scale logic for "Gathering"
+    let targetScale = pulse;
+    
+    if (mode === 'gather') {
+      // Shrink to core as progress increases (1.0 -> 0.3)
+      targetScale = 1.2 - (progress * 0.9);
+      if (targetScale < 0.3) targetScale = 0.3;
+    } else if (mode === 'explode') {
+      targetScale = 2.5;
+    } else {
+      // Idle
+      targetScale = 1.0;
+    }
+    
+    // Smooth lerp
+    const lerpFactor = mode === 'gather' ? 0.05 : 0.1;
+    pointsRef.current.scale.setScalar(THREE.MathUtils.lerp(pointsRef.current.scale.x, targetScale, lerpFactor));
   });
 
   return (
@@ -77,11 +97,12 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.05}
+        size={0.06}
         vertexColors
         transparent
         opacity={0.8}
         blending={THREE.AdditiveBlending}
+        sizeAttenuation={true}
       />
     </points>
   );
@@ -89,9 +110,25 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
-  const { currentOrb, sendOrb, orbHistory, devAddLayer, devInstantOrb, devResetOrb, devSendOrbToSelf } = useMeditation();
+  const { 
+    currentOrb, 
+    sendOrb, 
+    orbHistory, 
+    hasMeditatedToday,
+    cultivateDailyOrb,
+    devAddLayer, 
+    devInstantOrb, 
+    devResetOrb, 
+    devSendOrbToSelf 
+  } = useMeditation();
+  
   const { walletAddress } = useUser();
-  const interactionState = useRef({ mode: 'idle', spinVelocity: 0 });
+  
+  // Interaction State
+  const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
+  const [gatheringProgress, setGatheringProgress] = useState(0);
+  const progressInterval = useRef<NodeJS.Timeout | null>(null);
+  const GATHER_DURATION = 10000; // 10 seconds to cultivate
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
@@ -101,20 +138,78 @@ export default function GardenScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        interactionState.current.mode = 'gather';
+        startGathering();
       },
       onPanResponderMove: (_, gestureState) => {
         interactionState.current.spinVelocity = gestureState.vx * 0.05;
       },
       onPanResponderRelease: () => {
-        interactionState.current.mode = 'explode';
-        setTimeout(() => {
-          interactionState.current.mode = 'idle';
-          interactionState.current.spinVelocity = 0;
-        }, 1000);
+        stopGathering();
       },
+      onPanResponderTerminate: () => {
+        stopGathering();
+      }
     })
   ).current;
+
+  const startGathering = () => {
+    interactionState.current.mode = 'gather';
+    
+    const startTime = Date.now();
+    const startProgress = interactionState.current.progress; // usually 0 unless paused? Assume reset.
+    
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    
+    progressInterval.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const newProgress = Math.min(elapsed / GATHER_DURATION, 1.0);
+      
+      interactionState.current.progress = newProgress;
+      setGatheringProgress(newProgress);
+      
+      if (newProgress >= 1.0) {
+         // Success!
+         triggerCultivation();
+      }
+    }, 16); // 60fps update
+  };
+
+  const stopGathering = () => {
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
+    
+    // If we didn't finish, reset
+    if (interactionState.current.progress < 1.0) {
+      interactionState.current.mode = 'idle';
+      interactionState.current.progress = 0;
+      setGatheringProgress(0);
+    }
+  };
+
+  const triggerCultivation = () => {
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
+    
+    interactionState.current.mode = 'explode';
+    interactionState.current.progress = 0;
+    setGatheringProgress(0);
+    
+    // Trigger logic
+    if (!hasMeditatedToday && !currentOrb.isAwakened) {
+       cultivateDailyOrb();
+       Alert.alert("Energy Gathered", "Your orb has absorbed today's light.");
+    } else if (hasMeditatedToday) {
+       // Just visual pleasure
+    }
+    
+    setTimeout(() => {
+      interactionState.current.mode = 'idle';
+    }, 2000);
+  };
 
   const handleSendOrb = async () => {
     if (!currentOrb.isAwakened && currentOrb.level < 1) {
@@ -219,11 +314,47 @@ export default function GardenScreen() {
           />
         </Canvas>
         
+        {/* Gathering Progress UI */}
+        {gatheringProgress > 0 && (
+          <View style={styles.progressContainer}>
+             <Text style={styles.progressText}>
+               {Math.floor(gatheringProgress * 100)}%
+             </Text>
+             <View style={styles.progressBarBg}>
+               <View style={[styles.progressBarFill, { width: `${gatheringProgress * 100}%`, backgroundColor: currentTheme.primary }]} />
+             </View>
+          </View>
+        )}
+        
         <View style={styles.instructions}>
            <Text style={styles.instructionText}>
              {settings.language === 'zh' ? "長按聚集 • 放開綻放 • 拖動旋轉" : "Hold to Gather • Release to Bloom • Drag to Spin"}
            </Text>
         </View>
+      </View>
+
+      <View style={styles.infoContainer}>
+          <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
+             <Clock size={20} color={currentTheme.textSecondary} />
+             <Text style={[styles.infoText, { color: currentTheme.text }]}>
+               {currentOrb.isAwakened 
+                 ? (settings.language === 'zh' ? "已覺醒" : "Awakened")
+                 : (settings.language === 'zh' 
+                     ? `${7 - currentOrb.layers.length} 天後覺醒`
+                     : `${7 - currentOrb.layers.length} days to awaken`)
+               }
+             </Text>
+          </View>
+          
+          <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
+             <Zap size={20} color={hasMeditatedToday ? currentTheme.primary : currentTheme.textSecondary} />
+             <Text style={[styles.infoText, { color: currentTheme.text }]}>
+               {hasMeditatedToday
+                 ? (settings.language === 'zh' ? "今日能量已收集" : "Energy Collected")
+                 : (settings.language === 'zh' ? "長按收集能量" : "Gather Energy")
+               }
+             </Text>
+          </View>
       </View>
 
       <View style={styles.controls}>
@@ -290,6 +421,58 @@ const styles = StyleSheet.create({
     margin: 10,
     overflow: 'hidden',
     position: 'relative',
+  },
+  progressContainer: {
+    position: 'absolute',
+    top: '40%',
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  progressText: {
+    color: 'white',
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  progressBarBg: {
+    width: 200,
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  infoCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  infoText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   instructions: {
     position: 'absolute',

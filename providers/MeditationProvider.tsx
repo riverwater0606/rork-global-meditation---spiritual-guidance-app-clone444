@@ -353,12 +353,28 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
      await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
   };
 
+  const hasMeditatedToday = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
+    return lastSession && lastSession.toDateString() === todayStr;
+  }, [stats.lastSessionDate]);
+
+  const cultivateDailyOrb = async () => {
+    if (hasMeditatedToday || currentOrb.isAwakened) return;
+
+    // Count as a mini session
+    const duration = 1; // 1 minute equivalent
+    await completeMeditation("garden-cultivation", duration);
+  };
+
   return {
     stats,
     achievements,
     customMeditations,
     currentOrb,
     orbHistory,
+    hasMeditatedToday,
+    cultivateDailyOrb,
     completeMeditation,
     addCustomMeditation,
     deleteCustomMeditation,
