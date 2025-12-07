@@ -115,6 +115,7 @@ export default function GardenScreen() {
     sendOrb, 
     orbHistory, 
     hasMeditatedToday,
+    hasGrownOrbToday,
     cultivateDailyOrb,
     devAddLayer, 
     devInstantOrb, 
@@ -128,7 +129,7 @@ export default function GardenScreen() {
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const [gatheringProgress, setGatheringProgress] = useState(0);
   const progressInterval = useRef<any>(null);
-  const GATHER_DURATION = 10000; // 10 seconds to cultivate
+  const GATHER_DURATION = 7 * 60 * 1000; // 7 minutes to cultivate
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
@@ -199,10 +200,10 @@ export default function GardenScreen() {
     setGatheringProgress(0);
     
     // Trigger logic
-    if (!hasMeditatedToday && !currentOrb.isAwakened) {
+    if (!hasGrownOrbToday && !currentOrb.isAwakened) {
        cultivateDailyOrb();
        Alert.alert("Energy Gathered", "Your orb has absorbed today's light.");
-    } else if (hasMeditatedToday) {
+    } else if (hasGrownOrbToday) {
        // Just visual pleasure
     }
     
@@ -244,6 +245,12 @@ export default function GardenScreen() {
         }
       ]
     );
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -318,7 +325,7 @@ export default function GardenScreen() {
         {gatheringProgress > 0 && (
           <View style={styles.progressContainer}>
              <Text style={styles.progressText}>
-               {Math.ceil((1 - gatheringProgress) * (GATHER_DURATION / 1000))}s
+               {formatTime(Math.ceil((1 - gatheringProgress) * (GATHER_DURATION / 1000)))}
              </Text>
              <Text style={styles.progressSubText}>
                {Math.floor(gatheringProgress * 100)}%
@@ -350,9 +357,9 @@ export default function GardenScreen() {
           </View>
           
           <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
-             <Zap size={20} color={hasMeditatedToday ? currentTheme.primary : currentTheme.textSecondary} />
+             <Zap size={20} color={hasGrownOrbToday ? currentTheme.primary : currentTheme.textSecondary} />
              <Text style={[styles.infoText, { color: currentTheme.text }]}>
-               {hasMeditatedToday
+               {hasGrownOrbToday
                  ? (settings.language === 'zh' ? "今日能量已收集" : "Energy Collected")
                  : (settings.language === 'zh' ? "長按收集能量" : "Gather Energy")
                }
@@ -427,34 +434,37 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     position: 'absolute',
-    top: '40%',
-    width: '100%',
-    alignItems: 'center',
+    top: 60,
+    right: 20,
+    width: 'auto',
+    alignItems: 'flex-end',
     zIndex: 10,
   },
   progressText: {
     color: 'white',
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 5,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+    textAlign: 'right',
   },
   progressSubText: {
     color: 'rgba(255,255,255,0.8)',
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: 14,
+    marginBottom: 5,
     fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+    textAlign: 'right',
   },
   progressBarBg: {
-    width: 200,
-    height: 6,
+    width: 150,
+    height: 4,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 3,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressBarFill: {

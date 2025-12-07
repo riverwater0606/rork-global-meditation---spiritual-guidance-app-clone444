@@ -38,6 +38,7 @@ export interface Orb {
   completedAt?: string;
   sender?: string;
   message?: string;
+  lastLayerAddedAt?: string;
 }
 
 export const CHAKRA_COLORS = [
@@ -162,7 +163,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
-  const completeMeditation = async (sessionId: string, duration: number) => {
+  const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false) => {
     const today = new Date();
     const todayStr = today.toDateString();
     const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
@@ -194,8 +195,10 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Orb Logic
-    const alreadyMeditatedToday = lastSession && lastSession.toDateString() === todayStr;
-    if (!alreadyMeditatedToday && !currentOrb.isAwakened) {
+    // Only grow if explicitly requested (garden) AND not grown today
+    const alreadyGrownToday = currentOrb.lastLayerAddedAt && new Date(currentOrb.lastLayerAddedAt).toDateString() === todayStr;
+    
+    if (growOrb && !alreadyGrownToday && !currentOrb.isAwakened) {
        const nextLevel = currentOrb.level + 1;
        if (nextLevel <= 7) {
          const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
@@ -204,7 +207,8 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
            level: nextLevel,
            layers: [...currentOrb.layers, newLayer],
            isAwakened: nextLevel === 7,
-           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined
+           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined,
+           lastLayerAddedAt: new Date().toISOString()
          };
          setCurrentOrb(updatedOrb);
          await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
@@ -353,6 +357,13 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
      await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
   };
 
+  const hasGrownOrbToday = useMemo(() => {
+    if (!currentOrb.lastLayerAddedAt) return false;
+    const todayStr = new Date().toDateString();
+    const lastGrowth = new Date(currentOrb.lastLayerAddedAt);
+    return lastGrowth.toDateString() === todayStr;
+  }, [currentOrb.lastLayerAddedAt]);
+
   const hasMeditatedToday = useMemo(() => {
     const todayStr = new Date().toDateString();
     const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
@@ -360,11 +371,11 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   }, [stats.lastSessionDate]);
 
   const cultivateDailyOrb = async () => {
-    if (hasMeditatedToday || currentOrb.isAwakened) return;
+    if (hasGrownOrbToday || currentOrb.isAwakened) return;
 
-    // Count as a mini session
-    const duration = 1; // 1 minute equivalent
-    await completeMeditation("garden-cultivation", duration);
+    // Count as a session
+    const duration = 7; // 7 minutes
+    await completeMeditation("garden-cultivation", duration, true);
   };
 
   return {
@@ -374,6 +385,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     currentOrb,
     orbHistory,
     hasMeditatedToday,
+    hasGrownOrbToday,
     cultivateDailyOrb,
     completeMeditation,
     addCustomMeditation,
