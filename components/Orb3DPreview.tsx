@@ -9,11 +9,13 @@ interface Orb3DPreviewProps {
   size?: number;
 }
 
-const OrbParticlesPreview = ({ layers }: { layers: string[] }) => {
+const OrbParticlesPreview = ({ layers, size }: { layers: string[]; size: number }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   const { positions, colors } = useMemo(() => {
-    const particleCount = 20000;
+    const baseParticleCount = 20000;
+    const scaleFactor = (size / 200) ** 2;
+    const particleCount = Math.floor(baseParticleCount * scaleFactor);
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     
@@ -38,7 +40,7 @@ const OrbParticlesPreview = ({ layers }: { layers: string[] }) => {
     }
     
     return { positions, colors };
-  }, [layers]);
+  }, [layers, size]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
@@ -80,7 +82,7 @@ export const Orb3DPreview: React.FC<Orb3DPreviewProps> = ({
         <Canvas camera={{ position: [0, 0, 3.5] }}>
           <ambientLight intensity={0.6} />
           <pointLight position={[5, 5, 5]} intensity={0.5} />
-          <OrbParticlesPreview layers={orb.layers} />
+          <OrbParticlesPreview layers={orb.layers} size={size} />
         </Canvas>
       </View>
     );
@@ -91,7 +93,7 @@ export const Orb3DPreview: React.FC<Orb3DPreviewProps> = ({
       <Canvas camera={{ position: [0, 0, 3.5] }}>
         <ambientLight intensity={0.6} />
         <pointLight position={[5, 5, 5]} intensity={0.5} />
-        <OrbParticlesPreview layers={orb.layers} />
+        <OrbParticlesPreview layers={orb.layers} size={size} />
       </Canvas>
     </View>
   );
