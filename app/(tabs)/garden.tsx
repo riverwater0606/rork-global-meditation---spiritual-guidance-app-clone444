@@ -55,7 +55,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
   
   // Pre-calculate positions
   const { positions, colors, heartPositions } = useMemo(() => {
-    const particleCount = 3000;
+    const particleCount = 8000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     const heartPositions = new Float32Array(particleCount * 3);
@@ -67,7 +67,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       const layerIndex = Math.floor(Math.random() * layers.length);
       const color = colorObjects[layerIndex] || new THREE.Color("#888");
       
-      const r = 1.2 + Math.random() * 0.8; 
+      const r = 1.0 + Math.random() * 0.5; 
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       
@@ -125,7 +125,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
     const geometry = pointsRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     
-    for (let i = 0; i < 3000; i++) {
+    for (let i = 0; i < 8000; i++) {
       const ix = i * 3;
       const iy = i * 3 + 1;
       const iz = i * 3 + 2;
@@ -192,10 +192,10 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.07}
+        size={0.05}
         vertexColors
         transparent
-        opacity={0.8}
+        opacity={0.85}
         blending={THREE.AdditiveBlending}
         sizeAttenuation={true}
         depthWrite={false}
@@ -255,16 +255,17 @@ export default function GardenScreen() {
         interactionState.current.spinVelocity = gestureState.vx * 0.05;
         
         // Swipe Detection
-        // Use gestureState.dy (accumulated distance)
-        const { dy } = gestureState;
+        // Use gestureState.dy (accumulated distance) and velocity
+        const { dy, vy } = gestureState;
         
-        // Thresholds
-        const SWIPE_THRESHOLD = 80;
+        // Thresholds - require both distance AND velocity to avoid accidental triggers during hold
+        const SWIPE_THRESHOLD = 100;
+        const VELOCITY_THRESHOLD = 0.5;
         
         if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
-           if (dy < -SWIPE_THRESHOLD) { // Swipe UP
+           if (dy < -SWIPE_THRESHOLD && vy < -VELOCITY_THRESHOLD) { // Swipe UP with velocity
              triggerHeartAnimation();
-           } else if (dy > SWIPE_THRESHOLD) { // Swipe DOWN
+           } else if (dy > SWIPE_THRESHOLD && vy > VELOCITY_THRESHOLD) { // Swipe DOWN with velocity
              triggerStoreAnimation();
            }
         }
