@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Animated,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Send, Bot, User, Sparkles } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSettings } from "@/providers/SettingsProvider";
@@ -74,6 +75,7 @@ export default function AssistantScreen() {
   const { currentTheme, settings } = useSettings();
   const { addCustomMeditation } = useMeditation();
   const language = settings.language as Language;
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -327,7 +329,7 @@ The script should be 200-300 words. Use plain text.`
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
+          contentContainerStyle={[styles.messagesContent, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -430,7 +432,7 @@ The script should be 200-300 words. Use plain text.`
           </View>
         )}
 
-        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
+        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border, paddingBottom: insets.bottom }]}>
           <TextInput
             style={[styles.input, { backgroundColor: currentTheme.background, color: currentTheme.text }]}
             value={inputText}
@@ -501,7 +503,6 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 100,
   },
   messageWrapper: {
     flexDirection: "row",

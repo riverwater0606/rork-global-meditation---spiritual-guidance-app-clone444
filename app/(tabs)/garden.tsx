@@ -1,5 +1,6 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape } from "@/providers/MeditationProvider";
@@ -455,6 +456,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
+  const insets = useSafeAreaInsets();
   const { 
     currentOrb, 
     sendOrb, 
@@ -1067,10 +1069,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   gardenListContainer: {
-    height: 160,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingBottom: 100,
   },
   collectionHeader: {
     flexDirection: 'row',

@@ -114,7 +114,11 @@ export default function HomeScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Light Orb 3D Preview */}
         <TouchableOpacity
           style={[styles.orbSection, { backgroundColor: currentTheme.card }]}
@@ -249,7 +253,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={{ height: 20 }} />
+
       </ScrollView>
     </View>
   );
