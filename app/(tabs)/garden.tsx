@@ -54,11 +54,12 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
   const pointsRef = useRef<THREE.Points>(null!);
   
   // Pre-calculate positions for Sacred Geometry
-  const { positions, colors, targetPositions } = useMemo(() => {
+  const { positions, colors, targetPositions, heartPositions } = useMemo(() => {
     const particleCount = 12000; // Increased for density
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     const targetPositions = new Float32Array(particleCount * 3); // The destination shape
+    const heartPositions = new Float32Array(particleCount * 3); // Heart shape for sending
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -368,6 +369,36 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       }
     };
 
+    // 6. Heart (For Sending)
+    const generateHeart = () => {
+      for(let i=0; i<particleCount; i++) {
+        // Parametric Heart
+        // x = 16 sin^3(t)
+        // y = 13 cos(t) - 5 cos(2t) - 2 cos(3t) - cos(4t)
+        
+        // We want a filled heart, so we can vary the "radius" or just layer multiple curves
+        // Or simply distribute points along the curve with some noise
+        
+        const t = Math.random() * Math.PI * 2;
+        const scale = 0.05;
+        
+        // Base curve
+        let hx = 16 * Math.pow(Math.sin(t), 3);
+        let hy = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+        
+        // Add thickness/volume
+        // Random point inside unit sphere * thickness
+        const thickness = 0.2;
+        
+        // Pull towards center to make it solid?
+        // Let's keep it as a thick shell for better definition
+        
+        heartPositions[i*3] = hx * scale + (Math.random()-0.5)*thickness;
+        heartPositions[i*3+1] = hy * scale + (Math.random()-0.5)*thickness + 0.2; // Shift up slightly
+        heartPositions[i*3+2] = (Math.random()-0.5) * 0.5; // Depth
+      }
+    };
+
     // Initialize random sphere positions first (start state)
     for(let i=0; i<particleCount; i++) setRandomSphere(i);
     
@@ -379,7 +410,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
-    return { positions, colors, targetPositions };
+    // Always generate heart positions so they are ready
+    generateHeart();
+    
+    return { positions, colors, targetPositions, heartPositions };
   }, [layers, shape]);
 
   // Use a buffer attribute for current positions to interpolate
@@ -433,6 +467,18 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
         ty += (Math.random() - 0.5) * jitter;
         tz += (Math.random() - 0.5) * jitter;
       } 
+      else if (mode === 'heart') {
+         // Transform to Heart Shape
+         tx = heartPositions[ix];
+         ty = heartPositions[iy];
+         tz = heartPositions[iz];
+
+         // Heartbeat effect
+         const beat = 1.0 + Math.sin(state.clock.elapsedTime * 15) * 0.05;
+         tx *= beat;
+         ty *= beat;
+         tz *= beat;
+      }
       else if (mode === 'store') {
         tx *= 0.01;
         ty = ty * 0.01 - 3.0; 
@@ -546,9 +592,9 @@ export default function GardenScreen() {
         // Use gestureState.dy (accumulated distance) and velocity
         const { dy, vy, dx } = gestureState;
         
-        // Higher thresholds to prevent accidental swipe during hold & gather
-        const SWIPE_DISTANCE = 150;
-        const VELOCITY_THRESHOLD = 0.8;
+        // Lower thresholds for better responsiveness
+        const SWIPE_DISTANCE = 100; // Reduced from 150
+        const VELOCITY_THRESHOLD = 0.5; // Reduced from 0.8
         
         if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
            if (Math.abs(dy) > Math.abs(dx) * 1.5) { // Prioritize vertical movement
