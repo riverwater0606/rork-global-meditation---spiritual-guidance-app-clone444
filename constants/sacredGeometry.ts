@@ -261,8 +261,8 @@ export function generateEarthData() {
       color: new THREE.Color(c.color)
   }));
 
-  // Sun direction (Left lit)
-  const sunDir = new THREE.Vector3(-1, 0.2, 0.5).normalize();
+  // Sun direction (Left lit) - Softened for ambient feel since we rotate the earth
+  // const sunDir = new THREE.Vector3(-1, 0.2, 0.5).normalize(); // Removed hard sun to avoid rotating shadows
 
   // Noise for clouds
   const isCloud = (p: THREE.Vector3) => {
@@ -281,12 +281,12 @@ export function generateEarthData() {
      let found = false;
      let attempts = 0;
 
-     while (!found && attempts < 10) {
+     while (!found && attempts < 15) { // Increased attempts
         attempts++;
         p = randomInSphere().normalize().multiplyScalar(R);
 
-        // 1. Clouds (Floating) - 15% of particles
-        if (i < PARTICLE_COUNT * 0.15) {
+        // 1. Clouds (Floating) - 20% of particles (Increased for realism)
+        if (i < PARTICLE_COUNT * 0.20) {
            if (isCloud(p)) {
               p.multiplyScalar(1.06); // Float above
               c.set(CONTINENT_COLORS.cloud);
@@ -299,53 +299,53 @@ export function generateEarthData() {
         // 2. Check Land
         let landDot = -1;
         for (const node of landNodes) {
+           // Add noise to the radius check to fuzz edges (Fix for "Square/Blocky" look)
+           const edgeNoise = (Math.random() - 0.5) * 0.02;
            const d = p.dot(node.v);
-           if (d > node.minDot) {
+           if (d > node.minDot + edgeNoise) {
               if (d > landDot) landDot = d; // Max overlap
            }
         }
         
-        // Helper to find edge proximity
-        // We know 'landDot' is the max dot product.
-        // If landDot is close to minDot of the closest cap, it's an edge.
-        // But we didn't save which cap.
-        // Let's simplified check: if landDot is "just barely" passing any threshold.
-        // Actually, let's just use random noise for texture for now to keep it clean.
-        
-        // Determine Day/Night
+        // Determine Day/Night - REMOVED BAKED SHADOWS (User complained about separation line)
+        // Instead we use a subtle gradient based on Y to give depth without rotating shadows
         const isLand = landDot > -1;
-        const sunDot = p.dot(sunDir);
-        const isNight = sunDot < -0.15;
+        
+        // Mock latitude lighting (poles darker)
+        const poleFactor = 1.0 - Math.abs(p.y) * 0.3;
 
         if (isLand) {
-           if (isNight) {
-               // Check Cities
-               let isCity = false;
-               for (const city of cityNodes) {
-                  if (p.dot(city.v) > city.minDot) {
-                     isCity = true;
-                     break;
-                  }
-               }
-               if (isCity) c.set(CONTINENT_COLORS.city);
-               else c.set(CONTINENT_COLORS.land).multiplyScalar(0.25);
-           } else {
-               // Day Land
-               c.set(CONTINENT_COLORS.land);
-               // Ice caps
-               if (Math.abs(p.y) > 0.9) c.set(CONTINENT_COLORS.ice);
+           // Land
+           c.set(CONTINENT_COLORS.land).multiplyScalar(poleFactor);
+           
+           // Cities (Always visible but subtle)
+           let isCity = false;
+           for (const city of cityNodes) {
+              if (p.dot(city.v) > city.minDot) {
+                 isCity = true;
+                 break;
+              }
            }
-           // Boost density on land?
+           
+           // Day Land
+           if (isCity && Math.random() < 0.3) { // 30% of city area has lights even in day (reflection?) or just style
+               c.set(CONTINENT_COLORS.city);
+           }
+           
+           // Ice caps
+           if (Math.abs(p.y) > 0.9) c.set(CONTINENT_COLORS.ice);
+           
            found = true; 
         } else {
            // Ocean
-           // Reduce ocean density to make land pop
-           if (Math.random() > 0.6) { // Skip 60% of ocean points -> Land becomes denser relatively
+           // Reduce ocean density to make land pop, but kept higher than before (0.6 -> 0.4 skip)
+           // Fix "Very empty side" issue
+           if (Math.random() > 0.55) { // Skip 55% of ocean points -> Land is 2x denser
                continue; 
            }
            
-           if (isNight) c.set(CONTINENT_COLORS.ocean).multiplyScalar(0.4);
-           else c.set(CONTINENT_COLORS.ocean);
+           // Deep Ocean Color with variation
+           c.set(CONTINENT_COLORS.ocean).multiplyScalar(poleFactor * (0.8 + Math.random() * 0.4));
            
            found = true;
         }
