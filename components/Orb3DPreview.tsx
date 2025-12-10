@@ -13,7 +13,7 @@ const OrbParticlesPreview = ({ layers }: { layers: string[] }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   const { positions, colors } = useMemo(() => {
-    const particleCount = 800;
+    const particleCount = 20000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     
