@@ -332,6 +332,7 @@ The script should be 200-300 words. Use plain text.`
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {messages.map((message) => (
             <View
@@ -534,7 +535,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 8,
+    paddingBottom: 100,
   },
   messageWrapper: {
     flexDirection: "row",

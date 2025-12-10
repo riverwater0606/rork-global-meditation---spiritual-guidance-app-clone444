@@ -25,7 +25,7 @@ export default function ProgressScreen() {
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
       <LinearGradient
-        colors={["#10B981", "#059669"]}
+        colors={currentTheme.gradient as any}
         style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -35,7 +35,11 @@ export default function ProgressScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Stats Overview */}
         <View style={styles.statsContainer}>
           <View style={styles.statRow}>
@@ -130,7 +134,7 @@ export default function ProgressScreen() {
           </View>
         </View>
 
-        <View style={styles.bottomSpacing} />
+
       </ScrollView>
     </View>
   );
@@ -144,15 +148,19 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFFFFF",
+    fontSize: 36,
+    fontWeight: "900" as const,
+    color: "#e0e0ff",
     paddingHorizontal: 20,
     marginTop: 20,
+    letterSpacing: 0.5,
   },
   content: {
     flex: 1,
     marginTop: -10,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   statsContainer: {
     paddingHorizontal: 20,
@@ -167,44 +175,52 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 5,
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
+    borderColor: '#8b5cf6',
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   statIcon: {
     marginBottom: 12,
   },
   statValue: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: "900" as const,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
+    fontWeight: "500" as const,
   },
   weeklyContainer: {
     paddingHorizontal: 20,
     marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "900" as const,
     marginBottom: 16,
+    letterSpacing: 0.5,
   },
   weekGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
     padding: 20,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderRadius: 24,
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
+    borderColor: '#8b5cf6',
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   dayContainer: {
     alignItems: "center",
@@ -223,8 +239,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dayCircleCompleted: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
+    backgroundColor: "#8b5cf6",
+    borderColor: "#8b5cf6",
   },
   checkmark: {
     color: "#FFFFFF",
@@ -242,14 +258,17 @@ const styles = StyleSheet.create({
   achievementCard: {
     width: (width - 50) / 2,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 24,
     marginBottom: 15,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
+    borderColor: '#8b5cf6',
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   achievementCardLocked: {
     opacity: 0.5,
@@ -260,7 +279,7 @@ const styles = StyleSheet.create({
   },
   achievementTitle: {
     fontSize: 14,
-    fontWeight: "bold",
+    fontWeight: "700" as const,
     marginBottom: 4,
     textAlign: "center",
   },
@@ -269,7 +288,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   achievementBadge: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#8b5cf6",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -278,9 +297,6 @@ const styles = StyleSheet.create({
   achievementBadgeText: {
     fontSize: 10,
     color: "#FFFFFF",
-    fontWeight: "bold",
-  },
-  bottomSpacing: {
-    height: 20,
+    fontWeight: "700" as const,
   },
 });

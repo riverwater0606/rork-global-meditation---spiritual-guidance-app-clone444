@@ -114,7 +114,11 @@ export default function MeditateScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Categories */}
         <ScrollView
           horizontal
@@ -195,7 +199,7 @@ export default function MeditateScreen() {
           ))}
         </View>
 
-        <View style={styles.bottomSpacing} />
+
       </ScrollView>
 
       {/* Action Sheet Modal */}
@@ -341,6 +345,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 100,
+  },
   categoriesContainer: {
     marginTop: 20,
     marginBottom: 20,
@@ -421,9 +428,7 @@ const styles = StyleSheet.create({
     color: "#E0E7FF",
     marginLeft: 4,
   },
-  bottomSpacing: {
-    height: 20,
-  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

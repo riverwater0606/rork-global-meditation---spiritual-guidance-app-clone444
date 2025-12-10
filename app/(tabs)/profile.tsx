@@ -242,7 +242,11 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Profile Card */}
         <View style={themedStyles.profileCard}>
           <View style={styles.avatarContainer}>
@@ -401,7 +405,7 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.spacer} />
+
       </ScrollView>
     </View>
   );
@@ -425,6 +429,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginTop: -10,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   profileCard: {
     backgroundColor: "#FFFFFF",
@@ -567,9 +574,7 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     marginLeft: 8,
   },
-  spacer: {
-    height: 40,
-  },
+
   vipButton: {
     flexDirection: "row",
     alignItems: "center",
