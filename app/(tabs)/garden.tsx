@@ -5,12 +5,13 @@ import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Send, Clock, Zap } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 
-// Optimized Progress Overlay to prevent parent re-renders
-const ProgressOverlay = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
+// Minimal Progress Component (Top Right)
+const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -31,42 +32,41 @@ const ProgressOverlay = forwardRef(({ theme, duration }: { theme: any, duration:
   const mins = Math.floor(timeLeftSeconds / 60);
   const secs = timeLeftSeconds % 60;
   const timeString = `${mins}:${secs.toString().padStart(2, '0')}`;
-  const percent = Math.floor(progress * 100);
-
+  
   return (
-    <View style={styles.optimizedProgressContainer}>
-      <BlurView intensity={20} tint="dark" style={styles.glassPanel}>
-        <View style={styles.progressRow}>
-          <Text style={styles.progressTime}>{timeString}</Text>
-          <View style={styles.verticalDivider} />
-          <Text style={styles.progressPercent}>{percent}%</Text>
+    <View style={styles.minimalProgressContainer}>
+      <BlurView intensity={20} tint="dark" style={styles.minimalGlass}>
+        <View style={styles.minimalRow}>
+          <Clock size={12} color={theme.primary} />
+          <Text style={styles.minimalText}>{timeString}</Text>
         </View>
-        <View style={styles.miniProgressBarBg}>
-          <View style={[styles.miniProgressBarFill, { width: `${percent}%`, backgroundColor: theme.primary }]} />
+        <View style={styles.minimalBarBg}>
+          <View style={[styles.minimalBarFill, { width: `${progress * 100}%`, backgroundColor: theme.primary }]} />
         </View>
       </BlurView>
     </View>
   );
 });
-ProgressOverlay.displayName = "ProgressOverlay";
+MinimalProgress.displayName = "MinimalProgress";
 
-// Orb Component
-const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
+// Orb Component with Heart & Store Animations
+const OrbParticles = ({ layers, interactionState }: { layers: string[], interactionState: any }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
-  // Create particles based on layers
-  const { positions, colors } = useMemo(() => {
+  // Pre-calculate positions
+  const { positions, colors, heartPositions } = useMemo(() => {
     const particleCount = 3000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
+    const heartPositions = new Float32Array(particleCount * 3);
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
     for (let i = 0; i < particleCount; i++) {
+      // Sphere Positions
       const layerIndex = Math.floor(Math.random() * layers.length);
       const color = colorObjects[layerIndex] || new THREE.Color("#888");
       
-      // Initial distribution - sphere with some randomness
       const r = 1.0 + Math.random() * 0.5;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
@@ -78,10 +78,34 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
+
+      // Heart Positions (Parametric Heart)
+      // x = 16sin^3(t)
+      // y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
+      // We need to map 't' (0 to 2PI) and maybe add some volume (z)
+      
+      const t = Math.random() * Math.PI * 2;
+      // Add some random variation for volume
+      const v = (Math.random() - 0.5) * 0.5; 
+      
+      // Scale down by 0.1 to fit in view
+      const scale = 0.08;
+      
+      const hx = (16 * Math.pow(Math.sin(t), 3)) * scale;
+      const hy = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * scale;
+      const hz = v; // Simple thickness
+      
+      // Randomize inside the volume slightly
+      heartPositions[i * 3] = hx + (Math.random() - 0.5) * 0.1;
+      heartPositions[i * 3 + 1] = hy + (Math.random() - 0.5) * 0.1;
+      heartPositions[i * 3 + 2] = hz + (Math.random() - 0.5) * 0.5;
     }
     
-    return { positions, colors };
+    return { positions, colors, heartPositions };
   }, [layers]);
+
+  // Use a buffer attribute for current positions to interpolate
+  const currentPositions = useMemo(() => new Float32Array(positions), [positions]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
@@ -89,35 +113,71 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
     const time = state.clock.getElapsedTime();
     const { mode, spinVelocity, progress } = interactionState.current;
     
-    // Rotation logic
+    // Rotation
     let rotationSpeed = 0.002 + spinVelocity;
-    if (mode === 'gather') {
-       rotationSpeed = 0.01 + (progress * 0.05); // Spin faster as we gather
-    }
+    if (mode === 'gather') rotationSpeed = 0.01 + (progress * 0.05);
     
     pointsRef.current.rotation.y += rotationSpeed;
-    pointsRef.current.rotation.z += 0.001;
-
-    // Pulse effect
-    const pulse = Math.sin(time * 2) * 0.05 + 1;
     
-    // Scale logic for "Gathering"
-    let targetScale = pulse;
+    // Access geometry attributes
+    const geometry = pointsRef.current.geometry;
+    const positionAttribute = geometry.attributes.position;
     
-    if (mode === 'gather') {
-      // Shrink to core as progress increases (1.0 -> 0.3)
-      targetScale = 1.2 - (progress * 0.9);
-      if (targetScale < 0.3) targetScale = 0.3;
-    } else if (mode === 'explode') {
-      targetScale = 2.5;
-    } else {
-      // Idle
-      targetScale = 1.0;
+    // Animation Logic
+    // We update vertex positions directly for morphing
+    
+    for (let i = 0; i < 3000; i++) {
+      const ix = i * 3;
+      const iy = i * 3 + 1;
+      const iz = i * 3 + 2;
+      
+      let tx = positions[ix];
+      let ty = positions[iy];
+      let tz = positions[iz];
+      
+      // Modifiers based on mode
+      if (mode === 'gather') {
+        // Shrink towards center
+        const shrink = Math.max(0.3, 1.0 - (progress * 0.7));
+        tx *= shrink;
+        ty *= shrink;
+        tz *= shrink;
+        
+        // Add some jitter/vibration
+        const jitter = 0.02 * progress;
+        tx += (Math.random() - 0.5) * jitter;
+        ty += (Math.random() - 0.5) * jitter;
+        tz += (Math.random() - 0.5) * jitter;
+      } 
+      else if (mode === 'heart') {
+        // Morph to heart positions
+        tx = heartPositions[ix];
+        ty = heartPositions[iy] + 0.5; // Move up slightly
+        tz = heartPositions[iz];
+      }
+      else if (mode === 'store') {
+        // Move downwards and shrink
+        tx *= 0.1;
+        ty = ty * 0.1 - 2.0; // Move down
+        tz *= 0.1;
+      }
+      else if (mode === 'explode') {
+         tx *= 2.5;
+         ty *= 2.5;
+         tz *= 2.5;
+      }
+      
+      // Linear interpolation (Lerp) for smooth transition
+      const lerpFactor = 0.1;
+      
+      currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
+      currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
+      currentPositions[iz] += (tz - currentPositions[iz]) * lerpFactor;
     }
     
-    // Smooth lerp
-    const lerpFactor = mode === 'gather' ? 0.05 : 0.1;
-    pointsRef.current.scale.setScalar(THREE.MathUtils.lerp(pointsRef.current.scale.x, targetScale, lerpFactor));
+    // Update geometry
+    positionAttribute.array.set(currentPositions);
+    positionAttribute.needsUpdate = true;
   });
 
   return (
@@ -125,7 +185,8 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[positions, 3]}
+          args={[currentPositions, 3]} // Initialize with copied positions
+          usage={THREE.DynamicDrawUsage}
         />
         <bufferAttribute
           attach="attributes-color"
@@ -139,6 +200,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
         opacity={0.8}
         blending={THREE.AdditiveBlending}
         sizeAttenuation={true}
+        depthWrite={false}
       />
     </points>
   );
@@ -149,8 +211,9 @@ export default function GardenScreen() {
   const { 
     currentOrb, 
     sendOrb, 
+    storeOrb,
+    swapOrb,
     orbHistory, 
-    hasMeditatedToday,
     hasGrownOrbToday,
     cultivateDailyOrb,
     devAddLayer, 
@@ -163,38 +226,68 @@ export default function GardenScreen() {
   
   // Interaction State
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
-  // Removed state that causes re-renders: const [gatheringProgress, setGatheringProgress] = useState(0);
   const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
-  const GATHER_DURATION = 7 * 60 * 1000; // 7 minutes to cultivate
+  const GATHER_DURATION = 7 * 60 * 1000; 
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
-  const [showDevMenu, setShowDevMenu] = React.useState(false);
+  const [showDevMenu, setShowDevMenu] = useState(false);
   
+  // Pan Responder for Gestures
   const panResponder = useRef(
     PanResponder.create({
+      // Critical for responsiveness:
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      
       onPanResponderGrant: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         startGathering();
       },
-      onPanResponderMove: (_, gestureState) => {
+      
+      onPanResponderMove: (evt, gestureState) => {
+        // Spin interaction
         interactionState.current.spinVelocity = gestureState.vx * 0.05;
+        
+        // Swipe Detection (only if gathering or idle)
+        const { dy } = gestureState;
+        
+        if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
+           if (dy < -120) { // Swipe UP
+             triggerHeartAnimation();
+           } else if (dy > 120) { // Swipe DOWN
+             triggerStoreAnimation();
+           }
+        }
       },
+      
       onPanResponderRelease: () => {
         stopGathering();
       },
+      
       onPanResponderTerminate: () => {
         stopGathering();
-      }
+      },
+      
+      onPanResponderTerminationRequest: () => false, // Don't let others steal
     })
   ).current;
 
   const startGathering = () => {
+    // Don't restart if already doing something special
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store') return;
+
     interactionState.current.mode = 'gather';
     
+    // Timer logic
     const startTime = Date.now();
-    const startProgress = interactionState.current.progress; // usually 0 unless paused? Assume reset.
+    // We assume reset on new press for simplicity, or we could resume if we stored progress
+    // For "daily cultivation", maybe we should resume? 
+    // But user said "daily once, 7 mins". 
+    // Let's stick to simple session logic.
     
     if (progressInterval.current) clearInterval(progressInterval.current);
     
@@ -203,25 +296,26 @@ export default function GardenScreen() {
       const newProgress = Math.min(elapsed / GATHER_DURATION, 1.0);
       
       interactionState.current.progress = newProgress;
-      // Update child component directly without re-rendering parent
       if (progressOverlayRef.current) {
         progressOverlayRef.current.update(newProgress);
       }
       
       if (newProgress >= 1.0) {
-         // Success!
          triggerCultivation();
       }
-    }, 16); // 60fps update
+    }, 16);
   };
 
   const stopGathering = () => {
+    // If in special animation, don't stop
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'explode') return;
+
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
       progressInterval.current = null;
     }
     
-    // If we didn't finish, reset
+    // Reset if not complete
     if (interactionState.current.progress < 1.0) {
       interactionState.current.mode = 'idle';
       interactionState.current.progress = 0;
@@ -239,16 +333,13 @@ export default function GardenScreen() {
     
     interactionState.current.mode = 'explode';
     interactionState.current.progress = 0;
-    if (progressOverlayRef.current) {
-      progressOverlayRef.current.reset();
-    }
+    if (progressOverlayRef.current) progressOverlayRef.current.reset();
     
-    // Trigger logic
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
     if (!hasGrownOrbToday && !currentOrb.isAwakened) {
        cultivateDailyOrb();
        Alert.alert("Energy Gathered", "Your orb has absorbed today's light.");
-    } else if (hasGrownOrbToday) {
-       // Just visual pleasure
     }
     
     setTimeout(() => {
@@ -256,17 +347,48 @@ export default function GardenScreen() {
     }, 2000);
   };
 
+  const triggerHeartAnimation = () => {
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    if (progressOverlayRef.current) progressOverlayRef.current.reset();
+    
+    interactionState.current.mode = 'heart';
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    // Wait for animation then trigger send
+    setTimeout(() => {
+       handleSendOrb();
+       // Reset after action
+       setTimeout(() => {
+         interactionState.current.mode = 'idle';
+       }, 1000);
+    }, 1500);
+  };
+
+  const triggerStoreAnimation = () => {
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    if (progressOverlayRef.current) progressOverlayRef.current.reset();
+    
+    interactionState.current.mode = 'store';
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    setTimeout(async () => {
+       await storeOrb();
+       Alert.alert("Stored", "Orb saved to your garden collection.");
+       interactionState.current.mode = 'idle';
+    }, 1500);
+  };
+
   const handleSendOrb = async () => {
-    if (!currentOrb.isAwakened && currentOrb.level < 1) {
-      Alert.alert("Orb too weak", "Meditate more to grow your orb before sending.");
+    if (!currentOrb.isAwakened && currentOrb.level < 1 && currentOrb.layers.length === 0) {
+      Alert.alert("Orb Empty", "Grow your orb before sending.");
       return;
     }
 
     Alert.alert(
-      "Send Orb",
-      "Choose a friend to send this energy to.",
+      settings.language === 'zh' ? "贈送光球" : "Send Orb",
+      settings.language === 'zh' ? "選擇一位朋友分享能量" : "Choose a friend to share energy with.",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Cancel", style: "cancel", onPress: () => interactionState.current.mode = 'idle' },
         {
           text: "Send via World App",
           onPress: async () => {
@@ -282,7 +404,7 @@ export default function GardenScreen() {
                  console.warn("MiniKit transfer failed/mocked", e);
                }
              }
-             
+
              await sendOrb("friend-id", "May you be happy.");
              Alert.alert("Sent!", "Your light has been shared.");
           }
@@ -291,16 +413,27 @@ export default function GardenScreen() {
     );
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const handleSwapOrb = async (orb: any) => {
+    Alert.alert(
+      settings.language === 'zh' ? "裝備光球" : "Equip Orb",
+      settings.language === 'zh' ? "要切換到這個光球嗎？" : "Switch to this orb?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+           text: "Confirm",
+           onPress: async () => {
+             await swapOrb(orb.id);
+             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+           }
+        }
+      ]
+    );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={styles.headerTop}>
           <Text style={[styles.title, { color: currentTheme.text }]}>
             {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
           </Text>
@@ -318,123 +451,134 @@ export default function GardenScreen() {
         </Text>
       </View>
 
+      {/* Dev Menu */}
       {showDevMenu && (
         <View style={styles.devMenuOverlay}>
           <View style={[styles.devMenu, { backgroundColor: currentTheme.surface }]}>
-            <Text style={[styles.devMenuTitle, { color: currentTheme.text }]}>Dev Tools</Text>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devAddLayer(); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: +1 layer</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(21); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: Instant Awakened Orb (21 days)</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(49); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: Instant Legendary Orb (49 days)</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(108); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: Instant Eternal Orb (108 days)</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devSendOrbToSelf(); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: Send orb to myself</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.devMenuItem} onPress={() => { devResetOrb(); setShowDevMenu(false); }}>
-              <Text style={{ color: currentTheme.text }}>Dev: Reset orb</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.devMenuItem, { borderTopWidth: 1, borderColor: '#ccc' }]} onPress={() => setShowDevMenu(false)}>
-              <Text style={{ color: 'red' }}>Close</Text>
-            </TouchableOpacity>
+            <ScrollView>
+              <Text style={[styles.devMenuTitle, { color: currentTheme.text }]}>Dev Tools</Text>
+              <TouchableOpacity style={styles.devMenuItem} onPress={() => { devAddLayer(); setShowDevMenu(false); }}><Text style={{ color: currentTheme.text }}>Dev: +1 layer</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.devMenuItem} onPress={() => { devInstantOrb(21); setShowDevMenu(false); }}><Text style={{ color: currentTheme.text }}>Dev: Instant Awakened</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.devMenuItem} onPress={() => { devSendOrbToSelf(); setShowDevMenu(false); }}><Text style={{ color: currentTheme.text }}>Dev: Send to Self</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.devMenuItem} onPress={() => { devResetOrb(); setShowDevMenu(false); }}><Text style={{ color: currentTheme.text }}>Dev: Reset</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.devMenuItem, { borderBottomWidth: 0 }]} onPress={() => setShowDevMenu(false)}><Text style={{ color: 'red' }}>Close</Text></TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       )}
 
+      {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
         <Canvas camera={{ position: [0, 0, 4] }}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
           <OrbParticles 
             layers={currentOrb.layers} 
-            isAwakened={currentOrb.isAwakened}
             interactionState={interactionState}
           />
         </Canvas>
         
-        {/* Optimized Progress UI */}
-        <ProgressOverlay 
+        {/* Minimal Progress UI */}
+        <MinimalProgress 
           ref={progressOverlayRef} 
           theme={currentTheme} 
           duration={GATHER_DURATION} 
         />
         
         <View style={styles.instructions}>
-           <Text style={styles.instructionText}>
-             {settings.language === 'zh' ? "長按聚集 • 放開綻放 • 拖動旋轉" : "Hold to Gather • Release to Bloom • Drag to Spin"}
-           </Text>
+           <View style={styles.instructionRow}>
+              <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.instructionText}>
+                {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
+              </Text>
+           </View>
+           <View style={styles.instructionRow}>
+              <View style={styles.holdDot} />
+              <Text style={styles.instructionText}>
+                {settings.language === 'zh' ? "長按聚集" : "Hold to Gather"}
+              </Text>
+           </View>
+           <View style={styles.instructionRow}>
+              <ArrowDown size={14} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.instructionText}>
+                {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
+              </Text>
+           </View>
         </View>
       </View>
 
+      {/* Info Cards */}
       <View style={styles.infoContainer}>
           <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
-             <Clock size={20} color={currentTheme.textSecondary} />
+             <Clock size={16} color={currentTheme.textSecondary} />
              <Text style={[styles.infoText, { color: currentTheme.text }]}>
                {currentOrb.isAwakened 
                  ? (settings.language === 'zh' ? "已覺醒" : "Awakened")
                  : (settings.language === 'zh' 
                      ? `${7 - currentOrb.layers.length} 天後覺醒`
-                     : `${7 - currentOrb.layers.length} days to awaken`)
+                     : `${7 - currentOrb.layers.length} days left`)
                }
              </Text>
           </View>
           
           <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
-             <Zap size={20} color={hasGrownOrbToday ? currentTheme.primary : currentTheme.textSecondary} />
+             <Zap size={16} color={hasGrownOrbToday ? currentTheme.primary : currentTheme.textSecondary} />
              <Text style={[styles.infoText, { color: currentTheme.text }]}>
                {hasGrownOrbToday
-                 ? (settings.language === 'zh' ? "今日能量已收集" : "Energy Collected")
-                 : (settings.language === 'zh' ? "長按收集能量" : "Gather Energy")
+                 ? (settings.language === 'zh' ? "今日已完成" : "Done Today")
+                 : (settings.language === 'zh' ? "每日一次" : "Daily Once")
+                 // Changed from "Gather Energy" to clarify it's once a day
                }
              </Text>
           </View>
       </View>
 
-      <View style={styles.controls}>
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: currentTheme.primary }]}
-          onPress={handleSendOrb}
-        >
-          <Send color="white" size={20} />
-          <Text style={styles.buttonText}>
-            {settings.language === 'zh' ? "贈送光球" : "Send Orb"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
+      {/* Collection List */}
       <View style={styles.gardenListContainer}>
-        <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-          {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
-        </Text>
+        <View style={styles.collectionHeader}>
+          <Archive size={18} color={currentTheme.text} />
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
+            {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+          </Text>
+        </View>
+        
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
            {orbHistory.length === 0 ? (
              <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
-               {settings.language === 'zh' ? "還沒有收到光球" : "No orbs collected yet"}
+               {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
              </Text>
            ) : (
              orbHistory.map((orb, index) => (
-               <View key={index} style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}>
-                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: orb.layers[orb.layers.length-1] || '#ccc', marginBottom: 8 }} />
+               <TouchableOpacity 
+                  key={orb.id || index} 
+                  style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}
+                  onPress={() => handleSwapOrb(orb)}
+               >
+                 <View style={styles.orbPreview}>
+                    {/* Simple CSS orb representation */}
+                    {orb.layers.map((color, i) => (
+                      <View 
+                        key={i} 
+                        style={[
+                          styles.orbLayer, 
+                          { 
+                            backgroundColor: color, 
+                            width: 10 + (i * 4), 
+                            height: 10 + (i * 4),
+                            opacity: 0.8
+                          } 
+                        ]} 
+                      />
+                    ))}
+                    {orb.layers.length === 0 && <View style={[styles.orbLayer, { backgroundColor: '#ccc', width: 20, height: 20 }]} />}
+                 </View>
                  <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
-                   {new Date(orb.createdAt).toLocaleDateString()}
+                   {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                  </Text>
-                 <Text style={[styles.orbSender, { color: currentTheme.text }]}>
-                   {orb.sender || "Me"}
+                 <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
+                   {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
                  </Text>
-               </View>
+               </TouchableOpacity>
              ))
            )}
         </ScrollView>
@@ -450,79 +594,99 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
   },
   subtitle: {
-    fontSize: 16,
-    marginTop: 5,
+    fontSize: 14,
+    marginTop: 4,
   },
   sceneContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 20,
-    margin: 10,
+    backgroundColor: 'rgba(0,0,0,0.02)', // Very subtle bg
+    marginHorizontal: 10,
+    borderRadius: 24,
     overflow: 'hidden',
     position: 'relative',
   },
-  optimizedProgressContainer: {
+  minimalProgressContainer: {
     position: 'absolute',
     top: 20,
     right: 20,
     zIndex: 20,
   },
-  glassPanel: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+  minimalGlass: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    flexDirection: 'column',
+    gap: 6,
   },
-  progressRow: {
+  minimalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-    gap: 10,
+    gap: 6,
   },
-  progressTime: {
+  minimalText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  verticalDivider: {
-    width: 1,
-    height: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  progressPercent: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 14,
-    fontWeight: 'bold',
-    fontVariant: ['tabular-nums'],
-  },
-  miniProgressBarBg: {
-    width: 120,
+  minimalBarBg: {
+    width: 60,
     height: 3,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 1.5,
     overflow: 'hidden',
   },
-  miniProgressBarFill: {
+  minimalBarFill: {
     height: '100%',
     borderRadius: 1.5,
+  },
+  instructions: {
+    position: 'absolute',
+    bottom: 20,
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    opacity: 0.8,
+  },
+  instructionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  instructionText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  holdDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'white',
   },
   infoContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 20,
+    marginVertical: 16,
     paddingHorizontal: 20,
   },
   infoCard: {
@@ -535,93 +699,73 @@ const styles = StyleSheet.create({
     gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   infoText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  instructions: {
-    position: 'absolute',
-    bottom: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
-  instructionText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  controls: {
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 30,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
   },
   gardenListContainer: {
-    height: 180,
+    height: 160,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  collectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginLeft: 20,
     marginBottom: 10,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   gardenList: {
     paddingHorizontal: 15,
   },
   orbCard: {
-    width: 100,
-    height: 120,
+    width: 90,
+    height: 110,
     borderRadius: 16,
     marginHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
   },
+  orbPreview: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  orbLayer: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
   orbDate: {
     fontSize: 10,
     marginBottom: 4,
   },
   orbSender: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
+    maxWidth: '100%',
   },
   devButton: {
     backgroundColor: '#333',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   devButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 12,
+    fontSize: 10,
   },
   devMenuOverlay: {
     position: 'absolute',
@@ -636,6 +780,7 @@ const styles = StyleSheet.create({
   },
   devMenu: {
     width: '80%',
+    maxHeight: '70%',
     padding: 20,
     borderRadius: 20,
     shadowColor: "#000",
@@ -645,15 +790,15 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   devMenuTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 15,
     textAlign: 'center',
   },
   devMenuItem: {
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
   },
 });

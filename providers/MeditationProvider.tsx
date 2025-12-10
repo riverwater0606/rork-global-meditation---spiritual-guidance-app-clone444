@@ -378,6 +378,39 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await completeMeditation("garden-cultivation", duration, true);
   };
 
+  const storeOrb = async () => {
+    if (currentOrb.level === 0 && currentOrb.layers.length === 0) return;
+    
+    const storedOrb = { ...currentOrb, completedAt: new Date().toISOString() };
+    const newHistory = [storedOrb, ...orbHistory];
+    setOrbHistory(newHistory);
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+
+    const newOrb = { ...INITIAL_ORB, id: `orb-${Date.now()}` };
+    setCurrentOrb(newOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(newOrb));
+  };
+
+  const swapOrb = async (orbId: string) => {
+    const orbIndex = orbHistory.findIndex(o => o.id === orbId);
+    if (orbIndex === -1) return;
+
+    const orbToRetrieve = orbHistory[orbIndex];
+    const newHistory = [...orbHistory];
+    newHistory.splice(orbIndex, 1); // Remove retrieved orb
+
+    // If current orb has progress, save it to history
+    if (currentOrb.level > 0 || currentOrb.layers.length > 0) {
+      newHistory.unshift({ ...currentOrb });
+    }
+
+    setOrbHistory(newHistory);
+    setCurrentOrb(orbToRetrieve);
+
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(orbToRetrieve));
+  };
+
   return {
     stats,
     achievements,
@@ -396,5 +429,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     devInstantOrb,
     devResetOrb,
     devSendOrbToSelf,
+    storeOrb,
+    swapOrb,
   };
 });
