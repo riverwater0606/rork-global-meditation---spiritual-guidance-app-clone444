@@ -7,10 +7,9 @@ import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
-import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 
-// Minimal Progress Component (Top Right)
+// Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -28,22 +27,23 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 
   if (!visible) return null;
 
-  const timeLeftSeconds = Math.ceil((1 - progress) * (duration / 1000));
-  const mins = Math.floor(timeLeftSeconds / 60);
-  const secs = timeLeftSeconds % 60;
-  const timeString = `${mins}:${secs.toString().padStart(2, '0')}`;
-  
   return (
-    <View style={styles.minimalProgressContainer}>
-      <BlurView intensity={20} tint="dark" style={styles.minimalGlass}>
-        <View style={styles.minimalRow}>
-          <Clock size={12} color={theme.primary} />
-          <Text style={styles.minimalText}>{timeString}</Text>
-        </View>
-        <View style={styles.minimalBarBg}>
-          <View style={[styles.minimalBarFill, { width: `${progress * 100}%`, backgroundColor: theme.primary }]} />
-        </View>
-      </BlurView>
+    <View style={styles.cornerProgressContainer}>
+      <View style={styles.ringContainer}>
+        <View style={[styles.ringBackground, { borderColor: 'rgba(255,255,255,0.1)' }]} />
+        <View style={[
+          styles.ringProgress, 
+          { 
+            borderColor: theme.primary,
+            transform: [{ rotate: '45deg' }], // Start from top-ish
+            borderRightColor: 'transparent',
+            borderBottomColor: 'transparent',
+            // This is a simple visual hack for partial ring, not perfect but fast
+            // Ideally use SVG for perfect circle progress
+          } 
+        ]} />
+         <Text style={styles.cornerProgressText}>{Math.floor(progress * 100)}%</Text>
+      </View>
     </View>
   );
 });
@@ -67,7 +67,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       const layerIndex = Math.floor(Math.random() * layers.length);
       const color = colorObjects[layerIndex] || new THREE.Color("#888");
       
-      const r = 1.0 + Math.random() * 0.5;
+      const r = 1.2 + Math.random() * 0.8; 
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       
@@ -79,23 +79,15 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
 
-      // Heart Positions (Parametric Heart)
-      // x = 16sin^3(t)
-      // y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
-      // We need to map 't' (0 to 2PI) and maybe add some volume (z)
-      
+      // Heart Positions
       const t = Math.random() * Math.PI * 2;
-      // Add some random variation for volume
       const v = (Math.random() - 0.5) * 0.5; 
-      
-      // Scale down by 0.1 to fit in view
       const scale = 0.08;
       
       const hx = (16 * Math.pow(Math.sin(t), 3)) * scale;
       const hy = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * scale;
-      const hz = v; // Simple thickness
+      const hz = v;
       
-      // Randomize inside the volume slightly
       heartPositions[i * 3] = hx + (Math.random() - 0.5) * 0.1;
       heartPositions[i * 3 + 1] = hy + (Math.random() - 0.5) * 0.1;
       heartPositions[i * 3 + 2] = hz + (Math.random() - 0.5) * 0.5;
@@ -105,26 +97,33 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
   }, [layers]);
 
   // Use a buffer attribute for current positions to interpolate
-  const currentPositions = useMemo(() => new Float32Array(positions), [positions]);
+  const currentPositions = useMemo(() => {
+    const arr = new Float32Array(positions);
+    // If we are spawning while in store/appear mode, start at bottom
+    if (interactionState.current.mode === 'store' || interactionState.current.mode === 'appear') {
+       for(let i=0; i<arr.length; i+=3) {
+         arr[i] *= 0.01;
+         arr[i+1] = arr[i+1] * 0.01 - 3.0;
+         arr[i+2] *= 0.01;
+       }
+    }
+    return arr;
+  }, [positions, interactionState]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
     
-    const time = state.clock.getElapsedTime();
     const { mode, spinVelocity, progress } = interactionState.current;
     
     // Rotation
     let rotationSpeed = 0.002 + spinVelocity;
-    if (mode === 'gather') rotationSpeed = 0.01 + (progress * 0.05);
+    if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
     
     pointsRef.current.rotation.y += rotationSpeed;
     
     // Access geometry attributes
     const geometry = pointsRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
-    
-    // Animation Logic
-    // We update vertex positions directly for morphing
     
     for (let i = 0; i < 3000; i++) {
       const ix = i * 3;
@@ -137,45 +136,44 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       
       // Modifiers based on mode
       if (mode === 'gather') {
-        // Shrink towards center
-        const shrink = Math.max(0.3, 1.0 - (progress * 0.7));
-        tx *= shrink;
-        ty *= shrink;
-        tz *= shrink;
+        const tighten = 1.0 - (progress * 0.6); 
+        tx *= tighten;
+        ty *= tighten;
+        tz *= tighten;
         
-        // Add some jitter/vibration
-        const jitter = 0.02 * progress;
+        const jitter = 0.05 * progress;
         tx += (Math.random() - 0.5) * jitter;
         ty += (Math.random() - 0.5) * jitter;
         tz += (Math.random() - 0.5) * jitter;
       } 
       else if (mode === 'heart') {
-        // Morph to heart positions
         tx = heartPositions[ix];
-        ty = heartPositions[iy] + 0.5; // Move up slightly
+        ty = heartPositions[iy] + 0.5;
         tz = heartPositions[iz];
       }
       else if (mode === 'store') {
-        // Move downwards and shrink
-        tx *= 0.1;
-        ty = ty * 0.1 - 2.0; // Move down
-        tz *= 0.1;
+        tx *= 0.01;
+        ty = ty * 0.01 - 3.0; 
+        tz *= 0.01;
+      }
+      else if (mode === 'appear') {
+        // Target is normal (tx,ty,tz). 
+        // We just let it lerp there from wherever it was (bottom).
       }
       else if (mode === 'explode') {
-         tx *= 2.5;
-         ty *= 2.5;
-         tz *= 2.5;
+         tx *= 3.0;
+         ty *= 3.0;
+         tz *= 3.0;
       }
       
-      // Linear interpolation (Lerp) for smooth transition
-      const lerpFactor = 0.1;
+      // Lerp speed
+      const lerpFactor = 0.08;
       
       currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
       currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
       currentPositions[iz] += (tz - currentPositions[iz]) * lerpFactor;
     }
     
-    // Update geometry
     positionAttribute.array.set(currentPositions);
     positionAttribute.needsUpdate = true;
   });
@@ -185,7 +183,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[currentPositions, 3]} // Initialize with copied positions
+          args={[currentPositions, 3]}
           usage={THREE.DynamicDrawUsage}
         />
         <bufferAttribute
@@ -194,7 +192,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.06}
+        size={0.07}
         vertexColors
         transparent
         opacity={0.8}
@@ -243,6 +241,10 @@ export default function GardenScreen() {
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       
+      // Ensure we don't lose the gesture easily
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      
       onPanResponderGrant: () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         startGathering();
@@ -252,13 +254,17 @@ export default function GardenScreen() {
         // Spin interaction
         interactionState.current.spinVelocity = gestureState.vx * 0.05;
         
-        // Swipe Detection (only if gathering or idle)
+        // Swipe Detection
+        // Use gestureState.dy (accumulated distance)
         const { dy } = gestureState;
         
+        // Thresholds
+        const SWIPE_THRESHOLD = 80;
+        
         if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
-           if (dy < -120) { // Swipe UP
+           if (dy < -SWIPE_THRESHOLD) { // Swipe UP
              triggerHeartAnimation();
-           } else if (dy > 120) { // Swipe DOWN
+           } else if (dy > SWIPE_THRESHOLD) { // Swipe DOWN
              triggerStoreAnimation();
            }
         }
@@ -271,27 +277,28 @@ export default function GardenScreen() {
       onPanResponderTerminate: () => {
         stopGathering();
       },
-      
-      onPanResponderTerminationRequest: () => false, // Don't let others steal
     })
   ).current;
 
   const startGathering = () => {
     // Don't restart if already doing something special
-    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store') return;
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'appear') return;
 
     interactionState.current.mode = 'gather';
     
-    // Timer logic
     const startTime = Date.now();
-    // We assume reset on new press for simplicity, or we could resume if we stored progress
-    // For "daily cultivation", maybe we should resume? 
-    // But user said "daily once, 7 mins". 
-    // Let's stick to simple session logic.
     
     if (progressInterval.current) clearInterval(progressInterval.current);
     
     progressInterval.current = setInterval(() => {
+      // If we are in gather mode, increase progress
+      // But if we moved to 'heart' or 'store', this interval should have been cleared.
+      // Double check mode here just in case
+      if (interactionState.current.mode !== 'gather') {
+        if (progressInterval.current) clearInterval(progressInterval.current);
+        return;
+      }
+      
       const elapsed = Date.now() - startTime;
       const newProgress = Math.min(elapsed / GATHER_DURATION, 1.0);
       
@@ -308,7 +315,7 @@ export default function GardenScreen() {
 
   const stopGathering = () => {
     // If in special animation, don't stop
-    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'explode') return;
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'explode' || interactionState.current.mode === 'appear') return;
 
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
@@ -364,18 +371,20 @@ export default function GardenScreen() {
     }, 1500);
   };
 
-  const triggerStoreAnimation = () => {
+  const animateStore = () => {
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (progressOverlayRef.current) progressOverlayRef.current.reset();
-    
     interactionState.current.mode = 'store';
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const triggerStoreAnimation = () => {
+    animateStore();
     
     setTimeout(async () => {
        await storeOrb();
-       Alert.alert("Stored", "Orb saved to your garden collection.");
-       interactionState.current.mode = 'idle';
-    }, 1500);
+       interactionState.current.mode = 'idle'; 
+    }, 1000);
   };
 
   const handleSendOrb = async () => {
@@ -414,20 +423,21 @@ export default function GardenScreen() {
   };
 
   const handleSwapOrb = async (orb: any) => {
-    Alert.alert(
-      settings.language === 'zh' ? "裝備光球" : "Equip Orb",
-      settings.language === 'zh' ? "要切換到這個光球嗎？" : "Switch to this orb?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-           text: "Confirm",
-           onPress: async () => {
-             await swapOrb(orb.id);
-             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-           }
-        }
-      ]
-    );
+     // Direct swap without alert for smoother experience
+     animateStore(); // Animate current one away
+     
+     setTimeout(async () => {
+       // While swapping, keep mode as store (or 'appear' logic in component will handle init)
+       await swapOrb(orb.id);
+       
+       // Trigger appear
+       interactionState.current.mode = 'appear';
+       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+       
+       setTimeout(() => {
+         interactionState.current.mode = 'idle';
+       }, 1000);
+     }, 1000);
   };
 
   return (
@@ -619,39 +629,44 @@ const styles = StyleSheet.create({
   },
   minimalProgressContainer: {
     position: 'absolute',
-    top: 20,
+    top: 60, // Align with header somewhat
     right: 20,
     zIndex: 20,
   },
-  minimalGlass: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    overflow: 'hidden',
-    flexDirection: 'column',
-    gap: 6,
+  cornerProgressContainer: {
+    position: 'absolute',
+    bottom: 140, // Put it near the bottom interaction area instead of top? 
+    // User said "Corner". Top right is corner.
+    // "Circle not in middle, put in corner".
+    // Let's keep top right but make it minimal.
+    top: 20,
+    right: 20,
   },
-  minimalRow: {
-    flexDirection: 'row',
+  ringContainer: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
   },
-  minimalText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  minimalBarBg: {
-    width: 60,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 1.5,
-    overflow: 'hidden',
-  },
-  minimalBarFill: {
+  ringBackground: {
+    position: 'absolute',
+    width: '100%',
     height: '100%',
-    borderRadius: 1.5,
+    borderRadius: 20,
+    borderWidth: 3,
+    opacity: 0.3,
+  },
+  ringProgress: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    borderWidth: 3,
+  },
+  cornerProgressText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: 'white',
   },
   instructions: {
     position: 'absolute',
