@@ -298,8 +298,8 @@ export function generateMudraData() {
     positions[i*3+2] = p.z;
     
     colors[i*3] = c.r;
-    colors[i*3+1] = c.g;
-    colors[i*3+2] = c.b;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
     
     groups[i] = g;
   }
@@ -307,7 +307,7 @@ export function generateMudraData() {
   return { positions, colors, groups };
 }
 
-// --- EARTH (Realistic Blue Marble) ---
+// --- EARTH (Realistic Blue Marble with Rounder Continents) ---
 export function generateEarthData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
@@ -318,136 +318,233 @@ export function generateEarthData() {
   const landColor = new THREE.Color("#0a5030");  // Dark Green
   const cloudColor = new THREE.Color("#FFFFFF"); // White
   const cityColor = new THREE.Color("#FFD700");  // Yellow Lights
+  const outlineColor = new THREE.Color("#44aa77"); // Brighter green for outlines
 
-  let index = 0;
   const R = 1.0;
 
-  // Helper: Lat/Lon from Spherical Coords
-  // Phi (0..PI) -> Lat (90..-90)
-  // Theta (0..2PI) -> Lon (-180..180)
-  const getLatLon = (phi: number, theta: number) => {
-    const lat = 90 - (phi * 180 / Math.PI);
-    let lon = (theta * 180 / Math.PI);
-    if (lon > 180) lon -= 360;
-    return { lat, lon };
-  };
-
-  const inRect = (lat: number, lon: number, minLat: number, maxLat: number, minLon: number, maxLon: number) => {
-    return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
-  };
-
-  // Approximate Continent Shapes
-  const isLand = (lat: number, lon: number) => {
+  // Use spherical caps to define continents (avoid squares)
+  // { lat, lon, radius (deg) }
+  const landCaps = [
     // North America
-    if (inRect(lat, lon, 15, 83, -168, -52)) return true; 
-    // South America
-    if (inRect(lat, lon, -56, 13, -81, -34)) return true;
-    // Europe
-    if (inRect(lat, lon, 36, 71, -10, 40)) return true;
-    // Africa
-    if (inRect(lat, lon, -35, 37, -18, 52)) return true;
-    // Asia (Main)
-    if (inRect(lat, lon, 5, 77, 41, 180)) return true;
-    // Asia (SE + Islands)
-    if (inRect(lat, lon, -10, 20, 95, 150)) return true;
-    // Asia (Russia East Tip)
-    if (inRect(lat, lon, 60, 70, -180, -170)) return true;
-    // Australia
-    if (inRect(lat, lon, -45, -10, 112, 154)) return true;
-    // Antarctica
-    if (inRect(lat, lon, -90, -65, -180, 180)) return true;
+    { lat: 45, lon: -100, r: 25 },
+    { lat: 55, lon: -115, r: 15 }, // NW
+    { lat: 30, lon: -95, r: 15 }, // South
+    { lat: 60, lon: -80, r: 18 }, // NE
     
-    return false;
+    // South America
+    { lat: -15, lon: -60, r: 22 },
+    { lat: -40, lon: -70, r: 12 }, // Tip
+
+    // Africa
+    { lat: 0, lon: 20, r: 28 },
+    { lat: 20, lon: 10, r: 20 }, // West bulge
+
+    // Europe
+    { lat: 48, lon: 15, r: 15 },
+    { lat: 60, lon: 30, r: 15 }, // Russia West
+
+    // Asia
+    { lat: 45, lon: 90, r: 35 }, // Central Asia
+    { lat: 30, lon: 80, r: 20 }, // India/China
+    { lat: 60, lon: 110, r: 25 }, // Siberia
+    { lat: 20, lon: 105, r: 12 }, // SE Asia
+
+    // Australia
+    { lat: -25, lon: 135, r: 15 },
+
+    // Antarctica
+    { lat: -90, lon: 0, r: 20 },
+    
+    // Islands
+    { lat: 36, lon: 138, r: 4 }, // Japan
+    { lat: 54, lon: -2, r: 3 }, // UK
+    { lat: -19, lon: 47, r: 4 }, // Madagascar
+    { lat: -42, lon: 172, r: 3 }, // NZ
+    { lat: -6, lon: 106, r: 4 }, // Indonesia/Java
+  ];
+
+  // Cities for Night Lights
+  const cityCaps = [
+    { lat: 40, lon: -74, r: 2 }, // NYC
+    { lat: 34, lon: -118, r: 2 }, // LA
+    { lat: 51, lon: 0, r: 2 }, // London
+    { lat: 48, lon: 2, r: 2 }, // Paris
+    { lat: 35, lon: 139, r: 2 }, // Tokyo
+    { lat: 31, lon: 121, r: 2 }, // Shanghai
+    { lat: 19, lon: 72, r: 2 }, // Mumbai
+    { lat: -23, lon: -46, r: 2 }, // Sao Paulo
+    { lat: 55, lon: 37, r: 2 }, // Moscow
+    { lat: 30, lon: 31, r: 1 }, // Cairo
+  ];
+
+  // Helper: Vector from Lat/Lon
+  const getVector = (lat: number, lon: number) => {
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lon + 180) * (Math.PI / 180);
+    const x = -Math.sin(phi) * Math.cos(theta);
+    const y = Math.cos(phi);
+    const z = Math.sin(phi) * Math.sin(theta);
+    return new THREE.Vector3(x, y, z);
   };
 
-  // Approximate Urban Areas for Lights
-  const isCity = (lat: number, lon: number) => {
-    // US East Coast
-    if (inRect(lat, lon, 25, 45, -90, -70)) return true;
-    // Europe (Central/West)
-    if (inRect(lat, lon, 40, 55, -5, 30)) return true;
-    // Japan
-    if (inRect(lat, lon, 30, 40, 130, 145)) return true;
-    // East China
-    if (inRect(lat, lon, 22, 40, 110, 122)) return true;
-    // India
-    if (inRect(lat, lon, 10, 30, 70, 90)) return true;
-    return false;
-  };
+  // Convert caps to Vector + Cosine of radius for fast dot product check
+  const landNodes = landCaps.map(c => ({
+    v: getVector(c.lat, c.lon),
+    minDot: Math.cos(c.r * Math.PI / 180)
+  }));
+  
+  const cityNodes = cityCaps.map(c => ({
+    v: getVector(c.lat, c.lon),
+    minDot: Math.cos(c.r * Math.PI / 180)
+  }));
 
-  // Procedural Cloud Noise (Simple Sine approximation)
-  const isCloud = (x: number, y: number, z: number) => {
-     const s = 4.0;
-     // Cloud bands and patches
-     const noise = Math.sin(x*s) * Math.cos(y*s*1.5) * Math.sin(z*s + 2.0) + Math.sin(y*10)*0.2;
-     return noise > 0.4; // Threshold
+  // Simplex-like noise for cloud generation (cheap approximation)
+  const isCloud = (p: THREE.Vector3) => {
+     // Sine wave interference
+     const s = 6.0;
+     const noise = Math.sin(p.x*s) * Math.cos(p.y*s*1.2) * Math.sin(p.z*s + 2.0) + Math.sin(p.y*12)*0.2;
+     return noise > 0.35; 
   };
+  
+  // Sun Position (Fixed relative to Earth for day/night cycle simulation)
+  // Let's say sun is at (-1, 0, 0) -> Left side lit, Right side dark
+  const sunDir = new THREE.Vector3(-1, 0.2, 0.5).normalize();
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
      let p = new THREE.Vector3();
      let c = new THREE.Color();
      let g = 0;
      
-     // Rejection Sampling for Density Control
-     // We want high density on land, sparse on ocean.
-     // Clouds are separate layer on top.
-     
      let found = false;
      let attempts = 0;
      
-     while (!found && attempts < 15) {
+     while (!found && attempts < 20) {
         attempts++;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
         
+        // Random point on sphere
+        const u = Math.random();
+        const v = Math.random();
+        const theta = 2 * Math.PI * u;
+        const phi = Math.acos(2 * v - 1);
         p.setFromSphericalCoords(R, phi, theta);
         
-        // 1. Check Cloud (Highest Priority Layer)
-        // Clouds float above: R * 1.05
-        if (Math.random() < 0.25 && isCloud(p.x, p.y, p.z)) { // 25% chance to try to be a cloud
-           p.multiplyScalar(1.04); // Float above
-           c.copy(cloudColor);
-           // Slight transparency effect by dimming (since additive blending)
-           c.multiplyScalar(0.5); 
-           found = true;
-           continue;
+        // 1. CLOUDS (Layer 1)
+        // 25% of particles are clouds
+        if (i < PARTICLE_COUNT * 0.25) {
+           if (isCloud(p)) {
+              p.multiplyScalar(1.05); // Float above
+              c.copy(cloudColor);
+              c.multiplyScalar(0.7); // Semi-transparent
+              found = true;
+              continue;
+           }
         }
         
-        const { lat, lon } = getLatLon(phi, theta);
-        const land = isLand(lat, lon);
+        // 2. LAND / OCEAN
+        // Check if inside any land cap
+        let isLandPoint = false;
+        let isEdge = false;
         
-        if (land) {
-           // Land - High Probability to keep
-           if (Math.random() < 0.95) {
-              // Check City Lights
-              if (isCity(lat, lon) && Math.random() < 0.5) {
-                 c.copy(cityColor);
-                 c.multiplyScalar(1.5); // Bright lights
-              } else {
-                 c.copy(landColor);
-                 // Noise for texture
-                 const n = (Math.random()-0.5)*0.1;
-                 c.r += n; c.g += n; c.b += n;
+        // Smooth union of circles? 
+        // Just check max overlap
+        for (const node of landNodes) {
+           const dot = p.dot(node.v);
+           if (dot > node.minDot) {
+              isLandPoint = true;
+              // Check for edge: close to boundary?
+              // Boundary is when dot approx node.minDot
+              if (dot < node.minDot + 0.02) {
+                 isEdge = true;
               }
-              found = true;
+              break;
+           }
+        }
+        
+        // Day/Night Calculation
+        const sunDot = p.dot(sunDir);
+        const isNight = sunDot < -0.1; // Terminator line
+        
+        if (isLandPoint) {
+           // If we need high density land, we accept land points with higher prob
+           // But here we are just filling particles. 
+           // If current index is reserved for land? No, just rejection sampling.
+           
+           if (isEdge) {
+               // Outline (Coastline)
+               c.copy(outlineColor);
+               // Add some sparkle
+               if (Math.random() < 0.2) c.addScalar(0.2);
+               found = true;
+           } else {
+               // Interior Land
+               if (isNight) {
+                  // Check city lights
+                  let isCityPoint = false;
+                  for (const city of cityNodes) {
+                     if (p.dot(city.v) > city.minDot) {
+                        isCityPoint = true;
+                        break;
+                     }
+                  }
+                  
+                  if (isCityPoint) {
+                     c.copy(cityColor);
+                  } else {
+                     // Dark Land at night
+                     c.copy(landColor).multiplyScalar(0.3);
+                  }
+               } else {
+                  // Day Land
+                  c.copy(landColor);
+                  
+                  // Ice Caps (Approximate by Y position)
+                  // sin(60) ~= 0.86
+                  if (Math.abs(p.y) > 0.85) {
+                     c.setHex(0xffffff); // White Snow/Ice
+                  } else {
+                      // Noise for texture
+                      const n = (Math.random()-0.5)*0.1;
+                      c.r+=n; c.g+=n; c.b+=n;
+                  }
+               }
+               found = true;
            }
         } else {
-           // Ocean - Low Probability to keep (Sparse)
-           if (Math.random() < 0.15) { // Only keep 15% of ocean points
-              c.copy(oceanColor);
-              found = true;
+           // Ocean
+           
+           // Arctic Ice Cap (Floating ice in ocean)
+           if (p.y > 0.88) { // > 62 degrees North
+               c.setHex(0xffffff); // White Ice
+               // Slight blue tint
+               c.b += 0.1;
+               found = true;
+           } else {
+               if (isNight) {
+                  c.copy(oceanColor).multiplyScalar(0.2); // Very dark ocean
+               } else {
+                  c.copy(oceanColor);
+               }
+               found = true;
            }
+        }
+        
+        // Density Bias: 
+        // We want more points on land/edges to define shapes well.
+        // If it's ocean, 50% chance to reject and try again (effectively doubling density on land)
+        if (!isLandPoint && Math.random() < 0.5) {
+           found = false;
         }
      }
      
-     // Fallback
+     // Fallback if rejected too many times
      if (!found) {
-        // Just place deep blue ocean point
-        // Reset p to random to avoid clumping from last attempt
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
+        // Just put an ocean point
+        const u = Math.random();
+        const v = Math.random();
+        const theta = 2 * Math.PI * u;
+        const phi = Math.acos(2 * v - 1);
         p.setFromSphericalCoords(R, phi, theta);
-        c.copy(oceanColor).multiplyScalar(0.8);
+        c.copy(oceanColor).multiplyScalar(0.5);
      }
 
      positions[i * 3] = p.x;

@@ -287,9 +287,22 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     const { mode, spinVelocity, progress } = interactionState.current;
     
+    // Friction for spin
+    if (Math.abs(spinVelocity) > 0.0001) {
+       interactionState.current.spinVelocity *= 0.95;
+    } else {
+       interactionState.current.spinVelocity = 0;
+    }
+
     // Rotation Logic
     // Standard rotation for all shapes
     let rotationSpeed = 0.001 + spinVelocity;
+    
+    // Earth: Manual control only (no auto rotation), unless gathering
+    if (shape === 'earth') {
+       rotationSpeed = spinVelocity;
+    }
+    
     if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
     pointsRef.current.rotation.y += rotationSpeed;
     
