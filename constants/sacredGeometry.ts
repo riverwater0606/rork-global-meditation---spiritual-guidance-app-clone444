@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export const PARTICLE_COUNT = 15000;
+export const PARTICLE_COUNT = 18000;
 
 // Helper for random float
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
@@ -9,105 +9,100 @@ const random = (min: number, max: number) => Math.random() * (max - min) + min;
 export function generateMerkabaData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
-  const groups = new Float32Array(PARTICLE_COUNT); // 0: T1, 1: T2, 2: Center Glow
+  const groups = new Float32Array(PARTICLE_COUNT); // 0: T1 (Top/Gold), 1: T2 (Bottom/Silver), 2: Center
 
-  // Merkaba = Two Interlocked Tetrahedrons
-  // T1 (Male/Sun): Point facing up.
-  // T2 (Female/Earth): Point facing down.
+  // Merkaba = Two Interlocked Tetrahedrons (Star Tetrahedron)
+  // T1 (Male/Sun): Point facing up. Gold + White Vertices.
+  // T2 (Female/Earth): Point facing down. Silver + Blue Vertices.
+  
+  const scale = 1.1;
+  const R = 1.0 * scale;
 
-  // Vertices
-  const scale = 1.0;
-  // T1
+  // T1 Vertices (Apex Up)
+  // V0: Top (0, R, 0)
+  // Base triangle at y = -R/3
   const t1_v = [
-    new THREE.Vector3(1, 1, 1),
-    new THREE.Vector3(1, -1, -1),
-    new THREE.Vector3(-1, 1, -1),
-    new THREE.Vector3(-1, -1, 1)
-  ].map(v => v.multiplyScalar(scale));
-
-  // T2
-  const t2_v = [
-    new THREE.Vector3(-1, -1, -1),
-    new THREE.Vector3(-1, 1, 1),
-    new THREE.Vector3(1, -1, 1),
-    new THREE.Vector3(1, 1, -1)
-  ].map(v => v.multiplyScalar(scale));
-
-  // Faces (indices of vertices)
-  const faces = [
-    [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]
+    new THREE.Vector3(0, R, 0), 
+    new THREE.Vector3(R * Math.sqrt(8/9), -R/3, 0),
+    new THREE.Vector3(-R * Math.sqrt(2/9), -R/3, R * Math.sqrt(2/3)),
+    new THREE.Vector3(-R * Math.sqrt(2/9), -R/3, -R * Math.sqrt(2/3))
   ];
 
-  // Helper to get random point on triangle
-  const randomPointOnTriangle = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
-    let r1 = Math.random();
-    let r2 = Math.random();
-    if (r1 + r2 > 1) {
-      r1 = 1 - r1;
-      r2 = 1 - r2;
-    }
-    const r3 = 1 - r1 - r2;
-    return new THREE.Vector3()
-      .addScaledVector(a, r1)
-      .addScaledVector(b, r2)
-      .addScaledVector(c, r3);
-  };
+  // T2 Vertices (Apex Down) - Inverted T1
+  const t2_v = t1_v.map(v => v.clone().multiplyScalar(-1));
 
-  // Helper to get random point on line
+  // Edges (Pairs of vertex indices)
+  const edges = [
+    [0, 1], [0, 2], [0, 3], [1, 2], [2, 3], [3, 1]
+  ];
+
+  // Colors
+  const gold = new THREE.Color("#FFD700");
+  const brightWhite = new THREE.Color("#FFFFFF");
+  const silver = new THREE.Color("#C0C0C0");
+  const paleBlue = new THREE.Color("#AFEEEE");
+  const coreWhite = new THREE.Color("#FFFFFF");
+
+  // Helper for random point on line
   const randomPointOnLine = (a: THREE.Vector3, b: THREE.Vector3) => {
-    const t = Math.random();
-    return new THREE.Vector3().lerpVectors(a, b, t);
+    return new THREE.Vector3().lerpVectors(a, b, Math.random());
   };
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const r = Math.random();
     let p = new THREE.Vector3();
     let c = new THREE.Color();
     let g = 0;
 
-    // 10% Center Glow
-    if (i < PARTICLE_COUNT * 0.1) {
-      g = 2; // Center
-      // Sphere in center
+    // Distribution:
+    // 10% Center Core (Group 2)
+    // 45% T1 (Group 0)
+    // 45% T2 (Group 1)
+
+    if (i < PARTICLE_COUNT * 0.10) {
+      // Center Core
+      g = 2;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const rad = random(0.01, 0.3); // Pulsing core
+      const rad = 0.25; // Fist size
       p.setFromSphericalCoords(rad, phi, theta);
-      c.setHex(0xFFFFFF); // White light
-    } else {
-      // 45% T1, 45% T2
-      const isT1 = i % 2 === 0;
-      g = isT1 ? 0 : 1;
-      const verts = isT1 ? t1_v : t2_v;
-      
-      const type = Math.random();
-      if (type < 0.6) {
-        // Faces
-        const faceIdx = Math.floor(Math.random() * 4);
-        const f = faces[faceIdx];
-        p = randomPointOnTriangle(verts[f[0]], verts[f[1]], verts[f[2]]);
-      } else if (type < 0.95) {
-        // Edges (High density)
-        // 6 edges: 0-1, 0-2, 0-3, 1-2, 1-3, 2-3
-        const edges = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
-        const edgeIdx = Math.floor(Math.random() * 6);
-        const e = edges[edgeIdx];
-        p = randomPointOnLine(verts[e[0]], verts[e[1]]);
-        // Add slight scatter for "energy trail" look
-        p.addScalar((Math.random()-0.5)*0.05);
-      } else {
-        // Vertices (Intense)
+      c.copy(coreWhite);
+    } else if (i < PARTICLE_COUNT * 0.55) {
+      // T1 (Top/Gold)
+      g = 0;
+      // 15% Vertices, 85% Edges
+      if (Math.random() < 0.15) {
+        // Vertices - Super Bright White
         const vIdx = Math.floor(Math.random() * 4);
-        p.copy(verts[vIdx]).addScalar((Math.random()-0.5)*0.1);
-      }
-
-      // Colors
-      if (isT1) {
-        // Gold/Yellow for Sun/Male
-        c.setHSL(0.1 + Math.random() * 0.05, 1.0, 0.6); 
+        p.copy(t1_v[vIdx]);
+        // Tight cluster
+        p.add(new THREE.Vector3((Math.random()-0.5)*0.08, (Math.random()-0.5)*0.08, (Math.random()-0.5)*0.08));
+        c.copy(brightWhite);
       } else {
-        // Blue/Violet for Earth/Female
-        c.setHSL(0.6 + Math.random() * 0.1, 1.0, 0.7);
+        // Edges - Gold light trails
+        const eIdx = Math.floor(Math.random() * 6);
+        const edge = edges[eIdx];
+        p = randomPointOnLine(t1_v[edge[0]], t1_v[edge[1]]);
+        // Very tight constraint (Optical fiber look)
+        p.addScalar((Math.random()-0.5)*0.015);
+        c.copy(gold);
+      }
+    } else {
+      // T2 (Bottom/Silver)
+      g = 1;
+      // 15% Vertices, 85% Edges
+      if (Math.random() < 0.15) {
+        // Vertices - Pale Blue
+        const vIdx = Math.floor(Math.random() * 4);
+        p.copy(t2_v[vIdx]);
+        p.add(new THREE.Vector3((Math.random()-0.5)*0.08, (Math.random()-0.5)*0.08, (Math.random()-0.5)*0.08));
+        c.copy(paleBlue);
+      } else {
+        // Edges - Silver light trails
+        const eIdx = Math.floor(Math.random() * 6);
+        const edge = edges[eIdx];
+        p = randomPointOnLine(t2_v[edge[0]], t2_v[edge[1]]);
+        p.addScalar((Math.random()-0.5)*0.015);
+        c.copy(silver);
       }
     }
 

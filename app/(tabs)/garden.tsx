@@ -293,10 +293,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     pointsRef.current.rotation.y += rotationSpeed;
     if (shape === 'merkaba') {
-       // Counter-rotation effect: We rotate the whole object, 
-       // but for Merkaba maybe we want to rotate just the points? 
-       // Simplest is to just spin the whole thing faster.
-       pointsRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+       // Disable wobbling for Merkaba to ensure perfect steadiness
+       pointsRef.current.rotation.z = 0;
     }
     
     // Access geometry attributes
@@ -397,14 +395,25 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       if (shape === 'merkaba') {
          const g = groups[i];
          if (g === 2) {
-           // Center pulse
-           const s = 1 + Math.sin(t * 5) * 0.2;
+           // Center pulse: "Bright once every 4 seconds"
+           // Use a sharper pulse than simple sine
+           const pulse = Math.pow(Math.sin(t * Math.PI * 0.25), 4); // Period = 2PI / (PI*0.25) * 0.5? No.
+           // sin(t * w). Period T = 2PI/w. We want T=4. w = 2PI/4 = PI/2.
+           // So sin(t * PI/2).
+           // Pow 4 makes it sharper.
+           const s = 1 + Math.pow(Math.sin(t * Math.PI * 0.5), 10) * 0.15;
            tx *= s; ty *= s; tz *= s;
          } else {
-           // Counter Rotation
-           // T1 (0): +speed, T2 (1): -speed
-           const speed = 1.0;
-           const ang = (g === 0 ? 1 : -1) * t * speed;
+           // Rotation
+           // T1 (0): Left (CCW) 12s -> w = 2PI/12
+           // T2 (1): Right (CW) 15s -> w = -2PI/15
+           
+           let ang = 0;
+           if (g === 0) {
+              ang = t * (Math.PI * 2 / 12);
+           } else {
+              ang = t * (-Math.PI * 2 / 15);
+           }
            
            const cos = Math.cos(ang);
            const sin = Math.sin(ang);
