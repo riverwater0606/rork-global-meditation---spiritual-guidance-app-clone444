@@ -289,7 +289,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     // Friction for spin
     if (Math.abs(spinVelocity) > 0.0001) {
-       interactionState.current.spinVelocity *= 0.95;
+       interactionState.current.spinVelocity *= 0.98; // Less friction for longer spin
     } else {
        interactionState.current.spinVelocity = 0;
     }
@@ -507,8 +507,8 @@ export default function GardenScreen() {
       },
       
       onPanResponderMove: (evt, gestureState) => {
-        // Spin interaction
-        interactionState.current.spinVelocity = gestureState.vx * 0.05;
+        // Spin interaction - Increased sensitivity
+        interactionState.current.spinVelocity = gestureState.vx * 0.15;
         
         // Swipe Detection
         // Use gestureState.dy (accumulated distance) and velocity
@@ -529,7 +529,9 @@ export default function GardenScreen() {
         }
       },
       
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt, gestureState) => {
+        // Capture final velocity for fling effect
+        interactionState.current.spinVelocity = gestureState.vx * 0.15;
         stopGathering();
       },
       
