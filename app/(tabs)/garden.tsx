@@ -9,7 +9,7 @@ import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles } from "lucide-react-
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
-type OrbShape = 'sphere' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
+type OrbShape = 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -49,118 +49,325 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 });
 MinimalProgress.displayName = "MinimalProgress";
 
-// Orb Component with Heart & Store Animations
+// Orb Component with Sacred Geometry
 const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
-  // Pre-calculate positions
-  const { positions, colors, heartPositions, shapePositions } = useMemo(() => {
-    const particleCount = 10000;
+  // Pre-calculate positions for Sacred Geometry
+  const { positions, colors, targetPositions } = useMemo(() => {
+    const particleCount = 12000; // Increased for density
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
-    const heartPositions = new Float32Array(particleCount * 3);
-    const shapePositions = new Float32Array(particleCount * 3);
+    const targetPositions = new Float32Array(particleCount * 3); // The destination shape
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
-    for (let i = 0; i < particleCount; i++) {
-      // Sphere Positions
-      const layerIndex = Math.floor(Math.random() * layers.length);
-      const color = colorObjects[layerIndex] || new THREE.Color("#888");
-      
-      const r = 1.0 + Math.random() * 0.5; 
+    // Helper: Random point in sphere
+    const setRandomSphere = (i: number) => {
+      const r = 1.0 + Math.random() * 0.5;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
       
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
+      // Default colors
+      const layerIndex = Math.floor(Math.random() * layers.length);
+      const c = colorObjects[layerIndex] || new THREE.Color("#ffffff");
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    };
 
-      // Heart Positions
-      const t = Math.random() * Math.PI * 2;
-      const v = (Math.random() - 0.5) * 0.5; 
-      const scale = 0.08;
-      
-      const hx = (16 * Math.pow(Math.sin(t), 3)) * scale;
-      const hy = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * scale;
-      const hz = v;
-      
-      heartPositions[i * 3] = hx + (Math.random() - 0.5) * 0.1;
-      heartPositions[i * 3 + 1] = hy + (Math.random() - 0.5) * 0.1;
-      heartPositions[i * 3 + 2] = hz + (Math.random() - 0.5) * 0.5;
+    // --- GEOMETRY GENERATORS ---
 
-      // Shape-based positions
-      let sx = 0, sy = 0, sz = 0;
-      if (shape === 'flower-of-life') {
-        // 7 circles pattern
-        const angle = (i % 7) * (Math.PI * 2 / 7);
-        const radius = 0.4 + (Math.random() - 0.5) * 0.1;
-        sx = Math.cos(angle) * radius + (Math.random() - 0.5) * 0.3;
-        sy = Math.sin(angle) * radius + (Math.random() - 0.5) * 0.3;
-        sz = (Math.random() - 0.5) * 0.2;
-      } else if (shape === 'star-of-david') {
-        // 6-pointed star
-        const angle = (i % 6) * (Math.PI / 3);
-        const dist = 0.8 + (i % 2) * 0.3 + (Math.random() - 0.5) * 0.2;
-        sx = Math.cos(angle) * dist;
-        sy = Math.sin(angle) * dist;
-        sz = (Math.random() - 0.5) * 0.3;
-      } else if (shape === 'merkaba') {
-        // Two tetrahedrons
-        const isUpper = i % 2 === 0;
-        const vtx = i % 3;
-        const angle = vtx * (Math.PI * 2 / 3);
-        const r2 = 0.9;
-        sx = Math.cos(angle) * r2 + (Math.random() - 0.5) * 0.2;
-        sy = Math.sin(angle) * r2 + (Math.random() - 0.5) * 0.2;
-        sz = (isUpper ? 0.6 : -0.6) + (Math.random() - 0.5) * 0.3;
-      } else if (shape === 'mudra') {
-        // Hand gesture outline (simplified)
-        const segment = Math.floor((i / particleCount) * 5);
-        const t2 = (i % (particleCount / 5)) / (particleCount / 5) * Math.PI * 2;
-        sx = Math.cos(t2) * (0.3 + segment * 0.1) + (Math.random() - 0.5) * 0.1;
-        sy = Math.sin(t2) * (0.3 + segment * 0.1) + (Math.random() - 0.5) * 0.1 - 0.3;
-        sz = segment * 0.15 + (Math.random() - 0.5) * 0.2;
-      } else if (shape === 'earth') {
-        // Earth with continents (approximation with noise)
-        const lat = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
-        const lon = Math.random() * Math.PI * 2;
-        const earthR = 1.0;
-        sx = earthR * Math.cos(lat) * Math.cos(lon);
-        sy = earthR * Math.cos(lat) * Math.sin(lon);
-        sz = earthR * Math.sin(lat);
-      } else {
-        // Default sphere
-        sx = positions[i * 3];
-        sy = positions[i * 3 + 1];
-        sz = positions[i * 3 + 2];
+    // 1. Flower of Life (2D/3D extruded)
+    // 19 overlapping circles in hexagonal grid
+    const generateFlowerOfLife = () => {
+      const circleRadius = 0.5;
+      // Centers for 19 circles (Hexagonal packing)
+      // Layer 0: (0,0)
+      // Layer 1: 6 neighbors
+      // Layer 2: 12 neighbors
+      const centers: {x:number, y:number}[] = [{x:0,y:0}];
+      
+      // Ring 1
+      for(let i=0; i<6; i++) {
+        const angle = i * Math.PI / 3;
+        centers.push({ x: Math.cos(angle)*circleRadius, y: Math.sin(angle)*circleRadius });
+      }
+      // Ring 2
+      for(let i=0; i<6; i++) {
+        const angle = i * Math.PI / 3;
+        // Corner points
+        centers.push({ x: 2*Math.cos(angle)*circleRadius, y: 2*Math.sin(angle)*circleRadius });
+        // Mid points between corners
+        const angleMid = angle + Math.PI/6;
+        // distance for mid points in hex grid is sqrt(3)*R
+        centers.push({ x: Math.sqrt(3)*Math.cos(angleMid)*circleRadius, y: Math.sqrt(3)*Math.sin(angleMid)*circleRadius });
       }
 
-      shapePositions[i * 3] = sx;
-      shapePositions[i * 3 + 1] = sy;
-      shapePositions[i * 3 + 2] = sz;
-    }
+      for (let i = 0; i < particleCount; i++) {
+        // Distribute particles among 19 circles
+        const circleIdx = i % centers.length;
+        const center = centers[circleIdx];
+        const theta = Math.random() * Math.PI * 2;
+        
+        // Exact circle outline with slight glow/width
+        const r = circleRadius * (0.98 + Math.random()*0.04); 
+        
+        targetPositions[i*3] = center.x + r * Math.cos(theta);
+        targetPositions[i*3+1] = center.y + r * Math.sin(theta);
+        targetPositions[i*3+2] = (Math.random() - 0.5) * 0.05; // Flat with slight depth
+        
+        // Color: Gold/Pink/Violet gradients
+        colors[i*3] = 1.0;
+        colors[i*3+1] = 0.5 + Math.random()*0.5;
+        colors[i*3+2] = 0.5 + Math.random()*0.5;
+      }
+    };
+
+    // 2. Star of David (Interlocking Triangles) with Light Beams
+    const generateStarOfDavid = () => {
+       // Two large triangles
+       // T1: Pointing Up. T2: Pointing Down.
+       const size = 1.2;
+       
+       for(let i=0; i<particleCount; i++) {
+         const isUp = i % 2 === 0;
+         // Triangle parametric eq
+         // 3 edges.
+         const edge = Math.floor(Math.random() * 3);
+         const t = Math.random(); // Position on edge
+         
+         let p1, p2, p3;
+         if (isUp) {
+            // Angles: 90, 210, 330
+            p1 = {x:0, y:size};
+            p2 = {x:size*Math.cos(210*Math.PI/180), y:size*Math.sin(210*Math.PI/180)};
+            p3 = {x:size*Math.cos(330*Math.PI/180), y:size*Math.sin(330*Math.PI/180)};
+         } else {
+            // Angles: 30, 150, 270
+            p1 = {x:0, y:-size};
+            p2 = {x:size*Math.cos(30*Math.PI/180), y:size*Math.sin(30*Math.PI/180)};
+            p3 = {x:size*Math.cos(150*Math.PI/180), y:size*Math.sin(150*Math.PI/180)};
+         }
+         
+         let A, B;
+         if (edge === 0) { A=p1; B=p2; }
+         else if (edge === 1) { A=p2; B=p3; }
+         else { A=p3; B=p1; }
+         
+         // Point on edge
+         let px = A.x + (B.x - A.x) * t;
+         let py = A.y + (B.y - A.y) * t;
+         
+         // Add "Beams" effect (particles radiating out or concentrating on lines)
+         // We make the lines thick and glowing
+         const scatter = (Math.random() - 0.5) * 0.05;
+         
+         // Z depth to interlock
+         const z = isUp ? 0.05 : -0.05;
+         
+         targetPositions[i*3] = px + scatter;
+         targetPositions[i*3+1] = py + scatter;
+         targetPositions[i*3+2] = z + (Math.random()-0.5)*0.02;
+
+         // Cyan/Blue colors
+         colors[i*3] = 0.0;
+         colors[i*3+1] = 0.8 + Math.random()*0.2;
+         colors[i*3+2] = 1.0;
+       }
+    };
+
+    // 3. Merkaba (Star Tetrahedron)
+    const generateMerkaba = () => {
+      // 8 corners of a cube form two tetrahedrons
+      // T1: (1,1,1), (1,-1,-1), (-1,1,-1), (-1,-1,1)
+      // T2: (-1,-1,-1), (-1,1,1), (1,-1,1), (1,1,-1)
+      const scale = 0.8;
+      
+      const t1_verts = [
+        [1,1,1], [1,-1,-1], [-1,1,-1], [-1,-1,1]
+      ].map(v => v.map(c => c*scale));
+      
+      const t2_verts = [
+        [-1,-1,-1], [-1,1,1], [1,-1,1], [1,1,-1]
+      ].map(v => v.map(c => c*scale));
+      
+      // Edges for T1 (pairs of indices)
+      // 0-1, 0-2, 0-3, 1-2, 1-3, 2-3
+      const edges = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
+
+      for(let i=0; i<particleCount; i++) {
+        const isT1 = i % 2 === 0;
+        const verts = isT1 ? t1_verts : t2_verts;
+        
+        // Pick random edge
+        const edgeIdx = Math.floor(Math.random() * 6);
+        const [ia, ib] = edges[edgeIdx];
+        const A = verts[ia];
+        const B = verts[ib];
+        
+        const t = Math.random();
+        
+        targetPositions[i*3] = A[0] + (B[0]-A[0])*t + (Math.random()-0.5)*0.02;
+        targetPositions[i*3+1] = A[1] + (B[1]-A[1])*t + (Math.random()-0.5)*0.02;
+        targetPositions[i*3+2] = A[2] + (B[2]-A[2])*t + (Math.random()-0.5)*0.02;
+        
+        // Purple/Gold
+        if (isT1) {
+          colors[i*3] = 1.0; // Goldish
+          colors[i*3+1] = 0.8;
+          colors[i*3+2] = 0.2;
+        } else {
+          colors[i*3] = 0.5; // Violet
+          colors[i*3+1] = 0.0;
+          colors[i*3+2] = 1.0;
+        }
+      }
+    };
+
+    // 4. Mudra (Prayer Hands)
+    const generateMudra = () => {
+       // Simplified volume of two hands pressing together
+       for(let i=0; i<particleCount; i++) {
+         const isLeft = i % 2 === 0;
+         const sign = isLeft ? -1 : 1;
+         
+         // Each hand: Palm + Fingers
+         // Palm is roughly an ellipsoid at y=-0.2, x=sign*0.15
+         // Fingers are elongated ellipsoids pointing up
+         
+         const part = Math.random();
+         let px, py, pz;
+         
+         if (part < 0.4) {
+           // Palm area
+           const theta = Math.random() * Math.PI * 2;
+           const phi = Math.random() * Math.PI;
+           // Flattened sphere
+           px = sign * (0.15 + 0.1 * Math.sin(phi)*Math.cos(theta));
+           py = -0.3 + 0.25 * Math.cos(phi);
+           pz = 0.1 * Math.sin(phi)*Math.sin(theta);
+         } else {
+           // Fingers (4 fingers + thumb)
+           const fingerIdx = Math.floor(Math.random() * 5);
+           // Tips positions roughly
+           // 0: Thumb (angled), 1: Index, 2: Middle, 3: Ring, 4: Pinky
+           let fx, fy, fz, fr, fh;
+           
+           if (fingerIdx === 0) { // Thumb
+             fx = sign * 0.3; fy = -0.1; fz = 0.1;
+             fr = 0.04; fh = 0.2;
+           } else {
+             // Fingers fanning out slightly
+             const offset = (fingerIdx - 2.5) * 0.08; 
+             fx = sign * (0.05 + Math.abs(offset)*0.2); 
+             fy = 0.0; 
+             fz = offset;
+             fr = 0.035; fh = 0.3 + (fingerIdx === 2 ? 0.05 : 0);
+           }
+           
+           // Cylinder/Capsule math
+           const h = Math.random() * fh;
+           const ang = Math.random() * Math.PI * 2;
+           
+           px = fx + Math.cos(ang)*fr;
+           py = fy + h; // pointing up
+           pz = fz + Math.sin(ang)*fr;
+           
+           // Slight curve towards center for prayer
+           if (fingerIdx !== 0) {
+              px += sign * (h*h * -0.5); // Curve tips together
+           } else {
+              // Rotate thumb
+              const tr = -sign * 0.5;
+              const tx = px; const ty = py;
+              px = tx * Math.cos(tr) - ty * Math.sin(tr);
+              py = tx * Math.sin(tr) + ty * Math.cos(tr);
+           }
+         }
+         
+         // Refine gap to make them touch
+         if (isLeft && px > -0.02) px = -0.02;
+         if (!isLeft && px < 0.02) px = 0.02;
+
+         targetPositions[i*3] = px;
+         targetPositions[i*3+1] = py;
+         targetPositions[i*3+2] = pz;
+         
+         // Golden Skin / Light
+         colors[i*3] = 1.0;
+         colors[i*3+1] = 0.9;
+         colors[i*3+2] = 0.7;
+       }
+    };
+
+    // 5. Earth
+    const generateEarth = () => {
+      for(let i=0; i<particleCount; i++) {
+        const theta = Math.random() * Math.PI * 2; // Longitude
+        const phi = Math.acos(2 * Math.random() - 1); // Latitude
+        const r = 1.0;
+        
+        const x = r * Math.sin(phi) * Math.cos(theta);
+        const y = r * Math.sin(phi) * Math.sin(theta);
+        const z = r * Math.cos(phi);
+        
+        targetPositions[i*3] = x;
+        targetPositions[i*3+1] = y;
+        targetPositions[i*3+2] = z;
+        
+        // Continents Simulation (Simple math based)
+        // Check "noise" value at surface
+        // Simple approximation of continents:
+        // Use a few sin waves
+        const nx = Math.sin(theta*3 + phi*2);
+        const ny = Math.cos(phi*5);
+        const nz = Math.sin(theta*2);
+        const noiseVal = nx + ny + nz; // range approx -3 to 3
+        
+        // Atmosphere layer (10% of particles)
+        if (Math.random() < 0.15) {
+           const ar = 1.1 + Math.random() * 0.2;
+           targetPositions[i*3] = ar * Math.sin(phi) * Math.cos(theta);
+           targetPositions[i*3+1] = ar * Math.sin(phi) * Math.sin(theta);
+           targetPositions[i*3+2] = ar * Math.cos(phi);
+           
+           colors[i*3] = 0.6; colors[i*3+1] = 0.8; colors[i*3+2] = 1.0; // Light Blue
+        } else {
+           if (noiseVal > 0.5) {
+             // Land (Green/Brown)
+             colors[i*3] = 0.2; colors[i*3+1] = 0.6 + Math.random()*0.2; colors[i*3+2] = 0.2;
+           } else {
+             // Ocean (Deep Blue)
+             colors[i*3] = 0.0; colors[i*3+1] = 0.2; colors[i*3+2] = 0.6 + Math.random()*0.3;
+           }
+        }
+      }
+    };
+
+    // Initialize random sphere positions first (start state)
+    for(let i=0; i<particleCount; i++) setRandomSphere(i);
     
-    return { positions, colors, heartPositions, shapePositions };
+    // Generate Target Shape based on prop
+    if (shape === 'flower-of-life') generateFlowerOfLife();
+    else if (shape === 'star-of-david') generateStarOfDavid();
+    else if (shape === 'merkaba') generateMerkaba();
+    else if (shape === 'mudra') generateMudra();
+    else if (shape === 'earth') generateEarth();
+    else generateFlowerOfLife(); // Fallback
+    
+    return { positions, colors, targetPositions };
   }, [layers, shape]);
 
   // Use a buffer attribute for current positions to interpolate
   const currentPositions = useMemo(() => {
-    const arr = new Float32Array(shapePositions);
-    // If we are spawning while in store/appear mode, start at bottom
-    if (interactionState.current.mode === 'store' || interactionState.current.mode === 'appear') {
-       for(let i=0; i<arr.length; i+=3) {
-         arr[i] *= 0.01;
-         arr[i+1] = arr[i+1] * 0.01 - 3.0;
-         arr[i+2] *= 0.01;
-       }
-    }
-    return arr;
-  }, [shapePositions, interactionState]);
+    // Start with random sphere positions (from useMemo above)
+    // We clone positions to be the mutable current state
+    return new Float32Array(positions);
+  }, [positions]); // Reset when positions (shape source) changes
 
   useFrame((state) => {
     if (!pointsRef.current) return;
@@ -168,58 +375,57 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     const { mode, spinVelocity, progress } = interactionState.current;
     
     // Rotation
-    let rotationSpeed = 0.002 + spinVelocity;
+    let rotationSpeed = 0.001 + spinVelocity;
     if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
     
     pointsRef.current.rotation.y += rotationSpeed;
+    if (shape === 'merkaba') {
+       // Counter-rotation effect: We rotate the whole object, 
+       // but for Merkaba maybe we want to rotate just the points? 
+       // Simplest is to just spin the whole thing faster.
+       pointsRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+    }
     
     // Access geometry attributes
     const geometry = pointsRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < 12000; i++) {
       const ix = i * 3;
       const iy = i * 3 + 1;
       const iz = i * 3 + 2;
       
-      let tx = shapePositions[ix];
-      let ty = shapePositions[iy];
-      let tz = shapePositions[iz];
+      let tx = targetPositions[ix];
+      let ty = targetPositions[iy];
+      let tz = targetPositions[iz];
       
       // Modifiers based on mode
       if (mode === 'gather') {
-        const tighten = 1.0 - (progress * 0.6); 
+        // Implosion effect
+        const tighten = 1.0 - (progress * 0.8); 
         tx *= tighten;
         ty *= tighten;
         tz *= tighten;
         
+        // Jitter / Energy
         const jitter = 0.05 * progress;
         tx += (Math.random() - 0.5) * jitter;
         ty += (Math.random() - 0.5) * jitter;
         tz += (Math.random() - 0.5) * jitter;
       } 
-      else if (mode === 'heart') {
-        tx = heartPositions[ix];
-        ty = heartPositions[iy] + 0.5;
-        tz = heartPositions[iz];
-      }
       else if (mode === 'store') {
         tx *= 0.01;
         ty = ty * 0.01 - 3.0; 
         tz *= 0.01;
       }
-      else if (mode === 'appear') {
-        // Target is normal (tx,ty,tz). 
-        // We just let it lerp there from wherever it was (bottom).
-      }
       else if (mode === 'explode') {
-         tx *= 3.0;
-         ty *= 3.0;
-         tz *= 3.0;
+         tx *= 2.0;
+         ty *= 2.0;
+         tz *= 2.0;
       }
       
-      // Lerp speed - slower for store mode for smoother feel
-      const lerpFactor = mode === 'store' ? 0.03 : 0.08;
+      // Lerp for smooth transition between shapes
+      const lerpFactor = 0.1;
       
       currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
       currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
@@ -244,10 +450,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.05}
+        size={0.03}
         vertexColors
         transparent
-        opacity={0.85}
+        opacity={0.8}
         blending={THREE.AdditiveBlending}
         sizeAttenuation={true}
         depthWrite={false}
@@ -284,10 +490,9 @@ export default function GardenScreen() {
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [showShapeSelector, setShowShapeSelector] = useState(false);
-  const [orbShape, setOrbShape] = useState<OrbShape>('sphere');
+  const [orbShape, setOrbShape] = useState<OrbShape>('flower-of-life');
 
   const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
-    { id: 'sphere', name: 'Sphere', nameZh: '球體', icon: '🔮' },
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
     { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
     { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
