@@ -288,21 +288,13 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     const { mode, spinVelocity, progress } = interactionState.current;
     
     // Rotation Logic
-    if (shape === 'earth') {
-       // Fixed slow rotation: 90s per turn
-       // 2*PI / 90 radians per second
-       pointsRef.current.rotation.y += (Math.PI * 2 / 90) * delta;
-       // Ensure Z rotation is 0 (no wobble)
+    // Standard rotation for all shapes
+    let rotationSpeed = 0.001 + spinVelocity;
+    if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
+    pointsRef.current.rotation.y += rotationSpeed;
+    
+    if (shape === 'merkaba' || shape === 'earth') {
        pointsRef.current.rotation.z = 0;
-    } else {
-       // Standard rotation for other shapes
-       let rotationSpeed = 0.001 + spinVelocity;
-       if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
-       pointsRef.current.rotation.y += rotationSpeed;
-       
-       if (shape === 'merkaba') {
-          pointsRef.current.rotation.z = 0;
-       }
     }
     
     // Access geometry attributes
