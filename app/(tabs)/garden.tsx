@@ -1,5 +1,5 @@
-import React, { useRef, useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Dimensions } from "react-native";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
@@ -9,16 +9,56 @@ import { Send, Clock, Zap } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import { BlurView } from "expo-blur";
 
+// Optimized Progress Overlay to prevent parent re-renders
+const ProgressOverlay = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
+  const [visible, setVisible] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  useImperativeHandle(ref, () => ({
+    update: (newProgress: number) => {
+      if (!visible && newProgress > 0) setVisible(true);
+      setProgress(newProgress);
+    },
+    reset: () => {
+      setVisible(false);
+      setProgress(0);
+    }
+  }));
+
+  if (!visible) return null;
+
+  const timeLeftSeconds = Math.ceil((1 - progress) * (duration / 1000));
+  const mins = Math.floor(timeLeftSeconds / 60);
+  const secs = timeLeftSeconds % 60;
+  const timeString = `${mins}:${secs.toString().padStart(2, '0')}`;
+  const percent = Math.floor(progress * 100);
+
+  return (
+    <View style={styles.optimizedProgressContainer}>
+      <BlurView intensity={20} tint="dark" style={styles.glassPanel}>
+        <View style={styles.progressRow}>
+          <Text style={styles.progressTime}>{timeString}</Text>
+          <View style={styles.verticalDivider} />
+          <Text style={styles.progressPercent}>{percent}%</Text>
+        </View>
+        <View style={styles.miniProgressBarBg}>
+          <View style={[styles.miniProgressBarFill, { width: `${percent}%`, backgroundColor: theme.primary }]} />
+        </View>
+      </BlurView>
+    </View>
+  );
+});
+ProgressOverlay.displayName = "ProgressOverlay";
+
 // Orb Component
 const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwakened: boolean, interactionState: any }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   // Create particles based on layers
-  const { positions, colors, randoms } = useMemo(() => {
+  const { positions, colors } = useMemo(() => {
     const particleCount = 3000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
-    const randoms = new Float32Array(particleCount * 3);
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -38,13 +78,9 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], isAwaken
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
-
-      randoms[i * 3] = Math.random();
-      randoms[i * 3 + 1] = Math.random();
-      randoms[i * 3 + 2] = Math.random();
     }
     
-    return { positions, colors, randoms };
+    return { positions, colors };
   }, [layers]);
 
   useFrame((state) => {
@@ -127,7 +163,8 @@ export default function GardenScreen() {
   
   // Interaction State
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
-  const [gatheringProgress, setGatheringProgress] = useState(0);
+  // Removed state that causes re-renders: const [gatheringProgress, setGatheringProgress] = useState(0);
+  const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
   const GATHER_DURATION = 7 * 60 * 1000; // 7 minutes to cultivate
   
@@ -166,7 +203,10 @@ export default function GardenScreen() {
       const newProgress = Math.min(elapsed / GATHER_DURATION, 1.0);
       
       interactionState.current.progress = newProgress;
-      setGatheringProgress(newProgress);
+      // Update child component directly without re-rendering parent
+      if (progressOverlayRef.current) {
+        progressOverlayRef.current.update(newProgress);
+      }
       
       if (newProgress >= 1.0) {
          // Success!
@@ -185,7 +225,9 @@ export default function GardenScreen() {
     if (interactionState.current.progress < 1.0) {
       interactionState.current.mode = 'idle';
       interactionState.current.progress = 0;
-      setGatheringProgress(0);
+      if (progressOverlayRef.current) {
+        progressOverlayRef.current.reset();
+      }
     }
   };
 
@@ -197,7 +239,9 @@ export default function GardenScreen() {
     
     interactionState.current.mode = 'explode';
     interactionState.current.progress = 0;
-    setGatheringProgress(0);
+    if (progressOverlayRef.current) {
+      progressOverlayRef.current.reset();
+    }
     
     // Trigger logic
     if (!hasGrownOrbToday && !currentOrb.isAwakened) {
@@ -321,20 +365,12 @@ export default function GardenScreen() {
           />
         </Canvas>
         
-        {/* Gathering Progress UI */}
-        {gatheringProgress > 0 && (
-          <View style={styles.progressContainer}>
-             <Text style={styles.progressText}>
-               {formatTime(Math.ceil((1 - gatheringProgress) * (GATHER_DURATION / 1000)))}
-             </Text>
-             <Text style={styles.progressSubText}>
-               {Math.floor(gatheringProgress * 100)}%
-             </Text>
-             <View style={styles.progressBarBg}>
-               <View style={[styles.progressBarFill, { width: `${gatheringProgress * 100}%`, backgroundColor: currentTheme.primary }]} />
-             </View>
-          </View>
-        )}
+        {/* Optimized Progress UI */}
+        <ProgressOverlay 
+          ref={progressOverlayRef} 
+          theme={currentTheme} 
+          duration={GATHER_DURATION} 
+        />
         
         <View style={styles.instructions}>
            <Text style={styles.instructionText}>
@@ -432,44 +468,55 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  progressContainer: {
+  optimizedProgressContainer: {
     position: 'absolute',
-    top: 60,
+    top: 20,
     right: 20,
-    width: 'auto',
-    alignItems: 'flex-end',
-    zIndex: 10,
+    zIndex: 20,
   },
-  progressText: {
+  glassPanel: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 10,
+  },
+  progressTime: {
     color: 'white',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    textAlign: 'right',
-  },
-  progressSubText: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
-    marginBottom: 5,
     fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
-  progressBarBg: {
-    width: 150,
-    height: 4,
+  verticalDivider: {
+    width: 1,
+    height: 12,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 2,
+  },
+  progressPercent: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
+  },
+  miniProgressBarBg: {
+    width: 120,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 1.5,
     overflow: 'hidden',
   },
-  progressBarFill: {
+  miniProgressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 1.5,
   },
   infoContainer: {
     flexDirection: 'row',
