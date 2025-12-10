@@ -20,27 +20,27 @@ interface ThemeColors {
 }
 
 const lightTheme: ThemeColors = {
-  background: "#F9FAFB",
-  surface: "#FFFFFF",
-  primary: "#8B5CF6",
-  secondary: "#6366F1",
-  text: "#1F2937",
-  textSecondary: "#6B7280",
-  border: "#E5E7EB",
-  card: "#FFFFFF",
-  gradient: ["#8B5CF6", "#6366F1"],
+  background: "#0f0f1a",
+  surface: "rgba(20,20,40,0.4)",
+  primary: "#a78bfa",
+  secondary: "#8b5cf6",
+  text: "#e0e0ff",
+  textSecondary: "#b0b0ff",
+  border: "#8b5cf6",
+  card: "rgba(20,20,40,0.4)",
+  gradient: ["#000000", "#0f0f1a"],
 };
 
 const darkTheme: ThemeColors = {
-  background: "#111827",
-  surface: "#1F2937",
-  primary: "#8B5CF6",
-  secondary: "#6366F1",
-  text: "#F9FAFB",
-  textSecondary: "#D1D5DB",
-  border: "#374151",
-  card: "#1F2937",
-  gradient: ["#8B5CF6", "#6366F1"],
+  background: "#0f0f1a",
+  surface: "rgba(20,20,40,0.4)",
+  primary: "#a78bfa",
+  secondary: "#8b5cf6",
+  text: "#e0e0ff",
+  textSecondary: "#b0b0ff",
+  border: "#8b5cf6",
+  card: "rgba(20,20,40,0.4)",
+  gradient: ["#000000", "#0f0f1a"],
 };
 
 interface NotificationSettings {
@@ -65,7 +65,7 @@ interface AppSettings {
 }
 
 const defaultSettings: AppSettings = {
-  theme: "light",
+  theme: "dark",
   language: "en",
   notifications: {
     dailyReminder: true,

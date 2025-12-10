@@ -2,9 +2,11 @@ import { Tabs } from "expo-router";
 import { Home, Activity, User, Sparkles, MessageCircle, Sprout } from "lucide-react-native";
 import React from "react";
 import { useSettings } from "@/providers/SettingsProvider";
+import { BlurView } from "expo-blur";
+import { Platform, StyleSheet } from "react-native";
 
 export default function TabLayout() {
-  const { currentTheme, settings } = useSettings();
+  const { settings } = useSettings();
   const lang = settings.language;
 
   const translations = {
@@ -20,20 +22,24 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: currentTheme.primary,
-        tabBarInactiveTintColor: currentTheme.textSecondary,
+        tabBarActiveTintColor: "#a78bfa",
+        tabBarInactiveTintColor: "#666",
         tabBarStyle: {
-          backgroundColor: currentTheme.surface,
+          backgroundColor: Platform.OS === 'web' ? 'rgba(15,15,26,0.95)' : 'transparent',
           borderTopWidth: 0,
           elevation: 0,
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
+          position: 'absolute',
           height: 70,
           paddingBottom: 10,
           paddingTop: 10,
+          shadowColor: "#a78bfa",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
         },
+        tabBarBackground: () => Platform.OS !== 'web' ? (
+          <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+        ) : null,
       }}
     >
       <Tabs.Screen
