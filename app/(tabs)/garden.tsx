@@ -1,13 +1,15 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
+
+type OrbShape = 'sphere' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -35,11 +37,9 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
           styles.ringProgress, 
           { 
             borderColor: theme.primary,
-            transform: [{ rotate: '45deg' }], // Start from top-ish
+            transform: [{ rotate: '45deg' }],
             borderRightColor: 'transparent',
             borderBottomColor: 'transparent',
-            // This is a simple visual hack for partial ring, not perfect but fast
-            // Ideally use SVG for perfect circle progress
           } 
         ]} />
          <Text style={styles.cornerProgressText}>{Math.floor(progress * 100)}%</Text>
@@ -50,15 +50,16 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 MinimalProgress.displayName = "MinimalProgress";
 
 // Orb Component with Heart & Store Animations
-const OrbParticles = ({ layers, interactionState }: { layers: string[], interactionState: any }) => {
+const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   // Pre-calculate positions
-  const { positions, colors, heartPositions } = useMemo(() => {
-    const particleCount = 8000;
+  const { positions, colors, heartPositions, shapePositions } = useMemo(() => {
+    const particleCount = 10000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     const heartPositions = new Float32Array(particleCount * 3);
+    const shapePositions = new Float32Array(particleCount * 3);
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -91,14 +92,65 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
       heartPositions[i * 3] = hx + (Math.random() - 0.5) * 0.1;
       heartPositions[i * 3 + 1] = hy + (Math.random() - 0.5) * 0.1;
       heartPositions[i * 3 + 2] = hz + (Math.random() - 0.5) * 0.5;
+
+      // Shape-based positions
+      let sx = 0, sy = 0, sz = 0;
+      if (shape === 'flower-of-life') {
+        // 7 circles pattern
+        const angle = (i % 7) * (Math.PI * 2 / 7);
+        const radius = 0.4 + (Math.random() - 0.5) * 0.1;
+        sx = Math.cos(angle) * radius + (Math.random() - 0.5) * 0.3;
+        sy = Math.sin(angle) * radius + (Math.random() - 0.5) * 0.3;
+        sz = (Math.random() - 0.5) * 0.2;
+      } else if (shape === 'star-of-david') {
+        // 6-pointed star
+        const angle = (i % 6) * (Math.PI / 3);
+        const dist = 0.8 + (i % 2) * 0.3 + (Math.random() - 0.5) * 0.2;
+        sx = Math.cos(angle) * dist;
+        sy = Math.sin(angle) * dist;
+        sz = (Math.random() - 0.5) * 0.3;
+      } else if (shape === 'merkaba') {
+        // Two tetrahedrons
+        const isUpper = i % 2 === 0;
+        const vtx = i % 3;
+        const angle = vtx * (Math.PI * 2 / 3);
+        const r2 = 0.9;
+        sx = Math.cos(angle) * r2 + (Math.random() - 0.5) * 0.2;
+        sy = Math.sin(angle) * r2 + (Math.random() - 0.5) * 0.2;
+        sz = (isUpper ? 0.6 : -0.6) + (Math.random() - 0.5) * 0.3;
+      } else if (shape === 'mudra') {
+        // Hand gesture outline (simplified)
+        const segment = Math.floor((i / particleCount) * 5);
+        const t2 = (i % (particleCount / 5)) / (particleCount / 5) * Math.PI * 2;
+        sx = Math.cos(t2) * (0.3 + segment * 0.1) + (Math.random() - 0.5) * 0.1;
+        sy = Math.sin(t2) * (0.3 + segment * 0.1) + (Math.random() - 0.5) * 0.1 - 0.3;
+        sz = segment * 0.15 + (Math.random() - 0.5) * 0.2;
+      } else if (shape === 'earth') {
+        // Earth with continents (approximation with noise)
+        const lat = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
+        const lon = Math.random() * Math.PI * 2;
+        const earthR = 1.0;
+        sx = earthR * Math.cos(lat) * Math.cos(lon);
+        sy = earthR * Math.cos(lat) * Math.sin(lon);
+        sz = earthR * Math.sin(lat);
+      } else {
+        // Default sphere
+        sx = positions[i * 3];
+        sy = positions[i * 3 + 1];
+        sz = positions[i * 3 + 2];
+      }
+
+      shapePositions[i * 3] = sx;
+      shapePositions[i * 3 + 1] = sy;
+      shapePositions[i * 3 + 2] = sz;
     }
     
-    return { positions, colors, heartPositions };
-  }, [layers]);
+    return { positions, colors, heartPositions, shapePositions };
+  }, [layers, shape]);
 
   // Use a buffer attribute for current positions to interpolate
   const currentPositions = useMemo(() => {
-    const arr = new Float32Array(positions);
+    const arr = new Float32Array(shapePositions);
     // If we are spawning while in store/appear mode, start at bottom
     if (interactionState.current.mode === 'store' || interactionState.current.mode === 'appear') {
        for(let i=0; i<arr.length; i+=3) {
@@ -108,7 +160,7 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
        }
     }
     return arr;
-  }, [positions, interactionState]);
+  }, [shapePositions, interactionState]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
@@ -125,14 +177,14 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
     const geometry = pointsRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     
-    for (let i = 0; i < 8000; i++) {
+    for (let i = 0; i < 10000; i++) {
       const ix = i * 3;
       const iy = i * 3 + 1;
       const iz = i * 3 + 2;
       
-      let tx = positions[ix];
-      let ty = positions[iy];
-      let tz = positions[iz];
+      let tx = shapePositions[ix];
+      let ty = shapePositions[iy];
+      let tz = shapePositions[iz];
       
       // Modifiers based on mode
       if (mode === 'gather') {
@@ -166,8 +218,8 @@ const OrbParticles = ({ layers, interactionState }: { layers: string[], interact
          tz *= 3.0;
       }
       
-      // Lerp speed
-      const lerpFactor = 0.08;
+      // Lerp speed - slower for store mode for smoother feel
+      const lerpFactor = mode === 'store' ? 0.03 : 0.08;
       
       currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
       currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
@@ -231,6 +283,17 @@ export default function GardenScreen() {
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
   const [showDevMenu, setShowDevMenu] = useState(false);
+  const [showShapeSelector, setShowShapeSelector] = useState(false);
+  const [orbShape, setOrbShape] = useState<OrbShape>('sphere');
+
+  const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
+    { id: 'sphere', name: 'Sphere', nameZh: '球體', icon: '🔮' },
+    { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
+    { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
+    { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
+    { id: 'mudra', name: 'Mudra', nameZh: '禪定手印', icon: '🙏' },
+    { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
+  ];
   
   // Pan Responder for Gestures
   const panResponder = useRef(
@@ -256,17 +319,19 @@ export default function GardenScreen() {
         
         // Swipe Detection
         // Use gestureState.dy (accumulated distance) and velocity
-        const { dy, vy } = gestureState;
+        const { dy, vy, dx } = gestureState;
         
-        // Thresholds - require both distance AND velocity to avoid accidental triggers during hold
-        const SWIPE_THRESHOLD = 100;
-        const VELOCITY_THRESHOLD = 0.5;
+        // Higher thresholds to prevent accidental swipe during hold & gather
+        const SWIPE_DISTANCE = 150;
+        const VELOCITY_THRESHOLD = 0.8;
         
         if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
-           if (dy < -SWIPE_THRESHOLD && vy < -VELOCITY_THRESHOLD) { // Swipe UP with velocity
-             triggerHeartAnimation();
-           } else if (dy > SWIPE_THRESHOLD && vy > VELOCITY_THRESHOLD) { // Swipe DOWN with velocity
-             triggerStoreAnimation();
+           if (Math.abs(dy) > Math.abs(dx) * 1.5) { // Prioritize vertical movement
+             if (dy < -SWIPE_DISTANCE && vy < -VELOCITY_THRESHOLD) { // Swipe UP
+               triggerHeartAnimation();
+             } else if (dy > SWIPE_DISTANCE && vy > VELOCITY_THRESHOLD) { // Swipe DOWN
+               triggerStoreAnimation();
+             }
            }
         }
       },
@@ -385,7 +450,7 @@ export default function GardenScreen() {
     setTimeout(async () => {
        await storeOrb();
        interactionState.current.mode = 'idle'; 
-    }, 1000);
+    }, 2000);
   };
 
   const handleSendOrb = async () => {
@@ -437,8 +502,8 @@ export default function GardenScreen() {
        
        setTimeout(() => {
          interactionState.current.mode = 'idle';
-       }, 1000);
-     }, 1000);
+       }, 1500);
+     }, 2000);
   };
 
   return (
@@ -478,14 +543,72 @@ export default function GardenScreen() {
         </View>
       )}
 
+      {/* Shape Selector Modal */}
+      <Modal
+        visible={showShapeSelector}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShapeSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.shapeModal, { backgroundColor: currentTheme.surface }]}>
+            <View style={styles.shapeModalHeader}>
+              <Sparkles size={20} color={currentTheme.primary} />
+              <Text style={[styles.shapeModalTitle, { color: currentTheme.text }]}>
+                {settings.language === 'zh' ? '選擇光球形態' : 'Choose Orb Shape'}
+              </Text>
+            </View>
+            <ScrollView style={styles.shapeList}>
+              {shapes.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[
+                    styles.shapeItem,
+                    orbShape === s.id && { backgroundColor: `${currentTheme.primary}20`, borderColor: currentTheme.primary }
+                  ]}
+                  onPress={() => {
+                    setOrbShape(s.id);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTimeout(() => setShowShapeSelector(false), 300);
+                  }}
+                >
+                  <Text style={styles.shapeIcon}>{s.icon}</Text>
+                  <Text style={[styles.shapeName, { color: currentTheme.text }]}>
+                    {settings.language === 'zh' ? s.nameZh : s.name}
+                  </Text>
+                  {orbShape === s.id && <Text style={{ color: currentTheme.primary }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.shapeModalClose, { backgroundColor: currentTheme.primary }]}
+              onPress={() => setShowShapeSelector(false)}
+            >
+              <Text style={styles.shapeModalCloseText}>
+                {settings.language === 'zh' ? '關閉' : 'Close'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
+        <TouchableOpacity
+          style={styles.shapeButton}
+          onPress={() => setShowShapeSelector(true)}
+          activeOpacity={0.7}
+        >
+          <Sparkles size={18} color="white" />
+        </TouchableOpacity>
+
         <Canvas camera={{ position: [0, 0, 4] }}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
           <OrbParticles 
             layers={currentOrb.layers} 
             interactionState={interactionState}
+            shape={orbShape}
           />
         </Canvas>
         
@@ -538,7 +661,6 @@ export default function GardenScreen() {
                {hasGrownOrbToday
                  ? (settings.language === 'zh' ? "今日已完成" : "Done Today")
                  : (settings.language === 'zh' ? "每日一次" : "Daily Once")
-                 // Changed from "Gather Energy" to clarify it's once a day
                }
              </Text>
           </View>
@@ -566,7 +688,6 @@ export default function GardenScreen() {
                   onPress={() => handleSwapOrb(orb)}
                >
                  <View style={styles.orbPreview}>
-                    {/* Simple CSS orb representation */}
                     {orb.layers.map((color, i) => (
                       <View 
                         key={i} 
@@ -622,24 +743,30 @@ const styles = StyleSheet.create({
   },
   sceneContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.02)', // Very subtle bg
+    backgroundColor: 'rgba(0,0,0,0.02)',
     marginHorizontal: 10,
     borderRadius: 24,
     overflow: 'hidden',
     position: 'relative',
   },
-  minimalProgressContainer: {
+  shapeButton: {
     position: 'absolute',
-    top: 60, // Align with header somewhat
-    right: 20,
-    zIndex: 20,
+    top: 20,
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   cornerProgressContainer: {
     position: 'absolute',
-    bottom: 140, // Put it near the bottom interaction area instead of top? 
-    // User said "Corner". Top right is corner.
-    // "Circle not in middle, put in corner".
-    // Let's keep top right but make it minimal.
     top: 20,
     right: 20,
   },
@@ -816,5 +943,65 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  shapeModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  shapeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  shapeModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  shapeList: {
+    marginBottom: 16,
+  },
+  shapeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: 12,
+  },
+  shapeIcon: {
+    fontSize: 28,
+  },
+  shapeName: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  shapeModalClose: {
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  shapeModalCloseText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
