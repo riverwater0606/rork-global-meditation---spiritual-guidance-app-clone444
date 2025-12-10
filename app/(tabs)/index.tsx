@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Play, Clock, Heart, Moon, Brain, Zap } from "lucide-react-native";
+import { Play, Clock, Heart, Moon, Brain, Zap, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useMeditation } from "@/providers/MeditationProvider";
@@ -18,12 +18,13 @@ import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { SPIRITUAL_QUOTES } from "@/constants/quotes";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
+import { OrbPreview } from "@/components/OrbPreview";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function HomeScreen() {
-  const { stats } = useMeditation();
+  const { stats, currentOrb } = useMeditation();
   const { profile, isVerified } = useUser();
   const { currentTheme, settings } = useSettings();
   const [affirmation, setAffirmation] = useState(DAILY_AFFIRMATIONS[0]);
@@ -114,6 +115,32 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Light Orb Preview */}
+        <TouchableOpacity
+          style={[styles.orbSection, { backgroundColor: currentTheme.card }]}
+          onPress={() => router.push('/garden')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.orbHeader}>
+            <View style={styles.orbTitleRow}>
+              <Sparkles size={18} color={currentTheme.primary} />
+              <Text style={[styles.orbTitle, { color: currentTheme.text }]}>
+                {lang === 'zh' ? '你的光球' : 'Your Light Orb'}
+              </Text>
+            </View>
+            <Text style={[styles.orbSubtitle, { color: currentTheme.primary }]}>
+              {lang === 'zh' ? '進入花園 →' : 'Enter Garden →'}
+            </Text>
+          </View>
+          <OrbPreview
+            orb={currentOrb}
+            size={100}
+            showInfo={true}
+            theme={currentTheme}
+            language={lang}
+          />
+        </TouchableOpacity>
+
         {/* Daily Affirmation */}
         <View style={[styles.affirmationCard, { backgroundColor: currentTheme.card }]}>
           <Text style={[styles.affirmationLabel, { color: currentTheme.primary }]}>
@@ -287,6 +314,39 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginTop: -10,
+  },
+  orbSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    alignItems: 'center',
+  },
+  orbHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  orbTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  orbTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  orbSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   affirmationCard: {
     backgroundColor: "#FFFFFF",
