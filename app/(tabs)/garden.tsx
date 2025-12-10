@@ -5,11 +5,11 @@ import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
-type OrbShape = 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
+type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -80,6 +80,26 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     };
 
     // --- GEOMETRY GENERATORS ---
+
+    // 0. Default Sphere
+    const generateSphere = () => {
+      for(let i=0; i<particleCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = 1.0 + Math.random() * 0.2; // Natural sphere with slight fuzziness
+        
+        targetPositions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        targetPositions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        targetPositions[i*3+2] = r * Math.cos(phi);
+        
+        // Reset colors to layers
+        const layerIndex = Math.floor(Math.random() * layers.length);
+        const c = colorObjects[layerIndex] || new THREE.Color("#ffffff");
+        colors[i*3] = c.r;
+        colors[i*3+1] = c.g;
+        colors[i*3+2] = c.b;
+      }
+    };
 
     // 1. Flower of Life (2D/3D extruded)
     // 19 overlapping circles in hexagonal grid
@@ -357,7 +377,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'mudra') generateMudra();
     else if (shape === 'earth') generateEarth();
-    else generateFlowerOfLife(); // Fallback
+    else generateSphere(); // Default
     
     return { positions, colors, targetPositions };
   }, [layers, shape]);
@@ -490,7 +510,7 @@ export default function GardenScreen() {
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [showShapeSelector, setShowShapeSelector] = useState(false);
-  const [orbShape, setOrbShape] = useState<OrbShape>('flower-of-life');
+  const [orbShape, setOrbShape] = useState<OrbShape>('default');
 
   const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
@@ -806,6 +826,19 @@ export default function GardenScreen() {
         >
           <Sparkles size={18} color="white" />
         </TouchableOpacity>
+
+        {orbShape !== 'default' && (
+          <TouchableOpacity
+            style={[styles.shapeButton, { top: 70, backgroundColor: 'rgba(0,0,0,0.6)' }]}
+            onPress={() => {
+              setOrbShape('default');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            activeOpacity={0.7}
+          >
+            <X size={18} color="white" />
+          </TouchableOpacity>
+        )}
 
         <Canvas camera={{ position: [0, 0, 4] }}>
           <ambientLight intensity={0.5} />
