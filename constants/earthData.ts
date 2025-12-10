@@ -64,6 +64,19 @@ export const LAND_CAPS = [
   { lat: -80, lon: 90, r: 12 },
   { lat: -80, lon: -90, r: 12 },
   { lat: -80, lon: 180, r: 12 },
+  
+  // Pacific Islands (Filling the empty hemisphere)
+  { lat: 20, lon: -157, r: 5 }, // Hawaii
+  { lat: -17, lon: -149, r: 4 }, // Tahiti
+  { lat: -18, lon: 178, r: 4 }, // Fiji
+  { lat: -9, lon: 160, r: 4 }, // Solomon Islands
+  { lat: -0.5, lon: -91, r: 3 }, // Galapagos
+  { lat: -27, lon: -109, r: 3 }, // Easter Island
+  { lat: -21, lon: 165, r: 4 }, // New Caledonia
+  { lat: 7, lon: 150, r: 4 }, // Micronesia
+  { lat: 7, lon: 171, r: 3 }, // Marshall Islands
+  { lat: 15, lon: 145, r: 3 }, // Mariana Islands
+  { lat: -14, lon: -172, r: 3 }, // Samoa
 ];
 
 export const CITY_CAPS = [
@@ -82,6 +95,7 @@ export const CITY_CAPS = [
   { lat: 25.2, lon: 55.3, r: 1.2, color: "#ffcc00" }, // Dubai
   { lat: 22.3, lon: 114.2, r: 1.2, color: "#ffcc00" }, // Hong Kong
   { lat: 37.5, lon: 127.0, r: 1.2, color: "#ffcc00" }, // Seoul
+  { lat: 21.3, lon: -157.8, r: 1.2, color: "#ffcc00" }, // Honolulu
 ];
 
 export const CONTINENT_COLORS = {

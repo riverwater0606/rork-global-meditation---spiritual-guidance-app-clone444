@@ -287,11 +287,16 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     const { mode, spinVelocity, progress } = interactionState.current;
     
-    // Friction for spin
-    if (Math.abs(spinVelocity) > 0.0001) {
-       interactionState.current.spinVelocity *= 0.98; // Less friction for longer spin
-    } else {
-       interactionState.current.spinVelocity = 0;
+    // Friction for spin - REMOVED per user request (perpetual spin)
+    // if (Math.abs(spinVelocity) > 0.0001) {
+    //    interactionState.current.spinVelocity *= 0.98; 
+    // } else {
+    //    interactionState.current.spinVelocity = 0;
+    // }
+    
+    // Cap max speed to avoid dizziness
+    if (Math.abs(interactionState.current.spinVelocity) > 0.5) {
+      interactionState.current.spinVelocity = 0.5 * Math.sign(interactionState.current.spinVelocity);
     }
 
     // Rotation Logic

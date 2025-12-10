@@ -344,7 +344,7 @@ export function generateEarthData() {
                continue; 
            }
            
-           if (isNight) c.set(CONTINENT_COLORS.ocean).multiplyScalar(0.2);
+           if (isNight) c.set(CONTINENT_COLORS.ocean).multiplyScalar(0.4);
            else c.set(CONTINENT_COLORS.ocean);
            
            found = true;
