@@ -18,7 +18,7 @@ import { useSettings } from "@/providers/SettingsProvider";
 import { DAILY_AFFIRMATIONS } from "@/constants/affirmations";
 import { SPIRITUAL_QUOTES } from "@/constants/quotes";
 import { MEDITATION_SESSIONS } from "@/constants/meditations";
-import { OrbPreview } from "@/components/OrbPreview";
+import { Orb3DPreview } from "@/components/Orb3DPreview";
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -115,30 +115,37 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Light Orb Preview */}
+        {/* Light Orb 3D Preview */}
         <TouchableOpacity
           style={[styles.orbSection, { backgroundColor: currentTheme.card }]}
           onPress={() => router.push('/garden')}
-          activeOpacity={0.8}
+          activeOpacity={0.9}
         >
           <View style={styles.orbHeader}>
             <View style={styles.orbTitleRow}>
-              <Sparkles size={18} color={currentTheme.primary} />
+              <Sparkles size={20} color={currentTheme.primary} />
               <Text style={[styles.orbTitle, { color: currentTheme.text }]}>
                 {lang === 'zh' ? '你的光球' : 'Your Light Orb'}
               </Text>
             </View>
-            <Text style={[styles.orbSubtitle, { color: currentTheme.primary }]}>
+            <View style={styles.orbBadge}>
+              <Text style={[styles.orbBadgeText, { color: currentTheme.primary }]}>
+                {currentOrb.layers.length}/7
+              </Text>
+            </View>
+          </View>
+          <Orb3DPreview orb={currentOrb} size={180} />
+          <View style={styles.orbFooter}>
+            <Text style={[styles.orbStatus, { color: currentTheme.textSecondary }]}>
+              {currentOrb.isAwakened 
+                ? (lang === 'zh' ? '✨ 已覺醒' : '✨ Awakened')
+                : (lang === 'zh' ? '🌱 成長中' : '🌱 Growing')
+              }
+            </Text>
+            <Text style={[styles.orbCTA, { color: currentTheme.primary }]}>
               {lang === 'zh' ? '進入花園 →' : 'Enter Garden →'}
             </Text>
           </View>
-          <OrbPreview
-            orb={currentOrb}
-            size={100}
-            showInfo={true}
-            theme={currentTheme}
-            language={lang}
-          />
         </TouchableOpacity>
 
         {/* Daily Affirmation */}
@@ -318,30 +325,60 @@ const styles = StyleSheet.create({
   orbSection: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
+    marginTop: 10,
     marginBottom: 20,
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+    overflow: 'hidden',
   },
   orbHeader: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   orbTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   orbTitle: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  orbBadge: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  orbBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  orbFooter: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  orbStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  orbCTA: {
+    fontSize: 14,
     fontWeight: '700',
   },
   orbSubtitle: {
@@ -449,19 +486,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     paddingHorizontal: 20,
+    gap: 12,
   },
   statCard: {
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
+    padding: 18,
+    borderRadius: 16,
     alignItems: "center",
     flex: 1,
-    marginHorizontal: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   statValue: {
     fontSize: 24,
