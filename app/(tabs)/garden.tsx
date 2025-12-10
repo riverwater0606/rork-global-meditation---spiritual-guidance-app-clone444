@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
+import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -52,14 +53,16 @@ MinimalProgress.displayName = "MinimalProgress";
 // Orb Component with Sacred Geometry
 const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
+  const colorAttributeRef = useRef<THREE.BufferAttribute>(null!);
   
   // Pre-calculate positions for Sacred Geometry
-  const { positions, colors, targetPositions, heartPositions } = useMemo(() => {
-    const particleCount = 12000; // Increased for density
+  const { positions, colors, targetPositions, heartPositions, groups } = useMemo(() => {
+    const particleCount = PARTICLE_COUNT;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     const targetPositions = new Float32Array(particleCount * 3); // The destination shape
     const heartPositions = new Float32Array(particleCount * 3); // Heart shape for sending
+    const groups = new Float32Array(particleCount); // Group ID for animation
     
     const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
     
@@ -203,170 +206,26 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
 
     // 3. Merkaba (Star Tetrahedron)
     const generateMerkaba = () => {
-      // 8 corners of a cube form two tetrahedrons
-      // T1: (1,1,1), (1,-1,-1), (-1,1,-1), (-1,-1,1)
-      // T2: (-1,-1,-1), (-1,1,1), (1,-1,1), (1,1,-1)
-      const scale = 0.8;
-      
-      const t1_verts = [
-        [1,1,1], [1,-1,-1], [-1,1,-1], [-1,-1,1]
-      ].map(v => v.map(c => c*scale));
-      
-      const t2_verts = [
-        [-1,-1,-1], [-1,1,1], [1,-1,1], [1,1,-1]
-      ].map(v => v.map(c => c*scale));
-      
-      // Edges for T1 (pairs of indices)
-      // 0-1, 0-2, 0-3, 1-2, 1-3, 2-3
-      const edges = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
-
-      for(let i=0; i<particleCount; i++) {
-        const isT1 = i % 2 === 0;
-        const verts = isT1 ? t1_verts : t2_verts;
-        
-        // Pick random edge
-        const edgeIdx = Math.floor(Math.random() * 6);
-        const [ia, ib] = edges[edgeIdx];
-        const A = verts[ia];
-        const B = verts[ib];
-        
-        const t = Math.random();
-        
-        targetPositions[i*3] = A[0] + (B[0]-A[0])*t + (Math.random()-0.5)*0.02;
-        targetPositions[i*3+1] = A[1] + (B[1]-A[1])*t + (Math.random()-0.5)*0.02;
-        targetPositions[i*3+2] = A[2] + (B[2]-A[2])*t + (Math.random()-0.5)*0.02;
-        
-        // Purple/Gold
-        if (isT1) {
-          colors[i*3] = 1.0; // Goldish
-          colors[i*3+1] = 0.8;
-          colors[i*3+2] = 0.2;
-        } else {
-          colors[i*3] = 0.5; // Violet
-          colors[i*3+1] = 0.0;
-          colors[i*3+2] = 1.0;
-        }
-      }
+      const data = generateMerkabaData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
     };
 
     // 4. Mudra (Prayer Hands)
     const generateMudra = () => {
-       // Simplified volume of two hands pressing together
-       for(let i=0; i<particleCount; i++) {
-         const isLeft = i % 2 === 0;
-         const sign = isLeft ? -1 : 1;
-         
-         // Each hand: Palm + Fingers
-         // Palm is roughly an ellipsoid at y=-0.2, x=sign*0.15
-         // Fingers are elongated ellipsoids pointing up
-         
-         const part = Math.random();
-         let px, py, pz;
-         
-         if (part < 0.4) {
-           // Palm area
-           const theta = Math.random() * Math.PI * 2;
-           const phi = Math.random() * Math.PI;
-           // Flattened sphere
-           px = sign * (0.15 + 0.1 * Math.sin(phi)*Math.cos(theta));
-           py = -0.3 + 0.25 * Math.cos(phi);
-           pz = 0.1 * Math.sin(phi)*Math.sin(theta);
-         } else {
-           // Fingers (4 fingers + thumb)
-           const fingerIdx = Math.floor(Math.random() * 5);
-           // Tips positions roughly
-           // 0: Thumb (angled), 1: Index, 2: Middle, 3: Ring, 4: Pinky
-           let fx, fy, fz, fr, fh;
-           
-           if (fingerIdx === 0) { // Thumb
-             fx = sign * 0.3; fy = -0.1; fz = 0.1;
-             fr = 0.04; fh = 0.2;
-           } else {
-             // Fingers fanning out slightly
-             const offset = (fingerIdx - 2.5) * 0.08; 
-             fx = sign * (0.05 + Math.abs(offset)*0.2); 
-             fy = 0.0; 
-             fz = offset;
-             fr = 0.035; fh = 0.3 + (fingerIdx === 2 ? 0.05 : 0);
-           }
-           
-           // Cylinder/Capsule math
-           const h = Math.random() * fh;
-           const ang = Math.random() * Math.PI * 2;
-           
-           px = fx + Math.cos(ang)*fr;
-           py = fy + h; // pointing up
-           pz = fz + Math.sin(ang)*fr;
-           
-           // Slight curve towards center for prayer
-           if (fingerIdx !== 0) {
-              px += sign * (h*h * -0.5); // Curve tips together
-           } else {
-              // Rotate thumb
-              const tr = -sign * 0.5;
-              const tx = px; const ty = py;
-              px = tx * Math.cos(tr) - ty * Math.sin(tr);
-              py = tx * Math.sin(tr) + ty * Math.cos(tr);
-           }
-         }
-         
-         // Refine gap to make them touch
-         if (isLeft && px > -0.02) px = -0.02;
-         if (!isLeft && px < 0.02) px = 0.02;
-
-         targetPositions[i*3] = px;
-         targetPositions[i*3+1] = py;
-         targetPositions[i*3+2] = pz;
-         
-         // Golden Skin / Light
-         colors[i*3] = 1.0;
-         colors[i*3+1] = 0.9;
-         colors[i*3+2] = 0.7;
-       }
+       const data = generateMudraData();
+       targetPositions.set(data.positions);
+       colors.set(data.colors);
+       groups.set(data.groups);
     };
 
     // 5. Earth
     const generateEarth = () => {
-      for(let i=0; i<particleCount; i++) {
-        const theta = Math.random() * Math.PI * 2; // Longitude
-        const phi = Math.acos(2 * Math.random() - 1); // Latitude
-        const r = 1.0;
-        
-        const x = r * Math.sin(phi) * Math.cos(theta);
-        const y = r * Math.sin(phi) * Math.sin(theta);
-        const z = r * Math.cos(phi);
-        
-        targetPositions[i*3] = x;
-        targetPositions[i*3+1] = y;
-        targetPositions[i*3+2] = z;
-        
-        // Continents Simulation (Simple math based)
-        // Check "noise" value at surface
-        // Simple approximation of continents:
-        // Use a few sin waves
-        const nx = Math.sin(theta*3 + phi*2);
-        const ny = Math.cos(phi*5);
-        const nz = Math.sin(theta*2);
-        const noiseVal = nx + ny + nz; // range approx -3 to 3
-        
-        // Atmosphere layer (10% of particles)
-        if (Math.random() < 0.15) {
-           const ar = 1.1 + Math.random() * 0.2;
-           targetPositions[i*3] = ar * Math.sin(phi) * Math.cos(theta);
-           targetPositions[i*3+1] = ar * Math.sin(phi) * Math.sin(theta);
-           targetPositions[i*3+2] = ar * Math.cos(phi);
-           
-           colors[i*3] = 0.6; colors[i*3+1] = 0.8; colors[i*3+2] = 1.0; // Light Blue
-        } else {
-           if (noiseVal > 0.5) {
-             // Land (Green/Brown)
-             colors[i*3] = 0.2; colors[i*3+1] = 0.6 + Math.random()*0.2; colors[i*3+2] = 0.2;
-           } else {
-             // Ocean (Deep Blue)
-             colors[i*3] = 0.0; colors[i*3+1] = 0.2; colors[i*3+2] = 0.6 + Math.random()*0.3;
-           }
-        }
-      }
+      const data = generateEarthData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
     };
 
     // 6. Heart (For Sending)
@@ -413,7 +272,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // Always generate heart positions so they are ready
     generateHeart();
     
-    return { positions, colors, targetPositions, heartPositions };
+    return { positions, colors, targetPositions, heartPositions, groups };
   }, [layers, shape]);
 
   // Use a buffer attribute for current positions to interpolate
@@ -444,7 +303,88 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     const geometry = pointsRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     
-    for (let i = 0; i < 12000; i++) {
+    // Time-based animations
+    const t = state.clock.elapsedTime;
+    
+    // Update Colors for Earth Day/Night
+    // We do this every 5 frames to save perf if needed, but let's try every frame
+    const needsColorUpdate = shape === 'earth' && colorAttributeRef.current;
+    if (needsColorUpdate) {
+       // Sun direction (fixed in world, but earth rotates)
+       // Actually, we rotate the earth (targetPositions), so the sun can be fixed at [1, 0, 1]
+       // Day side is where dot(normal, sun) > 0
+       const sun = new THREE.Vector3(1, 0.5, 1).normalize();
+       const colorArray = colorAttributeRef.current.array as Float32Array;
+       
+       // Re-apply earth colors based on rotation
+       // We can't easily "undo" the rotation of the object to find original pos
+       // But we know the current rotation of the object: pointsRef.current.rotation.y
+       
+       // Wait, we are rotating pointsRef.current.rotation.y in the code above (line 435)
+       // So the particles themselves don't move in local space for rotation
+       // They move for "gather" or "shape morph".
+       
+       // So if the object rotates, the "world" position changes.
+       // The Sun is in World Space.
+       // We need to transform Sun to Local Space or Particle to World Space.
+       // Local Sun = InverseRotation * Sun.
+       
+       const rotY = pointsRef.current.rotation.y;
+       const localSun = sun.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -rotY);
+       
+       for(let i=0; i<PARTICLE_COUNT; i++) {
+          const ix = i * 3;
+          // If this is atmosphere (group 1), keep it light
+          if (groups[i] === 1) continue; 
+          
+          // Get local position (target, because that's where they are)
+          const px = targetPositions[ix];
+          const py = targetPositions[ix+1];
+          const pz = targetPositions[ix+2];
+          
+          // Simple dot product
+          // Normalize p? It's roughly sphere
+          const dot = (px*localSun.x + py*localSun.y + pz*localSun.z);
+          
+          if (dot < -0.2) {
+             // Night Side
+             // City lights probability
+             // If original color was "Land"
+             // How do we know if it was land? We can check the original color in `colors` array?
+             // But `colors` array is what we are modifying.
+             // We should have preserved base colors. 
+             // Ideally we shouldn't modify `colors` in place if we want to restore.
+             // For now, let's just make it dark blueish for night
+             
+             // Check if it's "Land" color range (Green/Brown)
+             // Green > Blue
+             if (colors[ix+1] > colors[ix+2] + 0.1) {
+                // It is land
+                if (Math.random() < 0.05) {
+                  // City light
+                  colorArray[ix] = 1.0; colorArray[ix+1] = 0.9; colorArray[ix+2] = 0.5;
+                } else {
+                  // Dark land
+                  colorArray[ix] = 0.05; colorArray[ix+1] = 0.05; colorArray[ix+2] = 0.05;
+                }
+             } else {
+                // Ocean night
+                colorArray[ix] = 0.0; colorArray[ix+1] = 0.0; colorArray[ix+2] = 0.1;
+             }
+          } else {
+             // Day Side - Restore original color
+             // We need the original color from `colors` (which is in useMemo).
+             // But we are overwriting `colors` in useFrame? No, `colorArray` is the attribute array.
+             // `colors` in closure is the source.
+             colorArray[ix] = colors[ix];
+             colorArray[ix+1] = colors[ix+1];
+             colorArray[ix+2] = colors[ix+2];
+          }
+       }
+       colorAttributeRef.current.needsUpdate = true;
+    }
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
       const ix = i * 3;
       const iy = i * 3 + 1;
       const iz = i * 3 + 2;
@@ -453,6 +393,50 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       let ty = targetPositions[iy];
       let tz = targetPositions[iz];
       
+      // SHAPE ANIMATIONS
+      if (shape === 'merkaba') {
+         const g = groups[i];
+         if (g === 2) {
+           // Center pulse
+           const s = 1 + Math.sin(t * 5) * 0.2;
+           tx *= s; ty *= s; tz *= s;
+         } else {
+           // Counter Rotation
+           // T1 (0): +speed, T2 (1): -speed
+           const speed = 1.0;
+           const ang = (g === 0 ? 1 : -1) * t * speed;
+           
+           const cos = Math.cos(ang);
+           const sin = Math.sin(ang);
+           
+           const rx = tx * cos - tz * sin;
+           const rz = tx * sin + tz * cos;
+           tx = rx; tz = rz;
+         }
+      } else if (shape === 'mudra') {
+         // Breathing Pulse
+         const s = 1 + Math.sin(t * 2) * 0.02; // Subtle breath
+         tx *= s; ty *= s; tz *= s;
+         
+         if (groups[i] === 1) { // Chakra
+            // Glow pulse
+            const s2 = 1 + Math.sin(t * 8) * 0.1;
+            tx *= s2; ty *= s2; tz *= s2;
+         }
+      } else if (shape === 'earth') {
+         // Earth Rotation (Clouds move faster?)
+         // We rotate the whole container, but maybe we want clouds to move?
+         if (groups[i] === 1) {
+            // Clouds drift
+            const ang = t * 0.05;
+            const cos = Math.cos(ang);
+            const sin = Math.sin(ang);
+            const rx = tx * cos - tz * sin;
+            const rz = tx * sin + tz * cos;
+            tx = rx; tz = rz;
+         }
+      }
+
       // Modifiers based on mode
       if (mode === 'gather') {
         // Implosion effect
@@ -511,6 +495,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
           usage={THREE.DynamicDrawUsage}
         />
         <bufferAttribute
+          ref={colorAttributeRef}
           attach="attributes-color"
           args={[colors, 3]}
         />
