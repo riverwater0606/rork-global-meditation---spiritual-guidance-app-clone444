@@ -12,10 +12,8 @@ import {
   SafeAreaView,
   Animated,
 } from "react-native";
-import { Send, Bot, User, Sparkles, PlayCircle } from "lucide-react-native";
+import { Send, Bot, User, Sparkles } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
 
@@ -73,7 +71,6 @@ const TRANSLATIONS = {
 };
 
 export default function AssistantScreen() {
-  const router = useRouter();
   const { currentTheme, settings } = useSettings();
   const { addCustomMeditation } = useMeditation();
   const language = settings.language as Language;
@@ -409,36 +406,6 @@ The script should be 200-300 words. Use plain text.`
         </ScrollView>
 
         {(messages.length === 1 || messages.filter(m => m.isUser).length === 0) && (
-          <>
-            <View style={[styles.guidedMeditationsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
-              <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-                {t.guidedMeditations}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.meditationsScroll}
-              >
-                {GUIDED_MEDITATIONS.slice(0, 4).map((meditation) => (
-                  <TouchableOpacity
-                    key={meditation.id}
-                    style={styles.meditationCard}
-                    onPress={() => router.push(`/guided-session?id=${meditation.id}`)}
-                  >
-                    <LinearGradient
-                      colors={currentTheme.gradient as any}
-                      style={styles.meditationCardGradient}
-                    >
-                      <PlayCircle color="#FFFFFF" size={24} />
-                      <Text style={styles.meditationTitle}>{meditation.title[language]}</Text>
-                      <Text style={styles.meditationDuration}>{meditation.duration} {t.minutes}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-
           <View style={[styles.promptsContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
             <Text style={[styles.promptsTitle, { color: currentTheme.textSecondary }]}>
               {t.quickPrompts}
@@ -461,7 +428,6 @@ The script should be 200-300 words. Use plain text.`
               ))}
             </ScrollView>
           </View>
-          </>
         )}
 
         <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border }]}>
