@@ -295,8 +295,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // }
     
     // Cap max speed to avoid dizziness
-    if (Math.abs(interactionState.current.spinVelocity) > 0.5) {
-      interactionState.current.spinVelocity = 0.5 * Math.sign(interactionState.current.spinVelocity);
+    if (Math.abs(interactionState.current.spinVelocity) > 2.0) {
+      interactionState.current.spinVelocity = 2.0 * Math.sign(interactionState.current.spinVelocity);
     }
 
     // Rotation Logic
@@ -512,8 +512,9 @@ export default function GardenScreen() {
       },
       
       onPanResponderMove: (evt, gestureState) => {
-        // Spin interaction - Increased sensitivity
-        interactionState.current.spinVelocity = gestureState.vx * 0.15;
+        // Spin interaction - Increased sensitivity and inverted for natural control
+        // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
+        interactionState.current.spinVelocity = -gestureState.vx * 0.5;
         
         // Swipe Detection
         // Use gestureState.dy (accumulated distance) and velocity
@@ -536,7 +537,10 @@ export default function GardenScreen() {
       
       onPanResponderRelease: (evt, gestureState) => {
         // Capture final velocity for fling effect
-        interactionState.current.spinVelocity = gestureState.vx * 0.15;
+        // Only update if there is significant velocity, otherwise keep momentum or settle
+        if (Math.abs(gestureState.vx) > 0.05) {
+           interactionState.current.spinVelocity = -gestureState.vx * 0.5;
+        }
         stopGathering();
       },
       

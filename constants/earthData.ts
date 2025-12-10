@@ -65,18 +65,24 @@ export const LAND_CAPS = [
   { lat: -80, lon: -90, r: 12 },
   { lat: -80, lon: 180, r: 12 },
   
-  // Pacific Islands (Filling the empty hemisphere)
-  { lat: 20, lon: -157, r: 5 }, // Hawaii
-  { lat: -17, lon: -149, r: 4 }, // Tahiti
-  { lat: -18, lon: 178, r: 4 }, // Fiji
-  { lat: -9, lon: 160, r: 4 }, // Solomon Islands
-  { lat: -0.5, lon: -91, r: 3 }, // Galapagos
-  { lat: -27, lon: -109, r: 3 }, // Easter Island
-  { lat: -21, lon: 165, r: 4 }, // New Caledonia
-  { lat: 7, lon: 150, r: 4 }, // Micronesia
-  { lat: 7, lon: 171, r: 3 }, // Marshall Islands
-  { lat: 15, lon: 145, r: 3 }, // Mariana Islands
-  { lat: -14, lon: -172, r: 3 }, // Samoa
+  // Pacific Islands (Exaggerated for visibility to fill the gap)
+  { lat: 19.5, lon: -155.5, r: 8 }, // Hawaii (Big Island)
+  { lat: 21.0, lon: -157.0, r: 6 }, // Hawaii (Maui/Oahu)
+  { lat: -17, lon: -149, r: 6 }, // Tahiti
+  { lat: -18, lon: 178, r: 6 }, // Fiji
+  { lat: -9, lon: 160, r: 6 }, // Solomon Islands
+  { lat: -0.5, lon: -91, r: 5 }, // Galapagos
+  { lat: -27, lon: -109, r: 5 }, // Easter Island
+  { lat: -21, lon: 165, r: 6 }, // New Caledonia
+  { lat: 7, lon: 150, r: 5 }, // Micronesia
+  { lat: 7, lon: 171, r: 5 }, // Marshall Islands
+  { lat: 15, lon: 145, r: 5 }, // Mariana Islands
+  { lat: -14, lon: -172, r: 5 }, // Samoa
+  { lat: -44, lon: -176, r: 4 }, // Chatham Islands
+  { lat: -20, lon: -160, r: 5 }, // Cook Islands
+  { lat: 0, lon: 160, r: 5 }, // Nauru/Kiribati region
+  { lat: -5, lon: -140, r: 4 }, // Marquesas
+
 ];
 
 export const CITY_CAPS = [
