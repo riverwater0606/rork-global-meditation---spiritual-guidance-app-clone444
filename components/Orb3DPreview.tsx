@@ -2,14 +2,15 @@ import React, { useRef, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Orb } from '@/providers/MeditationProvider';
+import { Orb, OrbShape } from '@/providers/MeditationProvider';
+import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
 
 interface Orb3DPreviewProps {
   orb: Orb;
   size?: number;
 }
 
-const OrbParticlesPreview = ({ layers, size }: { layers: string[]; size: number }) => {
+const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: number; shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   
   const { positions, colors } = useMemo(() => {
@@ -23,28 +24,139 @@ const OrbParticlesPreview = ({ layers, size }: { layers: string[]; size: number 
       ? layers.map(c => new THREE.Color(c)) 
       : [new THREE.Color("#cccccc")];
     
-    for (let i = 0; i < particleCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1.0 + Math.random() * 0.15;
+    // Generate based on shape
+    if (shape === 'merkaba') {
+      const data = generateMerkabaData();
+      // Scale down to match particleCount
+      const scaleFactor = particleCount / PARTICLE_COUNT;
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i / scaleFactor);
+        positions[i * 3] = data.positions[srcIdx * 3];
+        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
+        colors[i * 3] = data.colors[srcIdx * 3];
+        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
+    } else if (shape === 'mudra') {
+      const data = generateMudraData();
+      const scaleFactor = particleCount / PARTICLE_COUNT;
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i / scaleFactor);
+        positions[i * 3] = data.positions[srcIdx * 3];
+        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
+        colors[i * 3] = data.colors[srcIdx * 3];
+        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
+    } else if (shape === 'earth') {
+      const data = generateEarthData();
+      const scaleFactor = particleCount / PARTICLE_COUNT;
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i / scaleFactor);
+        positions[i * 3] = data.positions[srcIdx * 3];
+        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
+        colors[i * 3] = data.colors[srcIdx * 3];
+        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
+    } else if (shape === 'flower-of-life') {
+      const circleRadius = 0.5;
+      const centers: {x:number, y:number}[] = [{x:0,y:0}];
       
-      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = r * Math.cos(phi);
+      for(let i=0; i<6; i++) {
+        const angle = i * Math.PI / 3;
+        centers.push({ x: Math.cos(angle)*circleRadius, y: Math.sin(angle)*circleRadius });
+      }
+      for(let i=0; i<6; i++) {
+        const angle = i * Math.PI / 3;
+        centers.push({ x: 2*Math.cos(angle)*circleRadius, y: 2*Math.sin(angle)*circleRadius });
+        const angleMid = angle + Math.PI/6;
+        centers.push({ x: Math.sqrt(3)*Math.cos(angleMid)*circleRadius, y: Math.sqrt(3)*Math.sin(angleMid)*circleRadius });
+      }
+
+      for (let i = 0; i < particleCount; i++) {
+        const circleIdx = i % centers.length;
+        const center = centers[circleIdx];
+        const theta = Math.random() * Math.PI * 2;
+        const r = circleRadius * (0.98 + Math.random()*0.04);
+        
+        positions[i*3] = center.x + r * Math.cos(theta);
+        positions[i*3+1] = center.y + r * Math.sin(theta);
+        positions[i*3+2] = (Math.random() - 0.5) * 0.05;
+        
+        colors[i*3] = 1.0;
+        colors[i*3+1] = 0.5 + Math.random()*0.5;
+        colors[i*3+2] = 0.5 + Math.random()*0.5;
+      }
+    } else if (shape === 'star-of-david') {
+      const size = 1.2;
       
-      const layerIndex = Math.floor(Math.random() * colorObjects.length);
-      const c = colorObjects[layerIndex];
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
+      for(let i=0; i<particleCount; i++) {
+        const isUp = i % 2 === 0;
+        const edge = Math.floor(Math.random() * 3);
+        const t = Math.random();
+        
+        let p1, p2, p3;
+        if (isUp) {
+          p1 = {x:0, y:size};
+          p2 = {x:size*Math.cos(210*Math.PI/180), y:size*Math.sin(210*Math.PI/180)};
+          p3 = {x:size*Math.cos(330*Math.PI/180), y:size*Math.sin(330*Math.PI/180)};
+        } else {
+          p1 = {x:0, y:-size};
+          p2 = {x:size*Math.cos(30*Math.PI/180), y:size*Math.sin(30*Math.PI/180)};
+          p3 = {x:size*Math.cos(150*Math.PI/180), y:size*Math.sin(150*Math.PI/180)};
+        }
+        
+        let A, B;
+        if (edge === 0) { A=p1; B=p2; }
+        else if (edge === 1) { A=p2; B=p3; }
+        else { A=p3; B=p1; }
+        
+        let px = A.x + (B.x - A.x) * t;
+        let py = A.y + (B.y - A.y) * t;
+        const scatter = (Math.random() - 0.5) * 0.05;
+        const z = isUp ? 0.05 : -0.05;
+        
+        positions[i*3] = px + scatter;
+        positions[i*3+1] = py + scatter;
+        positions[i*3+2] = z + (Math.random()-0.5)*0.02;
+
+        colors[i*3] = 0.0;
+        colors[i*3+1] = 0.8 + Math.random()*0.2;
+        colors[i*3+2] = 1.0;
+      }
+    } else {
+      // Default sphere
+      for (let i = 0; i < particleCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = 1.0 + Math.random() * 0.15;
+        
+        positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = r * Math.cos(phi);
+        
+        const layerIndex = Math.floor(Math.random() * colorObjects.length);
+        const c = colorObjects[layerIndex];
+        colors[i * 3] = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+      }
     }
     
     return { positions, colors };
-  }, [layers, size]);
+  }, [layers, size, shape]);
 
   useFrame((state) => {
     if (!pointsRef.current) return;
-    pointsRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+    if (shape === 'earth') {
+      pointsRef.current.rotation.y = -state.clock.elapsedTime * 0.0696;
+    } else {
+      pointsRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+    }
   });
 
   return (
@@ -76,13 +188,15 @@ export const Orb3DPreview: React.FC<Orb3DPreviewProps> = ({
   orb, 
   size = 200 
 }) => {
+  const shape = orb.shape || 'default';
+  
   if (Platform.OS === 'web') {
     return (
       <View style={[styles.container, { height: size }]}>
         <Canvas camera={{ position: [0, 0, 3.5] }}>
           <ambientLight intensity={0.6} />
           <pointLight position={[5, 5, 5]} intensity={0.5} />
-          <OrbParticlesPreview layers={orb.layers} size={size} />
+          <OrbParticlesPreview layers={orb.layers} size={size} shape={shape} />
         </Canvas>
       </View>
     );
@@ -93,7 +207,7 @@ export const Orb3DPreview: React.FC<Orb3DPreviewProps> = ({
       <Canvas camera={{ position: [0, 0, 3.5] }}>
         <ambientLight intensity={0.6} />
         <pointLight position={[5, 5, 5]} intensity={0.5} />
-        <OrbParticlesPreview layers={orb.layers} size={size} />
+        <OrbParticlesPreview layers={orb.layers} size={size} shape={shape} />
       </Canvas>
     </View>
   );

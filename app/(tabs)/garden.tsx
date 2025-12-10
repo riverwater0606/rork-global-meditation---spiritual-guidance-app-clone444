@@ -2,15 +2,13 @@ import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } fro
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useMeditation } from "@/providers/MeditationProvider";
+import { useMeditation, OrbShape } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
-
-type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -468,7 +466,8 @@ export default function GardenScreen() {
     devAddLayer, 
     devInstantOrb, 
     devResetOrb, 
-    devSendOrbToSelf 
+    devSendOrbToSelf,
+    setOrbShape 
   } = useMeditation();
   
   const { walletAddress } = useUser();
@@ -483,7 +482,7 @@ export default function GardenScreen() {
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [showShapeSelector, setShowShapeSelector] = useState(false);
-  const [orbShape, setOrbShape] = useState<OrbShape>('default');
+  const orbShape = currentOrb.shape || 'default';
 
   const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },

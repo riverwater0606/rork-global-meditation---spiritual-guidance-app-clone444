@@ -29,6 +29,8 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
+export type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
+
 export interface Orb {
   id: string;
   level: number;
@@ -39,6 +41,7 @@ export interface Orb {
   sender?: string;
   message?: string;
   lastLayerAddedAt?: string;
+  shape?: OrbShape;
 }
 
 export const CHAKRA_COLORS = [
@@ -411,6 +414,12 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("currentOrb", JSON.stringify(orbToRetrieve));
   };
 
+  const setOrbShape = async (shape: OrbShape) => {
+    const updatedOrb = { ...currentOrb, shape };
+    setCurrentOrb(updatedOrb);
+    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+  };
+
   return {
     stats,
     achievements,
@@ -431,5 +440,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     devSendOrbToSelf,
     storeOrb,
     swapOrb,
+    setOrbShape,
   };
 });
