@@ -295,19 +295,28 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     }
 
     // Rotation Logic
-    // Standard rotation for all shapes
     let rotationSpeed = 0.001 + spinVelocity;
     
-    // Earth: Manual control only (no auto rotation), unless gathering
+    // Earth: 90s rotation (approx 0.0011 rad/frame at 60fps) + User Control
     if (shape === 'earth') {
-       rotationSpeed = spinVelocity;
+       // Auto rotation: 1 rev / 90s (Clockwise from North = Negative Y)
+       // 2PI / (90 * 60) ~= 0.00116
+       const autoSpeed = -0.00116; 
+       rotationSpeed = autoSpeed + spinVelocity;
     }
     
     if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
     pointsRef.current.rotation.y += rotationSpeed;
     
+    // Merkaba needs to stay upright (no Z tilt from gestures if we supported them)
+    // Actually standard rotation is only Y.
+    // If we want to allow user to tilt earth? 
+    // For now keep Y rotation.
+    
     if (shape === 'merkaba' || shape === 'earth') {
        pointsRef.current.rotation.z = 0;
+       // Earth needs to be upright
+       pointsRef.current.rotation.x = 0; 
     }
     
     // Access geometry attributes
@@ -331,33 +340,50 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          const g = groups[i];
          if (g === 2) {
            // Center pulse
-           const s = 1 + Math.pow(Math.sin(t * Math.PI * 0.5), 10) * 0.15;
+           const s = 1 + Math.pow(Math.sin(t * 3), 2) * 0.1; // Faster, sharp pulse
            tx *= s; ty *= s; tz *= s;
          } else {
            // Rotation
+           // T1 (Gold, g=0): Left 12s -> 2PI/12 rad/s
+           // T2 (Silver, g=1): Right 15s -> -2PI/15 rad/s
+           
            let ang = 0;
            if (g === 0) {
               ang = t * (Math.PI * 2 / 12);
            } else {
-              ang = t * (-Math.PI * 2 / 15);
+              ang = -t * (Math.PI * 2 / 15);
            }
            
            const cos = Math.cos(ang);
            const sin = Math.sin(ang);
            
+           // Rotate around Y axis
            const rx = tx * cos - tz * sin;
            const rz = tx * sin + tz * cos;
            tx = rx; tz = rz;
          }
       } else if (shape === 'mudra') {
          // Breathing Pulse
-         const s = 1 + Math.sin(t * 2) * 0.02; 
+         const breath = Math.sin(t * 1.5); // ~4s period
+         const s = 1 + breath * 0.02; 
          tx *= s; ty *= s; tz *= s;
          
          if (groups[i] === 1) { // Chakra
-            const s2 = 1 + Math.sin(t * 8) * 0.1;
+            // Stronger glow pulse
+            const s2 = 1 + Math.sin(t * 4) * 0.15;
             tx *= s2; ty *= s2; tz *= s2;
          }
+      } else if (shape === 'earth') {
+          // Earth Animation: 
+          // 1. Slow rotation of the "texture" (points) relative to the frame?
+          // No, we rotate the whole group in the standard rotation logic below.
+          // But user asked for "Unlock rotation... let user control".
+          // And also "90s slow rotation".
+          
+          // If we want the particles to move *on* the sphere while the sphere is static?
+          // No, usually we rotate the sphere container.
+          
+          // Let's handle Earth rotation in the main rotation logic (outside loop)
       } 
 
       // Modifiers based on mode
