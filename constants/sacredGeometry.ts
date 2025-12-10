@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export const PARTICLE_COUNT = 18000;
+export const PARTICLE_COUNT = 20000;
 
 // Helper for random float
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
@@ -307,135 +307,125 @@ export function generateMudraData() {
   return { positions, colors, groups };
 }
 
-// --- EARTH ---
+// --- EARTH (Divine Energy Planet) ---
 export function generateEarthData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
-  const groups = new Float32Array(PARTICLE_COUNT); // 0: Earth, 1: Clouds
+  const groups = new Float32Array(PARTICLE_COUNT); // 0: Deep Blue Surface, 1: Grid/Lines, 2: North Pole
 
-  // "Accurate" Continents check
-  // Returns true if lat/lon is likely land
-  // lat: -PI/2 to PI/2, lon: -PI to PI
-  const isLand = (lat: number, lon: number): boolean => {
-    const latDeg = lat * 180 / Math.PI;
-    const lonDeg = lon * 180 / Math.PI;
-    
-    // Helper for Ellipse check
-    // (x-h)^2/a^2 + (y-k)^2/b^2 <= 1
-    const inEllipse = (lat0: number, lon0: number, latR: number, lonR: number) => {
-      // Handle wrapping for longitude? Simplified here.
-      let dLon = lonDeg - lon0;
-      if (dLon > 180) dLon -= 360;
-      if (dLon < -180) dLon += 360;
-      
-      return (Math.pow(latDeg - lat0, 2) / Math.pow(latR, 2) + Math.pow(dLon, 2) / Math.pow(lonR, 2)) <= 1;
-    };
+  const deepIndigo = new THREE.Color("#0A0E29"); // Deep Cosmic/Ocean Blue (Dark Indigo)
+  const white = new THREE.Color("#FFFFFF");
+  const southIndigo = new THREE.Color("#050714"); // Darker Indigo for South Pole
 
-    // North America
-    if (inEllipse(45, -100, 20, 35)) return true;
-    if (inEllipse(20, -100, 15, 15)) return true; // Mexico/Central
-    
-    // South America
-    if (inEllipse(-15, -60, 25, 20)) return true;
-    
-    // Africa
-    if (inEllipse(5, 20, 25, 25)) return true;
-    if (inEllipse(-20, 25, 15, 15)) return true;
-    
-    // Europe
-    if (inEllipse(50, 20, 10, 25)) return true;
-    
-    // Asia
-    if (inEllipse(50, 90, 20, 40)) return true; // Russia/China
-    if (inEllipse(25, 80, 15, 20)) return true; // India
-    if (inEllipse(15, 105, 10, 10)) return true; // SE Asia
-    
-    // Australia
-    if (inEllipse(-25, 135, 12, 18)) return true;
-    
-    // Antarctica
-    if (latDeg < -70) return true;
-    
-    // Japan/Islands (Noise will handle details, but let's add Japan)
-    if (inEllipse(36, 138, 5, 2)) return true;
+  let index = 0;
+  const R = 1.0;
 
-    return false;
+  // Helper to set particle
+  const setP = (x: number, y: number, z: number, c: THREE.Color, brightness: number, g: number) => {
+    if (index >= PARTICLE_COUNT) return;
+    positions[index * 3] = x;
+    positions[index * 3 + 1] = y;
+    positions[index * 3 + 2] = z;
+    // Apply brightness to color
+    colors[index * 3] = c.r * brightness;
+    colors[index * 3 + 1] = c.g * brightness;
+    colors[index * 3 + 2] = c.b * brightness;
+    groups[index] = g;
+    index++;
   };
 
-  const blue = new THREE.Color("#1a44cc"); // Ocean
-  const deepBlue = new THREE.Color("#001133"); // Deep Ocean
-  const landGreen = new THREE.Color("#228822"); // Land
-  const landBrown = new THREE.Color("#665533"); // Mountains/Desert
-  const white = new THREE.Color("#ffffff"); // Clouds/Ice
+  // 1. North Pole (Super Bright) - 500 particles
+  for (let i = 0; i < 500; i++) {
+     const theta = Math.random() * Math.PI * 2;
+     // Very small spread phi (Top cap)
+     const phi = Math.acos(1.0 - Math.random() * 0.025); 
+     
+     const r = R;
+     const x = r * Math.sin(phi) * Math.cos(theta);
+     const y = r * Math.cos(phi);
+     const z = r * Math.sin(phi) * Math.sin(theta);
+     
+     // 5x Brightness
+     setP(x, y, z, white, 5.0, 2);
+  }
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    let p = new THREE.Vector3();
-    let c = new THREE.Color();
-    let g = 0;
+  // 2. South Pole (Darker Indigo) - 200 particles
+  for (let i = 0; i < 200; i++) {
+     const theta = Math.random() * Math.PI * 2;
+     const phi = Math.PI - Math.acos(1.0 - Math.random() * 0.025); // Bottom cap
+     
+     const r = R;
+     const x = r * Math.sin(phi) * Math.cos(theta);
+     const y = r * Math.cos(phi);
+     const z = r * Math.sin(phi) * Math.sin(theta);
+     
+     // 50% darker than normal surface (0.5 brightness)
+     setP(x, y, z, southIndigo, 0.5, 0);
+  }
 
-    // 15% Clouds (Layer 2)
-    if (Math.random() < 0.15) {
-      g = 1;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1.05 + Math.random() * 0.05; // Slightly above surface
-      
-      p.setFromSphericalCoords(r, phi, theta);
-      
-      // Cloud patterns (Perlin-ish noise)
-      // Simple sine combination
-      const noise = Math.sin(theta*4) + Math.sin(phi*5 + theta) + Math.sin(theta*10)*0.5;
-      
-      if (noise > 1.0) {
-        c.setHex(0xffffff);
-        c.offsetHSL(0, 0, -0.1 + Math.random()*0.2); // Slight grey variation
-      } else {
-        // Transparent/Invisible clouds?
-        // We can just skip them or make them very faint
-        // Let's make them sparse
-        p.set(0,0,0); // Hide
-      }
-    } else {
-      // Surface
-      g = 0;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1.0;
-      
-      p.setFromSphericalCoords(r, phi, theta);
-      
-      const lat = Math.PI/2 - phi;
-      const lon = theta - Math.PI; // Adjust to -PI..PI
-      
-      const land = isLand(lat, lon);
-      
-      if (land) {
-         // Land color variation
-         // Higher lat = whiter (snow)
-         const latAbs = Math.abs(lat * 180/Math.PI);
-         if (latAbs > 60) {
-            c.setHex(0xffffff); // Ice
-         } else if (latAbs < 30 && Math.random() < 0.3) {
-            c.copy(landBrown); // Desert/Mountain
-         } else {
-            c.copy(landGreen);
-         }
-      } else {
-         // Ocean
-         c.copy(blue);
-         if (Math.random() < 0.3) c.lerp(deepBlue, 0.5);
-      }
+  // 3. Grid Lines
+  // Longitudes: 24 lines (Every 15 degrees)
+  const numLong = 24;
+  for (let l = 0; l < numLong; l++) {
+    const lon = (l / numLong) * Math.PI * 2;
+    // Particles along the line
+    const segments = 120; 
+    for (let s = 0; s < segments; s++) {
+       const lat = -Math.PI/2 + (s/segments)*Math.PI;
+       const phi = Math.PI/2 - lat;
+       // Skip very close to poles to avoid clumping
+       if (phi < 0.05 || phi > Math.PI - 0.05) continue;
+
+       const x = R * Math.sin(phi) * Math.cos(lon);
+       const y = R * Math.cos(phi);
+       const z = R * Math.sin(phi) * Math.sin(lon);
+       
+       setP(x, y, z, white, 1.2, 1);
     }
+  }
 
-    positions[i * 3] = p.x;
-    positions[i * 3 + 1] = p.y;
-    positions[i * 3 + 2] = p.z;
-    
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-    
-    groups[i] = g;
+  // Latitudes: 12 lines (Every ~15 degrees)
+  const numLat = 12; 
+  for (let l = 1; l < numLat; l++) {
+     const lat = -Math.PI/2 + (l/numLat)*Math.PI;
+     const isEquator = Math.abs(lat) < 0.05;
+     
+     // Density depends on radius of ring (cos(lat))
+     const segments = Math.floor(250 * Math.cos(lat)); 
+     
+     const brightness = isEquator ? 2.0 : 1.2;
+     const width = isEquator ? 0.008 : 0.004;
+
+     for (let s = 0; s < segments; s++) {
+        const lon = (s/segments) * Math.PI * 2;
+        const phi = Math.PI/2 - lat;
+        
+        const x = R * Math.sin(phi) * Math.cos(lon);
+        const y = R * Math.cos(phi);
+        const z = R * Math.sin(phi) * Math.sin(lon);
+
+        // Slight jitter for line thickness
+        const jx = (Math.random()-0.5)*width;
+        const jy = (Math.random()-0.5)*width;
+        const jz = (Math.random()-0.5)*width;
+
+        setP(x+jx, y+jy, z+jz, white, brightness, 1);
+     }
+  }
+
+  // 4. Surface Fill (Remaining Particles)
+  while(index < PARTICLE_COUNT) {
+     const theta = Math.random() * Math.PI * 2;
+     const phi = Math.acos(2 * Math.random() - 1);
+     
+     const r = R;
+     const x = r * Math.sin(phi) * Math.cos(theta);
+     const y = r * Math.cos(phi);
+     const z = r * Math.sin(phi) * Math.sin(theta);
+
+     // Uniform Deep Indigo Surface
+     // Ensure no random flickering, just solid deep energy field
+     setP(x, y, z, deepIndigo, 1.0, 0);
   }
 
   return { positions, colors, groups };

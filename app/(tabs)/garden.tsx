@@ -282,19 +282,27 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     return new Float32Array(positions);
   }, [positions]); // Reset when positions (shape source) changes
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!pointsRef.current) return;
     
     const { mode, spinVelocity, progress } = interactionState.current;
     
-    // Rotation
-    let rotationSpeed = 0.001 + spinVelocity;
-    if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
-    
-    pointsRef.current.rotation.y += rotationSpeed;
-    if (shape === 'merkaba') {
-       // Disable wobbling for Merkaba to ensure perfect steadiness
+    // Rotation Logic
+    if (shape === 'earth') {
+       // Fixed slow rotation: 60s per turn
+       // 2*PI / 60 radians per second
+       pointsRef.current.rotation.y += (Math.PI * 2 / 60) * delta;
+       // Ensure Z rotation is 0 (no wobble)
        pointsRef.current.rotation.z = 0;
+    } else {
+       // Standard rotation for other shapes
+       let rotationSpeed = 0.001 + spinVelocity;
+       if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
+       pointsRef.current.rotation.y += rotationSpeed;
+       
+       if (shape === 'merkaba') {
+          pointsRef.current.rotation.z = 0;
+       }
     }
     
     // Access geometry attributes
@@ -304,84 +312,6 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // Time-based animations
     const t = state.clock.elapsedTime;
     
-    // Update Colors for Earth Day/Night
-    // We do this every 5 frames to save perf if needed, but let's try every frame
-    const needsColorUpdate = shape === 'earth' && colorAttributeRef.current;
-    if (needsColorUpdate) {
-       // Sun direction (fixed in world, but earth rotates)
-       // Actually, we rotate the earth (targetPositions), so the sun can be fixed at [1, 0, 1]
-       // Day side is where dot(normal, sun) > 0
-       const sun = new THREE.Vector3(1, 0.5, 1).normalize();
-       const colorArray = colorAttributeRef.current.array as Float32Array;
-       
-       // Re-apply earth colors based on rotation
-       // We can't easily "undo" the rotation of the object to find original pos
-       // But we know the current rotation of the object: pointsRef.current.rotation.y
-       
-       // Wait, we are rotating pointsRef.current.rotation.y in the code above (line 435)
-       // So the particles themselves don't move in local space for rotation
-       // They move for "gather" or "shape morph".
-       
-       // So if the object rotates, the "world" position changes.
-       // The Sun is in World Space.
-       // We need to transform Sun to Local Space or Particle to World Space.
-       // Local Sun = InverseRotation * Sun.
-       
-       const rotY = pointsRef.current.rotation.y;
-       const localSun = sun.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -rotY);
-       
-       for(let i=0; i<PARTICLE_COUNT; i++) {
-          const ix = i * 3;
-          // If this is atmosphere (group 1), keep it light
-          if (groups[i] === 1) continue; 
-          
-          // Get local position (target, because that's where they are)
-          const px = targetPositions[ix];
-          const py = targetPositions[ix+1];
-          const pz = targetPositions[ix+2];
-          
-          // Simple dot product
-          // Normalize p? It's roughly sphere
-          const dot = (px*localSun.x + py*localSun.y + pz*localSun.z);
-          
-          if (dot < -0.2) {
-             // Night Side
-             // City lights probability
-             // If original color was "Land"
-             // How do we know if it was land? We can check the original color in `colors` array?
-             // But `colors` array is what we are modifying.
-             // We should have preserved base colors. 
-             // Ideally we shouldn't modify `colors` in place if we want to restore.
-             // For now, let's just make it dark blueish for night
-             
-             // Check if it's "Land" color range (Green/Brown)
-             // Green > Blue
-             if (colors[ix+1] > colors[ix+2] + 0.1) {
-                // It is land
-                if (Math.random() < 0.05) {
-                  // City light
-                  colorArray[ix] = 1.0; colorArray[ix+1] = 0.9; colorArray[ix+2] = 0.5;
-                } else {
-                  // Dark land
-                  colorArray[ix] = 0.05; colorArray[ix+1] = 0.05; colorArray[ix+2] = 0.05;
-                }
-             } else {
-                // Ocean night
-                colorArray[ix] = 0.0; colorArray[ix+1] = 0.0; colorArray[ix+2] = 0.1;
-             }
-          } else {
-             // Day Side - Restore original color
-             // We need the original color from `colors` (which is in useMemo).
-             // But we are overwriting `colors` in useFrame? No, `colorArray` is the attribute array.
-             // `colors` in closure is the source.
-             colorArray[ix] = colors[ix];
-             colorArray[ix+1] = colors[ix+1];
-             colorArray[ix+2] = colors[ix+2];
-          }
-       }
-       colorAttributeRef.current.needsUpdate = true;
-    }
-
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const ix = i * 3;
       const iy = i * 3 + 1;
@@ -395,19 +325,11 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       if (shape === 'merkaba') {
          const g = groups[i];
          if (g === 2) {
-           // Center pulse: "Bright once every 4 seconds"
-           // Use a sharper pulse than simple sine
-           const pulse = Math.pow(Math.sin(t * Math.PI * 0.25), 4); // Period = 2PI / (PI*0.25) * 0.5? No.
-           // sin(t * w). Period T = 2PI/w. We want T=4. w = 2PI/4 = PI/2.
-           // So sin(t * PI/2).
-           // Pow 4 makes it sharper.
+           // Center pulse
            const s = 1 + Math.pow(Math.sin(t * Math.PI * 0.5), 10) * 0.15;
            tx *= s; ty *= s; tz *= s;
          } else {
            // Rotation
-           // T1 (0): Left (CCW) 12s -> w = 2PI/12
-           // T2 (1): Right (CW) 15s -> w = -2PI/15
-           
            let ang = 0;
            if (g === 0) {
               ang = t * (Math.PI * 2 / 12);
@@ -424,53 +346,32 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          }
       } else if (shape === 'mudra') {
          // Breathing Pulse
-         const s = 1 + Math.sin(t * 2) * 0.02; // Subtle breath
+         const s = 1 + Math.sin(t * 2) * 0.02; 
          tx *= s; ty *= s; tz *= s;
          
          if (groups[i] === 1) { // Chakra
-            // Glow pulse
             const s2 = 1 + Math.sin(t * 8) * 0.1;
             tx *= s2; ty *= s2; tz *= s2;
          }
-      } else if (shape === 'earth') {
-         // Earth Rotation (Clouds move faster?)
-         // We rotate the whole container, but maybe we want clouds to move?
-         if (groups[i] === 1) {
-            // Clouds drift
-            const ang = t * 0.05;
-            const cos = Math.cos(ang);
-            const sin = Math.sin(ang);
-            const rx = tx * cos - tz * sin;
-            const rz = tx * sin + tz * cos;
-            tx = rx; tz = rz;
-         }
-      }
+      } 
 
       // Modifiers based on mode
       if (mode === 'gather') {
-        // Implosion effect
         const tighten = 1.0 - (progress * 0.8); 
-        tx *= tighten;
-        ty *= tighten;
-        tz *= tighten;
+        tx *= tighten; ty *= tighten; tz *= tighten;
         
-        // Jitter / Energy
         const jitter = 0.05 * progress;
         tx += (Math.random() - 0.5) * jitter;
         ty += (Math.random() - 0.5) * jitter;
         tz += (Math.random() - 0.5) * jitter;
       } 
       else if (mode === 'heart') {
-         // Transform to Heart Shape
          tx = heartPositions[ix];
          ty = heartPositions[iy];
          tz = heartPositions[iz];
 
-         // Heartbeat effect
          const beat = 1.0 + Math.sin(state.clock.elapsedTime * 15) * 0.05;
-         tx *= beat;
-         ty *= beat;
-         tz *= beat;
+         tx *= beat; ty *= beat; tz *= beat;
       }
       else if (mode === 'store') {
         tx *= 0.01;
@@ -478,14 +379,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
         tz *= 0.01;
       }
       else if (mode === 'explode') {
-         tx *= 2.0;
-         ty *= 2.0;
-         tz *= 2.0;
+         tx *= 2.0; ty *= 2.0; tz *= 2.0;
       }
       
-      // Lerp for smooth transition between shapes
       const lerpFactor = 0.1;
-      
       currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
       currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
       currentPositions[iz] += (tz - currentPositions[iz]) * lerpFactor;
