@@ -289,9 +289,9 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     // Rotation Logic
     if (shape === 'earth') {
-       // Fixed slow rotation: 60s per turn
-       // 2*PI / 60 radians per second
-       pointsRef.current.rotation.y += (Math.PI * 2 / 60) * delta;
+       // Fixed slow rotation: 90s per turn
+       // 2*PI / 90 radians per second
+       pointsRef.current.rotation.y += (Math.PI * 2 / 90) * delta;
        // Ensure Z rotation is 0 (no wobble)
        pointsRef.current.rotation.z = 0;
     } else {

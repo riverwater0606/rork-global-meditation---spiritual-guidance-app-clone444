@@ -307,125 +307,158 @@ export function generateMudraData() {
   return { positions, colors, groups };
 }
 
-// --- EARTH (Divine Energy Planet) ---
+// --- EARTH (Realistic Blue Marble) ---
 export function generateEarthData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
-  const groups = new Float32Array(PARTICLE_COUNT); // 0: Deep Blue Surface, 1: Grid/Lines, 2: North Pole
+  const groups = new Float32Array(PARTICLE_COUNT);
 
-  const deepIndigo = new THREE.Color("#0A0E29"); // Deep Cosmic/Ocean Blue (Dark Indigo)
-  const white = new THREE.Color("#FFFFFF");
-  const southIndigo = new THREE.Color("#050714"); // Darker Indigo for South Pole
+  // Colors
+  const oceanColor = new THREE.Color("#004466"); // Deep Blue
+  const landColor = new THREE.Color("#0a5030");  // Dark Green
+  const cloudColor = new THREE.Color("#FFFFFF"); // White
+  const cityColor = new THREE.Color("#FFD700");  // Yellow Lights
 
   let index = 0;
   const R = 1.0;
 
-  // Helper to set particle
-  const setP = (x: number, y: number, z: number, c: THREE.Color, brightness: number, g: number) => {
-    if (index >= PARTICLE_COUNT) return;
-    positions[index * 3] = x;
-    positions[index * 3 + 1] = y;
-    positions[index * 3 + 2] = z;
-    // Apply brightness to color
-    colors[index * 3] = c.r * brightness;
-    colors[index * 3 + 1] = c.g * brightness;
-    colors[index * 3 + 2] = c.b * brightness;
-    groups[index] = g;
-    index++;
+  // Helper: Lat/Lon from Spherical Coords
+  // Phi (0..PI) -> Lat (90..-90)
+  // Theta (0..2PI) -> Lon (-180..180)
+  const getLatLon = (phi: number, theta: number) => {
+    const lat = 90 - (phi * 180 / Math.PI);
+    let lon = (theta * 180 / Math.PI);
+    if (lon > 180) lon -= 360;
+    return { lat, lon };
   };
 
-  // 1. North Pole (Super Bright) - 500 particles
-  for (let i = 0; i < 500; i++) {
-     const theta = Math.random() * Math.PI * 2;
-     // Very small spread phi (Top cap)
-     const phi = Math.acos(1.0 - Math.random() * 0.025); 
-     
-     const r = R;
-     const x = r * Math.sin(phi) * Math.cos(theta);
-     const y = r * Math.cos(phi);
-     const z = r * Math.sin(phi) * Math.sin(theta);
-     
-     // 5x Brightness
-     setP(x, y, z, white, 5.0, 2);
-  }
+  const inRect = (lat: number, lon: number, minLat: number, maxLat: number, minLon: number, maxLon: number) => {
+    return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+  };
 
-  // 2. South Pole (Darker Indigo) - 200 particles
-  for (let i = 0; i < 200; i++) {
-     const theta = Math.random() * Math.PI * 2;
-     const phi = Math.PI - Math.acos(1.0 - Math.random() * 0.025); // Bottom cap
-     
-     const r = R;
-     const x = r * Math.sin(phi) * Math.cos(theta);
-     const y = r * Math.cos(phi);
-     const z = r * Math.sin(phi) * Math.sin(theta);
-     
-     // 50% darker than normal surface (0.5 brightness)
-     setP(x, y, z, southIndigo, 0.5, 0);
-  }
+  // Approximate Continent Shapes
+  const isLand = (lat: number, lon: number) => {
+    // North America
+    if (inRect(lat, lon, 15, 83, -168, -52)) return true; 
+    // South America
+    if (inRect(lat, lon, -56, 13, -81, -34)) return true;
+    // Europe
+    if (inRect(lat, lon, 36, 71, -10, 40)) return true;
+    // Africa
+    if (inRect(lat, lon, -35, 37, -18, 52)) return true;
+    // Asia (Main)
+    if (inRect(lat, lon, 5, 77, 41, 180)) return true;
+    // Asia (SE + Islands)
+    if (inRect(lat, lon, -10, 20, 95, 150)) return true;
+    // Asia (Russia East Tip)
+    if (inRect(lat, lon, 60, 70, -180, -170)) return true;
+    // Australia
+    if (inRect(lat, lon, -45, -10, 112, 154)) return true;
+    // Antarctica
+    if (inRect(lat, lon, -90, -65, -180, 180)) return true;
+    
+    return false;
+  };
 
-  // 3. Grid Lines
-  // Longitudes: 24 lines (Every 15 degrees)
-  const numLong = 24;
-  for (let l = 0; l < numLong; l++) {
-    const lon = (l / numLong) * Math.PI * 2;
-    // Particles along the line
-    const segments = 120; 
-    for (let s = 0; s < segments; s++) {
-       const lat = -Math.PI/2 + (s/segments)*Math.PI;
-       const phi = Math.PI/2 - lat;
-       // Skip very close to poles to avoid clumping
-       if (phi < 0.05 || phi > Math.PI - 0.05) continue;
+  // Approximate Urban Areas for Lights
+  const isCity = (lat: number, lon: number) => {
+    // US East Coast
+    if (inRect(lat, lon, 25, 45, -90, -70)) return true;
+    // Europe (Central/West)
+    if (inRect(lat, lon, 40, 55, -5, 30)) return true;
+    // Japan
+    if (inRect(lat, lon, 30, 40, 130, 145)) return true;
+    // East China
+    if (inRect(lat, lon, 22, 40, 110, 122)) return true;
+    // India
+    if (inRect(lat, lon, 10, 30, 70, 90)) return true;
+    return false;
+  };
 
-       const x = R * Math.sin(phi) * Math.cos(lon);
-       const y = R * Math.cos(phi);
-       const z = R * Math.sin(phi) * Math.sin(lon);
-       
-       setP(x, y, z, white, 1.2, 1);
-    }
-  }
+  // Procedural Cloud Noise (Simple Sine approximation)
+  const isCloud = (x: number, y: number, z: number) => {
+     const s = 4.0;
+     // Cloud bands and patches
+     const noise = Math.sin(x*s) * Math.cos(y*s*1.5) * Math.sin(z*s + 2.0) + Math.sin(y*10)*0.2;
+     return noise > 0.4; // Threshold
+  };
 
-  // Latitudes: 12 lines (Every ~15 degrees)
-  const numLat = 12; 
-  for (let l = 1; l < numLat; l++) {
-     const lat = -Math.PI/2 + (l/numLat)*Math.PI;
-     const isEquator = Math.abs(lat) < 0.05;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+     let p = new THREE.Vector3();
+     let c = new THREE.Color();
+     let g = 0;
      
-     // Density depends on radius of ring (cos(lat))
-     const segments = Math.floor(250 * Math.cos(lat)); 
+     // Rejection Sampling for Density Control
+     // We want high density on land, sparse on ocean.
+     // Clouds are separate layer on top.
      
-     const brightness = isEquator ? 2.0 : 1.2;
-     const width = isEquator ? 0.008 : 0.004;
-
-     for (let s = 0; s < segments; s++) {
-        const lon = (s/segments) * Math.PI * 2;
-        const phi = Math.PI/2 - lat;
+     let found = false;
+     let attempts = 0;
+     
+     while (!found && attempts < 15) {
+        attempts++;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
         
-        const x = R * Math.sin(phi) * Math.cos(lon);
-        const y = R * Math.cos(phi);
-        const z = R * Math.sin(phi) * Math.sin(lon);
-
-        // Slight jitter for line thickness
-        const jx = (Math.random()-0.5)*width;
-        const jy = (Math.random()-0.5)*width;
-        const jz = (Math.random()-0.5)*width;
-
-        setP(x+jx, y+jy, z+jz, white, brightness, 1);
+        p.setFromSphericalCoords(R, phi, theta);
+        
+        // 1. Check Cloud (Highest Priority Layer)
+        // Clouds float above: R * 1.05
+        if (Math.random() < 0.25 && isCloud(p.x, p.y, p.z)) { // 25% chance to try to be a cloud
+           p.multiplyScalar(1.04); // Float above
+           c.copy(cloudColor);
+           // Slight transparency effect by dimming (since additive blending)
+           c.multiplyScalar(0.5); 
+           found = true;
+           continue;
+        }
+        
+        const { lat, lon } = getLatLon(phi, theta);
+        const land = isLand(lat, lon);
+        
+        if (land) {
+           // Land - High Probability to keep
+           if (Math.random() < 0.95) {
+              // Check City Lights
+              if (isCity(lat, lon) && Math.random() < 0.5) {
+                 c.copy(cityColor);
+                 c.multiplyScalar(1.5); // Bright lights
+              } else {
+                 c.copy(landColor);
+                 // Noise for texture
+                 const n = (Math.random()-0.5)*0.1;
+                 c.r += n; c.g += n; c.b += n;
+              }
+              found = true;
+           }
+        } else {
+           // Ocean - Low Probability to keep (Sparse)
+           if (Math.random() < 0.15) { // Only keep 15% of ocean points
+              c.copy(oceanColor);
+              found = true;
+           }
+        }
      }
-  }
-
-  // 4. Surface Fill (Remaining Particles)
-  while(index < PARTICLE_COUNT) {
-     const theta = Math.random() * Math.PI * 2;
-     const phi = Math.acos(2 * Math.random() - 1);
      
-     const r = R;
-     const x = r * Math.sin(phi) * Math.cos(theta);
-     const y = r * Math.cos(phi);
-     const z = r * Math.sin(phi) * Math.sin(theta);
+     // Fallback
+     if (!found) {
+        // Just place deep blue ocean point
+        // Reset p to random to avoid clumping from last attempt
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        p.setFromSphericalCoords(R, phi, theta);
+        c.copy(oceanColor).multiplyScalar(0.8);
+     }
 
-     // Uniform Deep Indigo Surface
-     // Ensure no random flickering, just solid deep energy field
-     setP(x, y, z, deepIndigo, 1.0, 0);
+     positions[i * 3] = p.x;
+     positions[i * 3 + 1] = p.y;
+     positions[i * 3 + 2] = p.z;
+
+     colors[i * 3] = c.r;
+     colors[i * 3 + 1] = c.g;
+     colors[i * 3 + 2] = c.b;
+
+     groups[i] = g;
   }
 
   return { positions, colors, groups };
