@@ -1008,14 +1008,15 @@ export default function GardenScreen() {
           styles.gardenListContainer, 
           { 
             height: panelHeight,
-            backgroundColor: currentTheme.background, // Ensure opaque background
-            // Add shadow for "sheet" feel
+            backgroundColor: currentTheme.background,
             shadowColor: "#000",
             shadowOffset: { width: 0, height: -2 },
             shadowOpacity: 0.3,
             shadowRadius: 5,
             elevation: 20,
-            paddingBottom: insets.bottom // Use safe area for bottom
+            paddingBottom: Math.max(insets.bottom, 100),
+            marginBottom: 0,
+            zIndex: 9999
           }
         ]}
       >
