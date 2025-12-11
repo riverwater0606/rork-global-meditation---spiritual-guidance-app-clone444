@@ -8,9 +8,11 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Wand2 } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
+import Slider from '@react-native-community/slider';
+import { useRouter } from 'expo-router';
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -51,7 +53,7 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 MinimalProgress.displayName = "MinimalProgress";
 
 // Orb Component with Sacred Geometry
-const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
+const OrbParticles = ({ layers, interactionState, shape, currentOrbProp }: { layers: string[], interactionState: any, shape: OrbShape, currentOrbProp: any }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   const colorAttributeRef = useRef<THREE.BufferAttribute>(null!);
   
@@ -300,7 +302,9 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     }
 
     // Rotation Logic
-    let rotationSpeed = 0.001 + spinVelocity;
+    const orbRotationSpeed = currentOrbProp.rotationSpeed || 50;
+    const baseRotationMultiplier = (orbRotationSpeed / 100) * 5.0;
+    let rotationSpeed = 0.001 * (1 + baseRotationMultiplier) + spinVelocity;
     
     // Earth: 90s rotation (approx 0.0011 rad/frame at 60fps) + User Control
     if (shape === 'earth') {
@@ -479,12 +483,21 @@ export default function GardenScreen() {
     devResetOrb, 
     devSendOrbToSelf,
     setOrbShape,
-    setSharedSpinVelocity 
+    setSharedSpinVelocity,
+    setOrbRotationSpeed
   } = useMeditation();
+  
+  const router = useRouter();
   
   const [isExpanded, setIsExpanded] = useState(false);
   // Initialize with the calculated collapsed height
   const panelHeight = useRef(new Animated.Value(collapsedHeight)).current;
+  
+  const [localRotationSpeed, setLocalRotationSpeed] = useState(currentOrb.rotationSpeed || 50);
+  
+  useEffect(() => {
+    setLocalRotationSpeed(currentOrb.rotationSpeed || 50);
+  }, [currentOrb.id, currentOrb.rotationSpeed]);
 
   // Update ref when insets change
   useEffect(() => {
@@ -617,7 +630,8 @@ export default function GardenScreen() {
       onPanResponderMove: (evt, gestureState) => {
         // Spin interaction - Increased sensitivity and inverted for natural control
         // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
-        const newVelocity = -gestureState.vx * 0.5;
+        const baseSpeed = (localRotationSpeed / 100) * 2.0;
+        const newVelocity = -gestureState.vx * 0.5 * (1 + baseSpeed);
         interactionState.current.spinVelocity = newVelocity;
         setSharedSpinVelocity(newVelocity);
         
@@ -644,7 +658,8 @@ export default function GardenScreen() {
         // Capture final velocity for fling effect
         // Only update if there is significant velocity, otherwise keep momentum or settle
         if (Math.abs(gestureState.vx) > 0.05) {
-           const newVelocity = -gestureState.vx * 0.5;
+           const baseSpeed = (localRotationSpeed / 100) * 2.0;
+           const newVelocity = -gestureState.vx * 0.5 * (1 + baseSpeed);
            interactionState.current.spinVelocity = newVelocity;
            setSharedSpinVelocity(newVelocity);
         }
@@ -942,6 +957,7 @@ export default function GardenScreen() {
             layers={currentOrb.layers} 
             interactionState={interactionState}
             shape={orbShape}
+            currentOrbProp={currentOrb}
           />
         </Canvas>
         
@@ -974,6 +990,57 @@ export default function GardenScreen() {
         </View>
       </View>
 
+      {/* Rotation Speed Slider */}
+      <View style={styles.rotationControl}>
+        <View style={[styles.rotationCard, { backgroundColor: currentTheme.surface }]}>
+          <View style={styles.rotationHeader}>
+            <Sparkles size={16} color={currentOrb.layers[0] || currentTheme.primary} />
+            <Text style={[styles.rotationLabel, { color: currentTheme.text }]}>
+              {settings.language === 'zh' ? '旋轉速度' : 'Rotation Speed'}:
+              {' '}
+              <Text style={{ color: currentTheme.primary, fontWeight: '900' }}>
+                {localRotationSpeed === 0 ? (settings.language === 'zh' ? '靜止' : 'Still') :
+                 localRotationSpeed <= 25 ? (settings.language === 'zh' ? '慢' : 'Slow') :
+                 localRotationSpeed <= 50 ? (settings.language === 'zh' ? '中' : 'Medium') :
+                 localRotationSpeed <= 75 ? (settings.language === 'zh' ? '快' : 'Fast') :
+                 (settings.language === 'zh' ? '極速' : 'Max')}
+              </Text>
+            </Text>
+          </View>
+          <Slider
+            style={styles.rotationSlider}
+            minimumValue={0}
+            maximumValue={100}
+            step={5}
+            value={localRotationSpeed}
+            onValueChange={(value) => {
+              setLocalRotationSpeed(value);
+              setOrbRotationSpeed(value);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            minimumTrackTintColor={currentOrb.layers[0] || currentTheme.primary}
+            maximumTrackTintColor={`${currentTheme.primary}20`}
+            thumbTintColor={currentOrb.layers[0] || currentTheme.primary}
+          />
+        </View>
+        
+        <TouchableOpacity
+          style={[styles.meditateButton, { 
+            backgroundColor: currentTheme.primary,
+            shadowColor: currentTheme.primary
+          }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push('/orb-meditation-create');
+          }}
+        >
+          <Wand2 size={20} color="#fff" />
+          <Text style={styles.meditateButtonText}>
+            {settings.language === 'zh' ? '用此球冥想' : 'Meditate with Orb'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
       {/* Info Cards */}
       <View style={styles.infoContainer}>
           <View style={[styles.infoCard, { backgroundColor: currentTheme.surface }]}>
@@ -1284,6 +1351,51 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: 'white',
+  },
+  rotationControl: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    gap: 12,
+  },
+  rotationCard: {
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  rotationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  rotationLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rotationSlider: {
+    width: '100%',
+    height: 40,
+  },
+  meditateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 16,
+    gap: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  meditateButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   infoContainer: {
     flexDirection: 'row',
