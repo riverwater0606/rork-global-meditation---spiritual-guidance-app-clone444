@@ -74,7 +74,7 @@ const RotatingOrb = ({ layers, rotationSpeed, shape }: { layers: string[], rotat
 };
 
 export default function OrbMeditationCreate() {
-  const { currentOrb, addCustomMeditation } = useMeditation();
+  const { currentOrb, addCustomMeditation, setOrbRotationSpeed } = useMeditation();
   const { currentTheme, settings } = useSettings();
   const router = useRouter();
   
@@ -83,8 +83,9 @@ export default function OrbMeditationCreate() {
   const [script, setScript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showScript, setShowScript] = useState(false);
+  const [localRotationSpeed, setLocalRotationSpeed] = useState(currentOrb.rotationSpeed || 50);
   
-  const rotationSpeed = currentOrb.rotationSpeed || 50;
+  const rotationSpeed = localRotationSpeed;
   const orbShape = currentOrb.shape || 'default';
   
   const generateScript = async () => {
@@ -101,27 +102,67 @@ export default function OrbMeditationCreate() {
     
     try {
       const orbType = currentOrb.isAwakened ? 'Awakened' : `Level ${currentOrb.level}`;
-      const shapeText = orbShape === 'default' ? 'Sphere' : orbShape.replace('-', ' ');
+      const shapeText = orbShape === 'default' ? 'Sphere' : (
+        orbShape === 'flower-of-life' ? 'Flower of Life' :
+        orbShape === 'star-of-david' ? 'Star of David' :
+        orbShape === 'merkaba' ? 'Merkaba' :
+        orbShape === 'mudra' ? 'Mudra' :
+        orbShape === 'earth' ? 'Earth' : 'Sphere'
+      );
       
-      const prompt = `Create a ${duration}-minute guided meditation script in ${settings.language === 'zh' ? 'Traditional Chinese' : 'English'}.
+      const colorDescription = currentOrb.layers.length > 0 
+        ? currentOrb.layers.map((c, i) => {
+            const names = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet'];
+            return names[i] || c;
+          }).join(', ')
+        : 'Purple light';
       
-Theme: ${theme}
-Orb Type: ${orbType} ${shapeText}
-Orb Colors: ${currentOrb.layers.length > 0 ? currentOrb.layers.join(', ') : 'Purple light'}
+      const prompt = `Create a ${duration}-minute guided meditation script about "${theme}".
+
+Orb Details:
+- Type: ${orbType} ${shapeText}
+- Colors: ${colorDescription}
+- Rotation: ${rotationSpeed === 0 ? 'Still' : rotationSpeed <= 25 ? 'Slow' : rotationSpeed <= 50 ? 'Medium' : rotationSpeed <= 75 ? 'Fast' : 'Very Fast'}
+
+Language: ${settings.language === 'zh' ? 'Traditional Chinese' : 'English'}
 
 Structure:
-1. Opening (1 min): Welcome and intention setting
+1. Opening (1 min): Welcome, set intention for "${theme}"
 2. Breathwork (2 min): Deep breathing to center
-3. Visualization (${duration - 5} min): Journey with the orb, focusing on ${theme}
+3. Visualization (${Math.max(duration - 5, 1)} min): Journey with the ${shapeText} orb, exploring "${theme}"
 4. Integration (1 min): Bringing insights back
-5. Closing (1 min): Gratitude and gentle return
+5. Closing (1 min): Gratitude and return
 
-Make it poetic, mystical, and deeply personal. Reference the orb's colors and shape. Use sensory language.`;
+Make it poetic, mystical, and deeply personal. Reference the orb's specific colors and ${shapeText} shape.`;
 
       setTimeout(() => {
+        const shapeNameZh = orbShape === 'flower-of-life' ? '生命之花' :
+          orbShape === 'star-of-david' ? '六芒星' :
+          orbShape === 'merkaba' ? '梅爾卡巴' :
+          orbShape === 'mudra' ? '禪定手印' :
+          orbShape === 'earth' ? '地球' : '光球';
+        
+        const colorNameZh = currentOrb.layers.length > 0 ? 
+          (currentOrb.layers[0] === '#FF0000' ? '紅色' :
+           currentOrb.layers[0] === '#FF7F00' ? '橙色' :
+           currentOrb.layers[0] === '#FFFF00' ? '黃色' :
+           currentOrb.layers[0] === '#00FF00' ? '綠色' :
+           currentOrb.layers[0] === '#0000FF' ? '藍色' :
+           currentOrb.layers[0] === '#4B0082' ? '靛色' :
+           currentOrb.layers[0] === '#9400D3' ? '紫色' : '紫色') : '紫色';
+        
+        const colorNameEn = currentOrb.layers.length > 0 ?
+          (currentOrb.layers[0] === '#FF0000' ? 'red' :
+           currentOrb.layers[0] === '#FF7F00' ? 'orange' :
+           currentOrb.layers[0] === '#FFFF00' ? 'yellow' :
+           currentOrb.layers[0] === '#00FF00' ? 'green' :
+           currentOrb.layers[0] === '#0000FF' ? 'blue' :
+           currentOrb.layers[0] === '#4B0082' ? 'indigo' :
+           currentOrb.layers[0] === '#9400D3' ? 'violet' : 'purple') : 'purple';
+        
         const mockScript = settings.language === 'zh' 
-          ? `【開始】\n歡迎來到這次專屬於你的光球冥想。\n\n【呼吸】\n深呼吸，讓${currentOrb.layers[0] ? '紅色能量' : '紫色光芒'}進入你的身體...\n\n【旅程】\n想像你的光球在面前緩慢旋轉，它承載著關於「${theme}」的智慧...\n\n【整合】\n將這份能量帶回你的心中。\n\n【結束】\n感謝你的光球，感謝這次旅程。` 
-          : `[Opening]\nWelcome to your personal orb meditation.\n\n[Breathwork]\nBreathe deeply, allowing ${currentOrb.layers[0] ? 'red energy' : 'purple light'} to fill you...\n\n[Journey]\nVisualize your orb rotating before you, carrying wisdom about "${theme}"...\n\n[Integration]\nBring this energy into your heart.\n\n[Closing]\nThank your orb for this journey.`;
+          ? `【開始 - ${duration}分鐘光球冥想】\n歡迎來到這次專屬於你的${shapeNameZh}冥想。\n今天我們將探索「${theme}」的能量。\n\n【呼吸引導】\n深呼吸三次，感受${colorNameZh}光芒從${shapeNameZh}中流出...\n吸氣...呼氣...讓身心放鬆。\n\n【視覺化旅程】\n想像你的${shapeNameZh}在面前${rotationSpeed > 50 ? '快速' : '緩慢'}旋轉...\n它散發著${currentOrb.layers.length > 0 ? `${currentOrb.layers.length}層彩虹能量` : `${colorNameZh}光芒`}...\n這個光球承載著關於「${theme}」的古老智慧...\n\n讓${shapeNameZh}的能量環繞你...\n感受它為你帶來的洞見與力量...\n${theme}的能量正在你心中覺醒...\n\n【能量整合】\n深呼吸，將這份「${theme}」的能量帶回你的心中...\n感謝${shapeNameZh}的引導。\n\n【結束】\n慢慢張開眼睛...\n帶著${theme}的祝福回到當下。\n感謝這次光球冥想之旅。` 
+          : `[Opening - ${duration} Min Orb Meditation]\nWelcome to your personal ${shapeText} meditation.\nToday we explore the energy of "${theme}".\n\n[Breathwork]\nTake three deep breaths, feeling ${colorNameEn} light flowing from your ${shapeText}...\nInhale... Exhale... Let yourself relax.\n\n[Visualization Journey]\nVisualize your ${shapeText} ${rotationSpeed > 50 ? 'spinning rapidly' : 'rotating slowly'} before you...\nIt radiates ${currentOrb.layers.length > 0 ? `${currentOrb.layers.length} rainbow layers` : `${colorNameEn} light`}...\nThis orb carries ancient wisdom about "${theme}"...\n\nLet the energy of ${shapeText} surround you...\nFeel the insights and power it brings...\nThe energy of ${theme} is awakening within you...\n\n[Integration]\nBreathe deeply, bringing this "${theme}" energy into your heart...\nThank your ${shapeText} for its guidance.\n\n[Closing]\nSlowly open your eyes...\nReturn to the present with the blessing of ${theme}.\nThank you for this orb meditation journey.`;
         
         setScript(mockScript);
         setShowScript(true);
@@ -143,6 +184,8 @@ Make it poetic, mystical, and deeply personal. Reference the orb's colors and sh
     if (!script) return;
     
     try {
+      await setOrbRotationSpeed(localRotationSpeed);
+      
       await addCustomMeditation({
         title: theme || (settings.language === 'zh' ? '光球冥想' : 'Orb Meditation'),
         script,
@@ -239,6 +282,29 @@ Make it poetic, mystical, and deeply personal. Reference the orb's colors and sh
                     <Text style={[styles.sliderLabel, { color: currentTheme.textSecondary }]}>5{settings.language === 'zh' ? '分' : 'min'}</Text>
                     <Text style={[styles.sliderLabel, { color: currentTheme.textSecondary }]}>60{settings.language === 'zh' ? '分' : 'min'}</Text>
                   </View>
+                </View>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: currentTheme.text }]}>旋轉速度: {localRotationSpeed === 0 ? (settings.language === 'zh' ? '靜止' : 'Still') :
+                     localRotationSpeed <= 25 ? (settings.language === 'zh' ? '慢' : 'Slow') :
+                     localRotationSpeed <= 50 ? (settings.language === 'zh' ? '中' : 'Medium') :
+                     localRotationSpeed <= 75 ? (settings.language === 'zh' ? '快' : 'Fast') :
+                     (settings.language === 'zh' ? '極速' : 'Max')}</Text>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    step={5}
+                    value={localRotationSpeed}
+                    onValueChange={(value) => {
+                      setLocalRotationSpeed(value);
+                      setOrbRotationSpeed(value);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    minimumTrackTintColor={currentOrb.layers[0] || currentTheme.primary}
+                    maximumTrackTintColor={`${currentTheme.primary}30`}
+                    thumbTintColor={currentOrb.layers[0] || currentTheme.primary}
+                  />
                 </View>
                 
                 <TouchableOpacity
