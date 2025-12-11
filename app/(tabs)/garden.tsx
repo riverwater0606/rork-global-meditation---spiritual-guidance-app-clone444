@@ -569,24 +569,18 @@ export default function GardenScreen() {
     const selectedOrb = orbHistory[index];
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    // Animate switch
-    animateStore();
+    // Exit gallery mode first
+    exitGalleryMode();
     
+    // Wait a tiny bit then swap directly (no store animation needed)
     setTimeout(async () => {
       await swapOrb(selectedOrb.id);
       
-      // Exit gallery mode with new orb
-      exitGalleryMode();
-      
-      // Appear animation
-      setTimeout(() => {
-        interactionState.current.mode = 'appear';
-        setTimeout(() => {
-          interactionState.current.mode = 'idle';
-        }, 1500);
-      }, 300);
-    }, 600);
-  }, [orbHistory, exitGalleryMode]);
+      // Reset to idle immediately - orb should appear instantly
+      interactionState.current.mode = 'idle';
+      interactionState.current.progress = 0;
+    }, 300);
+  }, [orbHistory, exitGalleryMode, swapOrb]);
 
   // Gestures
   const pinchGesture = Gesture.Pinch()
