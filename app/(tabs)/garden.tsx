@@ -469,7 +469,8 @@ export default function GardenScreen() {
     devInstantOrb, 
     devResetOrb, 
     devSendOrbToSelf,
-    setOrbShape 
+    setOrbShape,
+    setSharedSpinVelocity 
   } = useMeditation();
   
   const { walletAddress } = useUser();
@@ -515,7 +516,9 @@ export default function GardenScreen() {
       onPanResponderMove: (evt, gestureState) => {
         // Spin interaction - Increased sensitivity and inverted for natural control
         // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
-        interactionState.current.spinVelocity = -gestureState.vx * 0.5;
+        const newVelocity = -gestureState.vx * 0.5;
+        interactionState.current.spinVelocity = newVelocity;
+        setSharedSpinVelocity(newVelocity);
         
         // Swipe Detection
         // Use gestureState.dy (accumulated distance) and velocity
@@ -540,7 +543,9 @@ export default function GardenScreen() {
         // Capture final velocity for fling effect
         // Only update if there is significant velocity, otherwise keep momentum or settle
         if (Math.abs(gestureState.vx) > 0.05) {
-           interactionState.current.spinVelocity = -gestureState.vx * 0.5;
+           const newVelocity = -gestureState.vx * 0.5;
+           interactionState.current.spinVelocity = newVelocity;
+           setSharedSpinVelocity(newVelocity);
         }
         stopGathering();
       },

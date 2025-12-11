@@ -107,6 +107,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [customMeditations, setCustomMeditations] = useState<CustomMeditation[]>([]);
   const [currentOrb, setCurrentOrb] = useState<Orb>(INITIAL_ORB);
   const [orbHistory, setOrbHistory] = useState<Orb[]>([]);
+  const [sharedSpinVelocity, setSharedSpinVelocity] = useState(0);
 
   useEffect(() => {
     loadStats();
@@ -441,5 +442,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     storeOrb,
     swapOrb,
     setOrbShape,
+    sharedSpinVelocity,
+    setSharedSpinVelocity,
   };
 });

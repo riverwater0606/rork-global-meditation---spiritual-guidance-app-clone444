@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Orb, OrbShape } from '@/providers/MeditationProvider';
+import { Orb, OrbShape, useMeditation } from '@/providers/MeditationProvider';
 import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
 
 interface Orb3DPreviewProps {
@@ -12,6 +12,7 @@ interface Orb3DPreviewProps {
 
 const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: number; shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
+  const { sharedSpinVelocity } = useMeditation();
   
   const { positions, colors } = useMemo(() => {
     const baseParticleCount = 20000;
@@ -153,13 +154,22 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
   useFrame((state, delta) => {
     if (!pointsRef.current) return;
     
+    let rotationSpeed = 0.001;
+    
     if (shape === 'earth') {
       const autoSpeed = -0.00116;
-      pointsRef.current.rotation.y += autoSpeed;
+      rotationSpeed = autoSpeed + sharedSpinVelocity;
     } else if (shape === 'merkaba') {
-      pointsRef.current.rotation.y += 0.001;
+      rotationSpeed = 0.001 + sharedSpinVelocity;
     } else {
-      pointsRef.current.rotation.y += 0.001;
+      rotationSpeed = 0.001 + sharedSpinVelocity;
+    }
+    
+    pointsRef.current.rotation.y += rotationSpeed;
+    
+    if (shape === 'merkaba' || shape === 'earth') {
+      pointsRef.current.rotation.z = 0;
+      pointsRef.current.rotation.x = 0;
     }
   });
 
