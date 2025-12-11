@@ -42,7 +42,6 @@ export interface Orb {
   message?: string;
   lastLayerAddedAt?: string;
   shape?: OrbShape;
-  rotationSpeed?: number;
 }
 
 export const CHAKRA_COLORS = [
@@ -422,12 +421,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
   };
 
-  const setOrbRotationSpeed = async (speed: number) => {
-    const updatedOrb = { ...currentOrb, rotationSpeed: speed };
-    setCurrentOrb(updatedOrb);
-    await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-  };
-
   return {
     stats,
     achievements,
@@ -449,7 +442,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     storeOrb,
     swapOrb,
     setOrbShape,
-    setOrbRotationSpeed,
     sharedSpinVelocity,
     setSharedSpinVelocity,
   };
