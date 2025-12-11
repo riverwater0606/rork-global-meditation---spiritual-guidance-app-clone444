@@ -1,5 +1,5 @@
-import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Animated, Dimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -51,7 +51,7 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 MinimalProgress.displayName = "MinimalProgress";
 
 // Orb Component with Sacred Geometry
-const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
+const OrbParticles = ({ layers, interactionState, shape, scale = 1, brightness = 1 }: { layers: string[], interactionState: any, shape: OrbShape, scale?: number, brightness?: number }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   const colorAttributeRef = useRef<THREE.BufferAttribute>(null!);
   
@@ -429,8 +429,9 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
   });
 
   return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
+    <group scale={scale}>
+      <points ref={pointsRef}>
+        <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
           args={[currentPositions, 3]}
@@ -442,16 +443,17 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
           args={[colors, 3]}
         />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.03}
-        vertexColors
-        transparent
-        opacity={0.8}
-        blending={THREE.AdditiveBlending}
-        sizeAttenuation={true}
-        depthWrite={false}
-      />
-    </points>
+        <pointsMaterial
+          size={0.03}
+          vertexColors
+          transparent
+          opacity={0.8 * brightness}
+          blending={THREE.AdditiveBlending}
+          sizeAttenuation={true}
+          depthWrite={false}
+        />
+      </points>
+    </group>
   );
 };
 
@@ -480,7 +482,17 @@ export default function GardenScreen() {
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
-  const GATHER_DURATION = 7 * 60 * 1000; 
+  const GATHER_DURATION = 7 * 60 * 1000;
+  
+  // Pinch Gesture State
+  const [galleryMode, setGalleryMode] = useState(false);
+  const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(0);
+  const orbScaleAnim = useRef(new Animated.Value(1)).current;
+  const orbPositionXAnim = useRef(new Animated.Value(0)).current;
+  const galleryOpacityAnim = useRef(new Animated.Value(0)).current;
+  const pinchScale = useRef(1);
+  const isPinching = useRef(false);
+  const lastDistance = useRef<number | null>(null); 
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
@@ -496,25 +508,152 @@ export default function GardenScreen() {
     { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
+  // Calculate pinch distance
+  const calculateDistance = (touches: any[]) => {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Enter Gallery Mode
+  const enterGalleryMode = useCallback(() => {
+    if (galleryMode || orbHistory.length === 0) return;
+    
+    setGalleryMode(true);
+    setSelectedGalleryIndex(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Animated.parallel([
+      Animated.spring(orbScaleAnim, {
+        toValue: 0.3,
+        useNativeDriver: true,
+        friction: 8
+      }),
+      Animated.spring(orbPositionXAnim, {
+        toValue: -Dimensions.get('window').width * 0.25,
+        useNativeDriver: true,
+        friction: 8
+      }),
+      Animated.timing(galleryOpacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, [galleryMode, orbHistory.length]);
+
+  // Exit Gallery Mode
+  const exitGalleryMode = useCallback(() => {
+    if (!galleryMode) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    Animated.parallel([
+      Animated.spring(orbScaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 8
+      }),
+      Animated.spring(orbPositionXAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8
+      }),
+      Animated.timing(galleryOpacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      setGalleryMode(false);
+    });
+  }, [galleryMode]);
+
+  // Switch to selected orb
+  const switchToGalleryOrb = useCallback(async (index: number) => {
+    if (index < 0 || index >= orbHistory.length) return;
+    
+    const selectedOrb = orbHistory[index];
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    // Animate switch
+    animateStore();
+    
+    setTimeout(async () => {
+      await swapOrb(selectedOrb.id);
+      
+      // Exit gallery mode with new orb
+      exitGalleryMode();
+      
+      // Appear animation
+      setTimeout(() => {
+        interactionState.current.mode = 'appear';
+        setTimeout(() => {
+          interactionState.current.mode = 'idle';
+        }, 1500);
+      }, 300);
+    }, 600);
+  }, [orbHistory, exitGalleryMode]);
+
   // Pan Responder for Gestures
   const panResponder = useRef(
     PanResponder.create({
       // Critical for responsiveness:
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
+      onStartShouldSetPanResponder: (evt) => {
+        // Check for pinch (2 touches)
+        if (evt.nativeEvent.touches.length === 2) {
+          isPinching.current = true;
+          lastDistance.current = calculateDistance(evt.nativeEvent.touches);
+          return true;
+        }
+        return !galleryMode;
+      },
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2 || !galleryMode,
+      onMoveShouldSetPanResponderCapture: () => false,
       
       // Ensure we don't lose the gesture easily
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
       
-      onPanResponderGrant: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        startGathering();
+      onPanResponderGrant: (evt) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          isPinching.current = true;
+          lastDistance.current = calculateDistance(evt.nativeEvent.touches);
+        } else if (!galleryMode) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          startGathering();
+        }
       },
       
       onPanResponderMove: (evt, gestureState) => {
+        // Handle Pinch Gesture
+        if (evt.nativeEvent.touches.length === 2 && isPinching.current) {
+          const currentDistance = calculateDistance(evt.nativeEvent.touches);
+          if (lastDistance.current) {
+            const scale = currentDistance / lastDistance.current;
+            pinchScale.current *= scale;
+            
+            // Pinch in to open gallery (scale < 0.7)
+            if (pinchScale.current < 0.7 && !galleryMode) {
+              enterGalleryMode();
+              isPinching.current = false;
+              return;
+            }
+            
+            // Pinch out to close gallery (scale > 1.3)
+            if (pinchScale.current > 1.3 && galleryMode) {
+              exitGalleryMode();
+              isPinching.current = false;
+              pinchScale.current = 1;
+              return;
+            }
+          }
+          lastDistance.current = currentDistance;
+          return;
+        }
+        
+        if (galleryMode) return;
         // Spin interaction - Increased sensitivity and inverted for natural control
         // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
         const newVelocity = -gestureState.vx * 0.5;
@@ -541,8 +680,16 @@ export default function GardenScreen() {
       },
       
       onPanResponderRelease: (evt, gestureState) => {
+        if (isPinching.current) {
+          isPinching.current = false;
+          pinchScale.current = 1;
+          lastDistance.current = null;
+          return;
+        }
+        
+        if (galleryMode) return;
+        
         // Capture final velocity for fling effect
-        // Only update if there is significant velocity, otherwise keep momentum or settle
         if (Math.abs(gestureState.vx) > 0.05) {
            const newVelocity = -gestureState.vx * 0.5;
            interactionState.current.spinVelocity = newVelocity;
@@ -552,7 +699,12 @@ export default function GardenScreen() {
       },
       
       onPanResponderTerminate: () => {
-        stopGathering();
+        isPinching.current = false;
+        pinchScale.current = 1;
+        lastDistance.current = null;
+        if (!galleryMode) {
+          stopGathering();
+        }
       },
     })
   ).current;
@@ -814,6 +966,17 @@ export default function GardenScreen() {
 
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
+        <Animated.View 
+          style={[
+            styles.mainOrbContainer,
+            {
+              transform: [
+                { scale: orbScaleAnim },
+                { translateX: orbPositionXAnim }
+              ]
+            }
+          ]}
+        >
         <TouchableOpacity
           style={styles.shapeButton}
           onPress={() => setShowShapeSelector(true)}
@@ -835,15 +998,86 @@ export default function GardenScreen() {
           </TouchableOpacity>
         )}
 
-        <Canvas camera={{ position: [0, 0, 4] }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} />
-          <OrbParticles 
-            layers={currentOrb.layers} 
-            interactionState={interactionState}
-            shape={orbShape}
-          />
-        </Canvas>
+          <Canvas camera={{ position: [0, 0, 4] }}>
+            <ambientLight intensity={0.5} />
+            <pointLight position={[10, 10, 10]} />
+            <OrbParticles 
+              layers={currentOrb.layers} 
+              interactionState={interactionState}
+              shape={orbShape}
+              scale={1}
+              brightness={1}
+            />
+          </Canvas>
+        </Animated.View>
+        
+        {/* Gallery View */}
+        {galleryMode && (
+          <Animated.View 
+            style={[
+              styles.galleryContainer,
+              { opacity: galleryOpacityAnim }
+            ]}
+          >
+            <Text style={styles.galleryTitle}>
+              {settings.language === 'zh' ? '選擇光球' : 'Choose Orb'}
+            </Text>
+            <ScrollView 
+              horizontal 
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const index = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width * 0.6 * 0.5));
+                setSelectedGalleryIndex(Math.max(0, Math.min(index, orbHistory.length - 1)));
+              }}
+              style={styles.galleryScroll}
+            >
+              {orbHistory.map((orb, index) => {
+                const isSelected = index === selectedGalleryIndex;
+                return (
+                  <TouchableOpacity
+                    key={orb.id}
+                    style={[
+                      styles.galleryOrbContainer,
+                      isSelected && styles.galleryOrbSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedGalleryIndex(index);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    onLongPress={() => switchToGalleryOrb(index)}
+                  >
+                    <View style={[styles.gallery3DOrb, isSelected && styles.gallery3DOrbSelected]}>
+                      <Canvas camera={{ position: [0, 0, 3] }}>
+                        <ambientLight intensity={0.5} />
+                        <pointLight position={[5, 5, 5]} />
+                        <OrbParticles 
+                          layers={orb.layers} 
+                          interactionState={{ current: { mode: 'idle', spinVelocity: 0.005, progress: 0 } }}
+                          shape={orb.shape || 'default'}
+                          scale={0.8}
+                          brightness={isSelected ? 1 : 0.8}
+                        />
+                      </Canvas>
+                    </View>
+                    <Text style={[styles.galleryOrbDate, isSelected && styles.galleryOrbDateSelected]}>
+                      {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Text style={[styles.galleryOrbInfo, isSelected && styles.galleryOrbInfoSelected]} numberOfLines={1}>
+                      {orb.sender || (settings.language === 'zh' ? '我自己' : 'Me')}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.selectionRing} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <Text style={styles.galleryHint}>
+              {settings.language === 'zh' ? '長按選中的光球切換' : 'Long press to switch'}
+            </Text>
+          </Animated.View>
+        )}
         
         {/* Minimal Progress UI */}
         <MinimalProgress 
@@ -852,7 +1086,8 @@ export default function GardenScreen() {
           duration={GATHER_DURATION} 
         />
         
-        <View style={styles.instructions}>
+        {!galleryMode && (
+          <View style={styles.instructions}>
            <View style={styles.instructionRow}>
               <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
               <Text style={styles.instructionText}>
@@ -871,7 +1106,16 @@ export default function GardenScreen() {
                 {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
               </Text>
            </View>
-        </View>
+          </View>
+        )}
+        
+        {galleryMode && (
+          <View style={styles.galleryInstructions}>
+            <Text style={styles.instructionText}>
+              {settings.language === 'zh' ? '捏合放大退出' : 'Pinch out to exit'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Info Cards */}
@@ -1102,6 +1346,100 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#e0e0ff',
+  },
+  mainOrbContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  galleryContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '65%',
+    paddingTop: 60,
+    paddingBottom: 60,
+    alignItems: 'center',
+  },
+  galleryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
+    textShadowColor: 'rgba(139, 92, 246, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  galleryScroll: {
+    flex: 1,
+  },
+  galleryOrbContainer: {
+    width: Dimensions.get('window').width * 0.6 * 0.5,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  galleryOrbSelected: {
+    transform: [{ scale: 1.1 }],
+  },
+  gallery3DOrb: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginBottom: 12,
+  },
+  gallery3DOrbSelected: {
+    borderWidth: 2,
+    borderColor: '#8b5cf6',
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+  },
+  galleryOrbDate: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 4,
+  },
+  galleryOrbDateSelected: {
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: 'bold',
+  },
+  galleryOrbInfo: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+  },
+  galleryOrbInfoSelected: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  selectionRing: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 3,
+    borderColor: '#8b5cf6',
+    top: '50%',
+    marginTop: -90,
+  },
+  galleryHint: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 20,
+  },
+  galleryInstructions: {
+    position: 'absolute',
+    bottom: 20,
+    width: '100%',
+    alignItems: 'center',
   },
   gardenListContainer: {
     paddingVertical: 10,
