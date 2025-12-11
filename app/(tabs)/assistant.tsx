@@ -432,7 +432,7 @@ The script should be 200-300 words. Use plain text.`
           </View>
         )}
 
-        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border, paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border, paddingBottom: insets.bottom + 78 }]}>
           <TextInput
             style={[styles.input, { backgroundColor: currentTheme.background, color: currentTheme.text }]}
             value={inputText}
