@@ -563,30 +563,59 @@ export default function GardenScreen() {
   }, [galleryMode]);
 
   // Switch to selected orb
-  const switchToGalleryOrb = useCallback(async (index: number) => {
+  const switchToGalleryOrb = useCallback((index: number) => {
     if (index < 0 || index >= orbHistory.length) return;
     
     const selectedOrb = orbHistory[index];
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const width = Dimensions.get('window').width;
+
+    // 1. Instant State Swap
+    // We don't await because we want immediate UI feedback
+    // The provider will handle the state update which triggers re-render
+    swapOrb(selectedOrb.id);
     
-    // Animate switch
-    animateStore();
+    // 2. Instant Gallery Exit
+    setGalleryMode(false);
     
-    setTimeout(async () => {
-      await swapOrb(selectedOrb.id);
-      
-      // Exit gallery mode with new orb
-      exitGalleryMode();
-      
-      // Appear animation
+    // 3. Reset Physics/Interaction State
+    interactionState.current.mode = 'idle';
+    interactionState.current.spinVelocity = 0.05; // Give it a little spin
+    
+    // 4. Animate New Orb Entrance (Fly in from Right)
+    // Start from the gallery position (Right side)
+    orbPositionXAnim.setValue(width * 0.4);
+    orbScaleAnim.setValue(0.3);
+    
+    // Spring to Center
+    Animated.parallel([
+      Animated.spring(orbPositionXAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 120,
+        mass: 0.8
+      }),
+      Animated.spring(orbScaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 100,
+        mass: 0.8
+      })
+    ]).start();
+
+    // 5. Visual Effects
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    // Trigger particle burst/appear effect after a frame
+    requestAnimationFrame(() => {
+      interactionState.current.mode = 'appear';
       setTimeout(() => {
-        interactionState.current.mode = 'appear';
-        setTimeout(() => {
-          interactionState.current.mode = 'idle';
-        }, 1500);
-      }, 300);
-    }, 600);
-  }, [orbHistory, exitGalleryMode]);
+        interactionState.current.mode = 'idle';
+      }, 800);
+    });
+
+  }, [orbHistory, swapOrb]);
 
   // Gestures
   const pinchGesture = Gesture.Pinch()
