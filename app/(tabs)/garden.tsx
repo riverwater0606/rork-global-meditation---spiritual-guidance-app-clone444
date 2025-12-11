@@ -1014,7 +1014,7 @@ export default function GardenScreen() {
             shadowOpacity: 0.3,
             shadowRadius: 5,
             elevation: 20,
-            paddingBottom: Math.max(insets.bottom, 100),
+            paddingBottom: 130,
             marginBottom: 0,
             zIndex: 9999
           }
