@@ -288,10 +288,10 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   greeting: {
-    fontSize: 36,
-    fontWeight: "900" as const,
+    fontSize: 24,
+    fontWeight: "700" as const,
     color: "#e0e0ff",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 17,
