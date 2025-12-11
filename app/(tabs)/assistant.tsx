@@ -329,7 +329,7 @@ The script should be 200-300 words. Use plain text.`
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={[styles.messagesContent, { paddingBottom: 100 }]}
+          contentContainerStyle={[styles.messagesContent, { paddingBottom: 220 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
