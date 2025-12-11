@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   Easing,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,8 +21,10 @@ import { useSettings } from "@/providers/SettingsProvider";
 import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
+import { Orb3DPreview } from "@/components/Orb3DPreview";
+import * as Haptics from "expo-haptics";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 interface AmbientSound {
   id: string;
@@ -94,7 +97,7 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
 export default function MeditationPlayerScreen() {
   const { id } = useLocalSearchParams();
   const sessionFromLibrary = MEDITATION_SESSIONS.find(s => s.id === id);
-  const { completeMeditation, customMeditations } = useMeditation();
+  const { completeMeditation, customMeditations, currentOrb, orbHistory } = useMeditation();
   const { settings } = useSettings();
   const lang = settings.language;
   
@@ -122,6 +125,11 @@ export default function MeditationPlayerScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const originalVolume = useRef(0.5);
   const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
+  const [showOrbCollection, setShowOrbCollection] = useState(false);
+  const [selectedMeditationOrb, setSelectedMeditationOrb] = useState<string>(currentOrb.id);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const collectionSlideAnim = useRef(new Animated.Value(height * 0.4)).current;
+  const switchingOrbAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.timing(fadeAnimation, {
@@ -136,6 +144,9 @@ export default function MeditationPlayerScreen() {
       }
       if (isSpeaking) {
         Speech.stop();
+      }
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
       }
     };
   }, []);
@@ -418,6 +429,56 @@ export default function MeditationPlayerScreen() {
     }
   }, [isPlaying, breathingMethod]);
 
+  useEffect(() => {
+    Animated.timing(collectionSlideAnim, {
+      toValue: showOrbCollection ? 0 : height * 0.4,
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [showOrbCollection]);
+
+  const handleLongPressStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setShowOrbCollection(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }, 2000);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleOrbSwitch = (orbId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Animated.sequence([
+      Animated.timing(switchingOrbAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(switchingOrbAnim, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setTimeout(() => {
+      setSelectedMeditationOrb(orbId);
+      setShowOrbCollection(false);
+    }, 300);
+  };
+
+  const allOrbs = [currentOrb, ...orbHistory].filter(o => o.layers.length > 0);
+  const selectedOrb = allOrbs.find(o => o.id === selectedMeditationOrb) || currentOrb;
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -451,7 +512,11 @@ export default function MeditationPlayerScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.mainContent}>
+          <View 
+            style={styles.mainContent}
+            onTouchStart={handleLongPressStart}
+            onTouchEnd={handleLongPressEnd}
+          >
             <Text style={styles.sessionTitle}>{session.title}</Text>
 
             <View style={styles.breathingMethodSelector}>
@@ -490,6 +555,18 @@ export default function MeditationPlayerScreen() {
             </View>
 
             <View style={styles.breathingContainer}>
+              <Animated.View
+                style={[
+                  styles.orbWrapper,
+                  {
+                    transform: [{ scale: switchingOrbAnim }],
+                    opacity: switchingOrbAnim,
+                  },
+                ]}
+              >
+                <Orb3DPreview orb={selectedOrb} size={width * 0.7} />
+              </Animated.View>
+              
               <Animated.View
                 style={[
                   styles.breathingCircle,
@@ -659,6 +736,56 @@ export default function MeditationPlayerScreen() {
           </View>
         </View>
       </Modal>
+
+      <Animated.View 
+        style={[
+          styles.orbCollectionContainer,
+          {
+            transform: [{ translateY: collectionSlideAnim }],
+          },
+        ]}
+        pointerEvents={showOrbCollection ? 'auto' : 'none'}
+      >
+        <View style={styles.collectionHeader}>
+          <Text style={styles.collectionTitle}>
+            {lang === 'zh' ? '切換光球' : 'Change Orb'}
+          </Text>
+          <TouchableOpacity onPress={() => setShowOrbCollection(false)}>
+            <X size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={allOrbs}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.orbList}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.miniOrbContainer,
+                selectedMeditationOrb === item.id && styles.miniOrbSelected,
+              ]}
+              onPress={() => handleOrbSwitch(item.id)}
+            >
+              <View style={styles.miniOrbWrapper}>
+                <Orb3DPreview orb={item} size={80} />
+              </View>
+              {item.shape && (
+                <View style={styles.orbBadge}>
+                  <Text style={styles.orbBadgeText}>
+                    {item.shape === 'earth' ? '🌍' : 
+                     item.shape === 'merkaba' ? '🔯' :
+                     item.shape === 'mudra' ? '🙏' :
+                     item.shape === 'flower-of-life' ? '🌸' :
+                     item.shape === 'star-of-david' ? '✡️' : '⭕'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        />
+      </Animated.View>
     </LinearGradient>
   );
 }
@@ -706,6 +833,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginVertical: 40,
+    position: "relative" as const,
+  },
+  orbWrapper: {
+    position: "absolute" as const,
+    width: "100%",
+    height: "100%",
+    zIndex: 1,
   },
   breathingCircle: {
     width: "100%",
@@ -718,6 +852,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
+    zIndex: 10,
   },
   innerCircle: {
     width: "70%",
@@ -899,5 +1034,72 @@ const styles = StyleSheet.create({
   volumeSlider: {
     flex: 1,
     height: 40,
+  },
+  orbCollectionContainer: {
+    position: "absolute" as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.35,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingBottom: 100,
+    zIndex: 1000,
+  },
+  collectionHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  collectionTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
+  },
+  orbList: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  miniOrbContainer: {
+    width: 80,
+    height: 80,
+    marginRight: 16,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    overflow: "hidden" as const,
+    position: "relative" as const,
+  },
+  miniOrbSelected: {
+    borderColor: "#8B5CF6",
+    borderWidth: 4,
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+  },
+  miniOrbWrapper: {
+    width: "100%",
+    height: "100%",
+  },
+  orbBadge: {
+    position: "absolute" as const,
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  orbBadgeText: {
+    fontSize: 12,
   },
 });
