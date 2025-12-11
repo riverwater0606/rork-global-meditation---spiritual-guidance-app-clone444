@@ -150,12 +150,16 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
     return { positions, colors };
   }, [layers, size, shape]);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!pointsRef.current) return;
+    
     if (shape === 'earth') {
-      pointsRef.current.rotation.y = -state.clock.elapsedTime * 0.0696;
+      const autoSpeed = -0.00116;
+      pointsRef.current.rotation.y += autoSpeed;
+    } else if (shape === 'merkaba') {
+      pointsRef.current.rotation.y += 0.001;
     } else {
-      pointsRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+      pointsRef.current.rotation.y += 0.001;
     }
   });
 
