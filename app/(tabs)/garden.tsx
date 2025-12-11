@@ -1,7 +1,6 @@
-import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, Animated, Dimensions, FlatList } from "react-native";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -52,7 +51,7 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
 MinimalProgress.displayName = "MinimalProgress";
 
 // Orb Component with Sacred Geometry
-const OrbParticles = ({ layers, interactionState, shape, scale = 1, brightness = 1 }: { layers: string[], interactionState: any, shape: OrbShape, scale?: number, brightness?: number }) => {
+const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
   const pointsRef = useRef<THREE.Points>(null!);
   const colorAttributeRef = useRef<THREE.BufferAttribute>(null!);
   
@@ -430,9 +429,8 @@ const OrbParticles = ({ layers, interactionState, shape, scale = 1, brightness =
   });
 
   return (
-    <group scale={scale}>
-      <points ref={pointsRef}>
-        <bufferGeometry>
+    <points ref={pointsRef}>
+      <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
           args={[currentPositions, 3]}
@@ -444,17 +442,16 @@ const OrbParticles = ({ layers, interactionState, shape, scale = 1, brightness =
           args={[colors, 3]}
         />
       </bufferGeometry>
-        <pointsMaterial
-          size={0.03}
-          vertexColors
-          transparent
-          opacity={0.8 * brightness}
-          blending={THREE.AdditiveBlending}
-          sizeAttenuation={true}
-          depthWrite={false}
-        />
-      </points>
-    </group>
+      <pointsMaterial
+        size={0.03}
+        vertexColors
+        transparent
+        opacity={0.8}
+        blending={THREE.AdditiveBlending}
+        sizeAttenuation={true}
+        depthWrite={false}
+      />
+    </points>
   );
 };
 
@@ -483,16 +480,7 @@ export default function GardenScreen() {
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
-  const GATHER_DURATION = 7 * 60 * 1000;
-  
-  // Pinch Gesture State
-  const [galleryMode, setGalleryMode] = useState(false);
-  const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(0);
-  const orbScaleAnim = useRef(new Animated.Value(1)).current;
-  const orbPositionXAnim = useRef(new Animated.Value(0)).current;
-  const galleryOpacityAnim = useRef(new Animated.Value(0)).current;
-  const isPinching = useRef(false);
-  const [isPinchingActive, setIsPinchingActive] = useState(false);
+  const GATHER_DURATION = 7 * 60 * 1000; 
   
   const DEV_WALLET_ADDRESS = "0xf683cbce6d42918907df66040015fcbdad411d9d";
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
@@ -507,154 +495,67 @@ export default function GardenScreen() {
     { id: 'mudra', name: 'Mudra', nameZh: '禪定手印', icon: '🙏' },
     { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
-
-  // Enter Gallery Mode
-  const enterGalleryMode = useCallback(() => {
-    if (galleryMode || orbHistory.length === 0) return;
-    
-    setGalleryMode(true);
-    setSelectedGalleryIndex(0);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    Animated.parallel([
-      Animated.spring(orbScaleAnim, {
-        toValue: 0.3,
-        useNativeDriver: true,
-        friction: 8
-      }),
-      Animated.spring(orbPositionXAnim, {
-        toValue: -Dimensions.get('window').width * 0.5, // Move further left
-        useNativeDriver: true,
-        friction: 8
-      }),
-      Animated.timing(galleryOpacityAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true
-      })
-    ]).start();
-  }, [galleryMode, orbHistory.length]);
-
-  // Exit Gallery Mode
-  const exitGalleryMode = useCallback(() => {
-    if (!galleryMode) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    Animated.parallel([
-      Animated.spring(orbScaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 8
-      }),
-      Animated.spring(orbPositionXAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        friction: 8
-      }),
-      Animated.timing(galleryOpacityAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true
-      })
-    ]).start(() => {
-      setGalleryMode(false);
-    });
-  }, [galleryMode]);
-
-  // Switch to selected orb
-  const handleSelectOrb = useCallback((orb: any) => {
-    // 1. Instant State Swap
-    // NO async, NO await, NO delay
-    swapOrb(orb.id);
-    
-    // 2. Instant Gallery Exit
-    setGalleryMode(false);
-    
-    // 3. Reset Physics/Interaction State
-    interactionState.current.mode = 'idle';
-    interactionState.current.spinVelocity = 0.05;
-
-    // 4. Animation: Scale from 0.3 to 1.0 (Spring)
-    orbScaleAnim.setValue(0.3);
-    Animated.spring(orbScaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      damping: 15,
-      stiffness: 120,
-      mass: 0.8
-    }).start();
-
-    // 5. Visual Effects
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    // Trigger particle burst/appear effect after a frame
-    requestAnimationFrame(() => {
-      interactionState.current.mode = 'appear';
-      setTimeout(() => {
-        interactionState.current.mode = 'idle';
-      }, 800);
-    });
-
-  }, [swapOrb]);
-
-  // Gestures
-  const pinchGesture = Gesture.Pinch()
-    .onStart(() => {
-      isPinching.current = true;
-      setIsPinchingActive(true);
-    })
-    .onUpdate((e) => {
-      // Visual feedback logic if needed
-      // e.scale starts at 1
-      if (e.scale < 0.85 && !galleryMode) {
-         // Maybe show ring
-      }
-    })
-    .onEnd((e) => {
-      if (e.scale < 0.85 && !galleryMode) {
-        enterGalleryMode();
-      } else if (e.scale > 1.2 && galleryMode) {
-        exitGalleryMode();
-      }
-    })
-    .onFinalize(() => {
-      isPinching.current = false;
-      setIsPinchingActive(false);
-    });
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      if (galleryMode) return;
-      const newVelocity = -e.velocityX * 0.0005;
-      interactionState.current.spinVelocity = newVelocity;
-      setSharedSpinVelocity(newVelocity);
-    })
-    .onEnd((e) => {
-      if (galleryMode) return;
-      const { translationY, velocityY, translationX } = e;
-      const SWIPE_DISTANCE = 100;
-      const VELOCITY_THRESHOLD = 500;
+  
+  // Pan Responder for Gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      // Critical for responsiveness:
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       
-      if (Math.abs(translationY) > Math.abs(translationX) * 1.5) {
-        if (translationY < -SWIPE_DISTANCE && velocityY < -VELOCITY_THRESHOLD) {
-          triggerHeartAnimation();
-        } else if (translationY > SWIPE_DISTANCE && velocityY > VELOCITY_THRESHOLD) {
-          triggerStoreAnimation();
+      // Ensure we don't lose the gesture easily
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      
+      onPanResponderGrant: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        startGathering();
+      },
+      
+      onPanResponderMove: (evt, gestureState) => {
+        // Spin interaction - Increased sensitivity and inverted for natural control
+        // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
+        const newVelocity = -gestureState.vx * 0.5;
+        interactionState.current.spinVelocity = newVelocity;
+        setSharedSpinVelocity(newVelocity);
+        
+        // Swipe Detection
+        // Use gestureState.dy (accumulated distance) and velocity
+        const { dy, vy, dx } = gestureState;
+        
+        // Lower thresholds for better responsiveness
+        const SWIPE_DISTANCE = 100; // Reduced from 150
+        const VELOCITY_THRESHOLD = 0.5; // Reduced from 0.8
+        
+        if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
+           if (Math.abs(dy) > Math.abs(dx) * 1.5) { // Prioritize vertical movement
+             if (dy < -SWIPE_DISTANCE && vy < -VELOCITY_THRESHOLD) { // Swipe UP
+               triggerHeartAnimation();
+             } else if (dy > SWIPE_DISTANCE && vy > VELOCITY_THRESHOLD) { // Swipe DOWN
+               triggerStoreAnimation();
+             }
+           }
         }
-      }
-    });
-
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .onStart(() => {
-      if (!galleryMode) startGathering();
+      },
+      
+      onPanResponderRelease: (evt, gestureState) => {
+        // Capture final velocity for fling effect
+        // Only update if there is significant velocity, otherwise keep momentum or settle
+        if (Math.abs(gestureState.vx) > 0.05) {
+           const newVelocity = -gestureState.vx * 0.5;
+           interactionState.current.spinVelocity = newVelocity;
+           setSharedSpinVelocity(newVelocity);
+        }
+        stopGathering();
+      },
+      
+      onPanResponderTerminate: () => {
+        stopGathering();
+      },
     })
-    .onFinalize(() => {
-      stopGathering();
-    });
-
-  const composedGesture = Gesture.Exclusive(pinchGesture, panGesture, longPressGesture);
+  ).current;
 
   const startGathering = () => {
     // Don't restart if already doing something special
@@ -912,185 +813,66 @@ export default function GardenScreen() {
       </Modal>
 
       {/* Main Interaction Area */}
-      <GestureDetector gesture={composedGesture}>
-        <View style={styles.sceneContainer}>
-          <Animated.View 
-            style={[
-              styles.mainOrbContainer,
-              {
-                transform: [
-                  { scale: orbScaleAnim },
-                  { translateX: orbPositionXAnim }
-                ]
-              }
-            ]}
-          >
+      <View style={styles.sceneContainer} {...panResponder.panHandlers}>
+        <TouchableOpacity
+          style={styles.shapeButton}
+          onPress={() => setShowShapeSelector(true)}
+          activeOpacity={0.7}
+        >
+          <Sparkles size={18} color="white" />
+        </TouchableOpacity>
+
+        {orbShape !== 'default' && (
           <TouchableOpacity
-            style={styles.shapeButton}
-            onPress={() => setShowShapeSelector(true)}
+            style={[styles.shapeButton, { top: 70, backgroundColor: 'rgba(0,0,0,0.6)' }]}
+            onPress={() => {
+              setOrbShape('default');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
             activeOpacity={0.7}
           >
-            <Sparkles size={18} color="white" />
+            <X size={18} color="white" />
           </TouchableOpacity>
+        )}
 
-          {orbShape !== 'default' && (
-            <TouchableOpacity
-              style={[styles.shapeButton, { top: 70, backgroundColor: 'rgba(0,0,0,0.6)' }]}
-              onPress={() => {
-                setOrbShape('default');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              activeOpacity={0.7}
-            >
-              <X size={18} color="white" />
-            </TouchableOpacity>
-          )}
-
-            <Canvas camera={{ position: [0, 0, 4] }}>
-              <ambientLight intensity={0.5} />
-              <pointLight position={[10, 10, 10]} />
-              <OrbParticles 
-                layers={currentOrb.layers} 
-                interactionState={interactionState}
-                shape={orbShape}
-                scale={1}
-                brightness={1}
-              />
-            </Canvas>
-
-            {/* Pinch Ring Feedback */}
-            {isPinchingActive && !galleryMode && (
-              <View style={styles.pinchRing} />
-            )}
-          </Animated.View>
-          
-          {/* Gallery View */}
-          {galleryMode && (
-            <Animated.View 
-              style={[
-                styles.galleryContainer,
-                { opacity: galleryOpacityAnim }
-              ]}
-            >
-              <Text style={styles.galleryTitle}>
-                {settings.language === 'zh' ? '選擇光球' : 'Choose Orb'}
-              </Text>
-              <FlatList
-                data={orbHistory}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id}
-                snapToAlignment="center"
-                snapToInterval={Dimensions.get('window').width * 0.7}
-                decelerationRate="fast"
-                contentContainerStyle={{ paddingHorizontal: Dimensions.get('window').width * 0.15 }}
-                renderItem={({ item: orb, index }) => {
-                   // Calculate if selected based on visible index? 
-                   // For now simple click to select.
-                   // Or visual selection.
-                   const isSelected = selectedGalleryIndex === index;
-                   
-                   return (
-                    <TouchableOpacity
-                      style={[
-                        styles.galleryOrbContainer,
-                        { width: Dimensions.get('window').width * 0.7 },
-                        isSelected && styles.galleryOrbSelected
-                      ]}
-                      onPress={() => handleSelectOrb(orb)}
-                      activeOpacity={0.9}
-                    >
-                      <View style={[styles.gallery3DOrb, isSelected && styles.gallery3DOrbSelected]}>
-                        <Canvas camera={{ position: [0, 0, 3] }} dpr={[1, 2]}>
-                          <ambientLight intensity={0.5} />
-                          <pointLight position={[5, 5, 5]} />
-                          <OrbParticles 
-                            layers={orb.layers} 
-                            interactionState={{ current: { mode: 'idle', spinVelocity: 0.005, progress: 0 } }}
-                            shape={orb.shape || 'default'}
-                            scale={isSelected ? 1.0 : 0.8}
-                            brightness={isSelected ? 1 : 0.7}
-                          />
-                        </Canvas>
-                      </View>
-                      {isSelected && <View style={styles.selectionRing} />}
-                      <Text style={[styles.galleryOrbDate, isSelected && styles.galleryOrbDateSelected]}>
-                        {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </Text>
-                      <Text style={[styles.galleryOrbInfo, isSelected && styles.galleryOrbInfoSelected]} numberOfLines={1}>
-                        {orb.sender || (settings.language === 'zh' ? '我自己' : 'Me')}
-                      </Text>
-                    </TouchableOpacity>
-                   );
-                }}
-                onMomentumScrollEnd={(e) => {
-                  const index = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width * 0.7));
-                  setSelectedGalleryIndex(index);
-                }}
-              />
-              <Text style={styles.galleryHint}>
-                {settings.language === 'zh' ? '長按選中的光球切換' : 'Long press to switch'}
-              </Text>
-            </Animated.View>
-          )}
-          
-          {/* Minimal Progress UI */}
-          <MinimalProgress 
-            ref={progressOverlayRef} 
-            theme={currentTheme} 
-            duration={GATHER_DURATION} 
+        <Canvas camera={{ position: [0, 0, 4] }}>
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} />
+          <OrbParticles 
+            layers={currentOrb.layers} 
+            interactionState={interactionState}
+            shape={orbShape}
           />
-          
-          {!galleryMode && (
-            <>
-              <View style={styles.instructions}>
-               <View style={styles.instructionRow}>
-                  <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.instructionText}>
-                    {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
-                  </Text>
-               </View>
-               <View style={styles.instructionRow}>
-                  <View style={styles.holdDot} />
-                  <Text style={styles.instructionText}>
-                    {settings.language === 'zh' ? "長按聚集" : "Hold to Gather"}
-                  </Text>
-               </View>
-               <View style={styles.instructionRow}>
-                  <ArrowDown size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.instructionText}>
-                    {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
-                  </Text>
-               </View>
-              </View>
-
-              {/* Fallback Button for Gallery */}
-              <TouchableOpacity 
-                style={styles.fallbackButton} 
-                onPress={() => {
-                   enterGalleryMode();
-                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                }}
-                activeOpacity={0.8}
-              >
-                <Archive size={14} color="white" />
-                <Text style={styles.fallbackButtonText}>
-                  {settings.language === 'zh' ? "我的光球" : "My Orbs"}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-          
-          {galleryMode && (
-            <View style={styles.galleryInstructions}>
+        </Canvas>
+        
+        {/* Minimal Progress UI */}
+        <MinimalProgress 
+          ref={progressOverlayRef} 
+          theme={currentTheme} 
+          duration={GATHER_DURATION} 
+        />
+        
+        <View style={styles.instructions}>
+           <View style={styles.instructionRow}>
+              <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
               <Text style={styles.instructionText}>
-                {settings.language === 'zh' ? '捏合放大退出' : 'Pinch out to exit'}
+                {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
               </Text>
-            </View>
-          )}
+           </View>
+           <View style={styles.instructionRow}>
+              <View style={styles.holdDot} />
+              <Text style={styles.instructionText}>
+                {settings.language === 'zh' ? "長按聚集" : "Hold to Gather"}
+              </Text>
+           </View>
+           <View style={styles.instructionRow}>
+              <ArrowDown size={14} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.instructionText}>
+                {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
+              </Text>
+           </View>
         </View>
-      </GestureDetector>
+      </View>
 
       {/* Info Cards */}
       <View style={styles.infoContainer}>
@@ -1321,100 +1103,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#e0e0ff',
   },
-  mainOrbContainer: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  galleryContainer: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: '100%', // Full width for better centering
-    paddingTop: 60,
-    paddingBottom: 60,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)', // Darker background for focus
-    zIndex: 20,
-  },
-  galleryTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-    textShadowColor: 'rgba(139, 92, 246, 0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  galleryScroll: {
-    flex: 1,
-  },
-  galleryOrbContainer: {
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-  },
-  galleryOrbSelected: {
-    transform: [{ scale: 1.05 }],
-  },
-  gallery3DOrb: {
-    width: 200, // Larger orbs
-    height: 200,
-    borderRadius: 100,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-    marginBottom: 20,
-  },
-  gallery3DOrbSelected: {
-    borderWidth: 2,
-    borderColor: '#8b5cf6',
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 15,
-  },
-  galleryOrbDate: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  galleryOrbDateSelected: {
-    color: 'white',
-  },
-  galleryOrbInfo: {
-    fontSize: 16,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  galleryOrbInfoSelected: {
-    color: 'white',
-  },
-  selectionRing: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 3,
-    borderColor: '#8b5cf6',
-    top: '50%',
-    marginTop: -130, // Adjust based on layout
-  },
-  galleryHint: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  galleryInstructions: {
-    position: 'absolute',
-    bottom: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
   gardenListContainer: {
     paddingVertical: 10,
     borderTopWidth: 1,
@@ -1580,38 +1268,5 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  fallbackButton: {
-    position: 'absolute',
-    bottom: 60,
-    right: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.3)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.5)',
-    gap: 6,
-  },
-  fallbackButtonText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pinchRing: {
-    position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 2,
-    borderColor: '#a78bfa',
-    top: '50%',
-    left: '50%',
-    marginTop: -125,
-    marginLeft: -125,
-    opacity: 0.6,
-    borderStyle: 'dashed',
   },
 });
