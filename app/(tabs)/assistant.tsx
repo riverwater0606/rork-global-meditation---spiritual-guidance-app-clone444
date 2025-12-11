@@ -329,7 +329,7 @@ The script should be 200-300 words. Use plain text.`
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={[styles.messagesContent, { paddingBottom: 220 + insets.bottom }]}
+          contentContainerStyle={[styles.messagesContent, { paddingBottom: insets.bottom + 16 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -432,7 +432,7 @@ The script should be 200-300 words. Use plain text.`
           </View>
         )}
 
-        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border, paddingBottom: insets.bottom }]}>
+        <View style={[styles.inputContainer, { backgroundColor: currentTheme.surface, borderTopColor: currentTheme.border, paddingBottom: insets.bottom + 8 }]}>
           <TextInput
             style={[styles.input, { backgroundColor: currentTheme.background, color: currentTheme.text }]}
             value={inputText}
