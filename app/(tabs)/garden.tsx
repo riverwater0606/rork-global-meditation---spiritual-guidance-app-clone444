@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -456,12 +456,16 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
 };
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const COLLAPSED_HEIGHT = 240; // Approx height of the footer area
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
+  
+  // Dynamic collapsed height based on safe area
+  const collapsedHeight = 90 + insets.bottom;
+  const collapsedHeightRef = useRef(collapsedHeight);
+  
   const { 
     currentOrb, 
     sendOrb, 
@@ -479,7 +483,21 @@ export default function GardenScreen() {
   } = useMeditation();
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const panelHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
+  // Initialize with the calculated collapsed height
+  const panelHeight = useRef(new Animated.Value(collapsedHeight)).current;
+
+  // Update ref when insets change
+  useEffect(() => {
+    collapsedHeightRef.current = collapsedHeight;
+    // If not expanded, adjust the height to match new insets (e.g. rotation)
+    if (!isExpanded) {
+      Animated.timing(panelHeight, {
+        toValue: collapsedHeight,
+        duration: 0,
+        useNativeDriver: false
+      }).start();
+    }
+  }, [collapsedHeight, isExpanded, panelHeight]);
   
   const panelPanResponder = useRef(
     PanResponder.create({
@@ -507,10 +525,11 @@ export default function GardenScreen() {
         const currentHeight = (panelHeight as any)._value;
         const draggingUp = -gestureState.dy > 0;
         const velocityUp = -gestureState.vy > 0.5;
+        const currentCollapsedHeight = collapsedHeightRef.current;
         
         // Logic to snap to Open or Closed
         // If dragged up significantly or fast -> Expand
-        if ((draggingUp && currentHeight > COLLAPSED_HEIGHT + 50) || velocityUp) {
+        if ((draggingUp && currentHeight > currentCollapsedHeight + 50) || velocityUp) {
            Animated.spring(panelHeight, {
              toValue: EXPANDED_HEIGHT,
              useNativeDriver: false,
@@ -519,7 +538,7 @@ export default function GardenScreen() {
         } else {
            // Collapse
            Animated.spring(panelHeight, {
-             toValue: COLLAPSED_HEIGHT,
+             toValue: currentCollapsedHeight,
              useNativeDriver: false,
              bounciness: 4
            }).start(() => setIsExpanded(false));
@@ -533,7 +552,7 @@ export default function GardenScreen() {
     // Auto collapse after selection if expanded
     if (isExpanded) {
       Animated.timing(panelHeight, {
-        toValue: COLLAPSED_HEIGHT,
+        toValue: collapsedHeightRef.current,
         duration: 300,
         easing: Easing.out(Easing.ease),
         useNativeDriver: false
@@ -981,7 +1000,7 @@ export default function GardenScreen() {
       </View>
       
       {/* Spacer to prevent content from being hidden behind absolute panel */}
-      <View style={{ height: COLLAPSED_HEIGHT }} />
+      <View style={{ height: collapsedHeight }} />
 
       {/* Draggable Collection List */}
       <Animated.View 
