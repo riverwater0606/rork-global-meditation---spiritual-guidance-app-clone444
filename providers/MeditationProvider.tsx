@@ -42,7 +42,6 @@ export interface Orb {
   message?: string;
   lastLayerAddedAt?: string;
   shape?: OrbShape;
-  snapshot?: string; // Base64 image
 }
 
 export const CHAKRA_COLORS = [
@@ -422,24 +421,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
   };
 
-  const updateOrbSnapshot = async (orbId: string, snapshot: string) => {
-    // Update if it's current orb
-    if (currentOrb.id === orbId) {
-       const updated = { ...currentOrb, snapshot };
-       setCurrentOrb(updated);
-       await AsyncStorage.setItem("currentOrb", JSON.stringify(updated));
-    }
-    
-    // Update if it's in history
-    const historyIndex = orbHistory.findIndex(o => o.id === orbId);
-    if (historyIndex !== -1) {
-       const newHistory = [...orbHistory];
-       newHistory[historyIndex] = { ...newHistory[historyIndex], snapshot };
-       setOrbHistory(newHistory);
-       await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
-    }
-  };
-
   return {
     stats,
     achievements,
@@ -461,7 +442,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     storeOrb,
     swapOrb,
     setOrbShape,
-    updateOrbSnapshot,
     sharedSpinVelocity,
     setSharedSpinVelocity,
   };

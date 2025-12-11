@@ -1,24 +1,16 @@
-import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, Platform } from "react-native";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { GLView } from 'expo-gl';
-import { Image } from 'expo-image';
-import { useThree } from "@react-three/fiber";
-import { useMeditation, OrbShape, Orb } from "@/providers/MeditationProvider";
+import { useMeditation, OrbShape } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
-import { Orb3DPreview } from "@/components/Orb3DPreview";
-import { OrbPreview } from "@/components/OrbPreview";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -57,43 +49,6 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
   );
 });
 MinimalProgress.displayName = "MinimalProgress";
-
-// Snapshot Manager Component
-const SnapshotManager = ({ 
-  orbId, 
-  onSnapshot 
-}: { 
-  orbId: string, 
-  onSnapshot: (id: string, uri: string) => void 
-}) => {
-  const { gl } = useThree();
-  
-  useEffect(() => {
-    // Wait for scene to stabilize and particles to form
-    const timer = setTimeout(async () => {
-      try {
-        // Take high quality snapshot
-        // Access underlying WebGL context from Three.js renderer
-        const context = gl.getContext() as any; 
-        
-        const result = await GLView.takeSnapshotAsync(context, {
-          format: 'png',
-          result: 'data-uri'
-        } as any);
-        
-        if (result && result.uri) {
-          onSnapshot(orbId, result.uri as string);
-        }
-      } catch (e) {
-        console.warn("Snapshot failed", e);
-      }
-    }, 2000); // 2 seconds delay to ensure good render
-    
-    return () => clearTimeout(timer);
-  }, [orbId, gl]);
-  
-  return null;
-};
 
 // Orb Component with Sacred Geometry
 const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
@@ -515,7 +470,6 @@ export default function GardenScreen() {
     devInstantOrb, 
     devResetOrb, 
     devSendOrbToSelf,
-    updateOrbSnapshot,
     setOrbShape,
     setSharedSpinVelocity 
   } = useMeditation();
@@ -533,45 +487,6 @@ export default function GardenScreen() {
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const orbShape = currentOrb.shape || 'default';
-
-  const [sceneLayout, setSceneLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  const [flyingOrb, setFlyingOrb] = useState<{ orb: Orb, startX: number, startY: number } | null>(null);
-  const flyAnim = useRef(new Animated.Value(0)).current;
-  const mainOrbScale = useRef(new Animated.Value(1)).current;
-
-  const handleSelectOrbFromBar = (orb: Orb, startX: number, startY: number) => {
-    if (orb.id === currentOrb.id) return; 
-    
-    setFlyingOrb({ orb, startX, startY });
-    flyAnim.setValue(0);
-    
-    Animated.parallel([
-      Animated.timing(flyAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.back(1)),
-      }),
-      Animated.timing(mainOrbScale, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      })
-    ]).start(async () => {
-      await swapOrb(orb.id);
-      setFlyingOrb(null);
-      Animated.timing(mainOrbScale, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-        easing: Easing.elastic(1),
-      }).start();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    });
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  };
-
 
   const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
@@ -784,7 +699,23 @@ export default function GardenScreen() {
     );
   };
 
-
+  const handleSwapOrb = async (orb: any) => {
+     // Direct swap without alert for smoother experience
+     animateStore(); // Animate current one away
+     
+     setTimeout(async () => {
+       // While swapping, keep mode as store (or 'appear' logic in component will handle init)
+       await swapOrb(orb.id);
+       
+       // Trigger appear
+       interactionState.current.mode = 'appear';
+       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+       
+       setTimeout(() => {
+         interactionState.current.mode = 'idle';
+       }, 1500);
+     }, 2000);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -882,16 +813,7 @@ export default function GardenScreen() {
       </Modal>
 
       {/* Main Interaction Area */}
-      <View 
-        style={styles.sceneContainer} 
-        onLayout={(e) => {
-          e.target.measure((x, y, width, height, pageX, pageY) => {
-            setSceneLayout({ x: pageX, y: pageY, width, height });
-          });
-        }}
-        {...panResponder.panHandlers}
-      >
-
+      <View style={styles.sceneContainer} {...panResponder.panHandlers}>
         <TouchableOpacity
           style={styles.shapeButton}
           onPress={() => setShowShapeSelector(true)}
@@ -913,23 +835,15 @@ export default function GardenScreen() {
           </TouchableOpacity>
         )}
 
-        <Animated.View style={{ flex: 1, transform: [{ scale: mainOrbScale }] }}>
-          <Canvas camera={{ position: [0, 0, 4] }}>
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
-            <OrbParticles 
-              layers={currentOrb.layers} 
-              interactionState={interactionState}
-              shape={orbShape}
-            />
-            {/* Automatic Snapshotter */}
-            <SnapshotManager 
-              orbId={currentOrb.id} 
-              onSnapshot={updateOrbSnapshot} 
-            />
-          </Canvas>
-        </Animated.View>
-
+        <Canvas camera={{ position: [0, 0, 4] }}>
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} />
+          <OrbParticles 
+            layers={currentOrb.layers} 
+            interactionState={interactionState}
+            shape={orbShape}
+          />
+        </Canvas>
         
         {/* Minimal Progress UI */}
         <MinimalProgress 
@@ -985,83 +899,55 @@ export default function GardenScreen() {
           </View>
       </View>
 
-      {/* Garden Collection Bar */}
-      <View style={styles.gardenBarContainer}>
-        <View style={styles.barBlur} />
-        <Text style={styles.barTitle}>
-          {settings.language === 'zh' ? "光球收藏" : "Orb Collection"}
-        </Text>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.gardenBarContent}
-        >
-          {orbHistory.map((orb, index) => {
-            const isSelected = currentOrb.id === orb.id;
-            return (
-              <TouchableOpacity
-                key={orb.id || index}
-                style={[
-                  styles.miniOrbItem,
-                  isSelected && styles.miniOrbSelected
-                ]}
-                onPress={(e) => {
-                  const { pageX, pageY } = e.nativeEvent;
-                  handleSelectOrbFromBar(orb, pageX - 40, pageY - 40); 
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.miniOrbWrapper}>
-                   {orb.snapshot ? (
-                     <Image 
-                       source={{ uri: orb.snapshot }} 
-                       style={{ width: '100%', height: '100%', borderRadius: 50 }}
-                       contentFit="cover"
-                       transition={200}
-                     />
-                   ) : (
-                     <OrbPreview 
-                       orb={orb} 
-                       size={isSelected ? 100 : 80} 
-                       showInfo={false}
-                       theme={currentTheme}
-                       language={settings.language}
-                     />
-                   )}
-                </View>
-                {isSelected && <View style={styles.selectedRing} />}
-              </TouchableOpacity>
-            );
-          })}
+      {/* Collection List */}
+      <View style={styles.gardenListContainer}>
+        <View style={styles.collectionHeader}>
+          <Archive size={18} color={currentTheme.text} />
+          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
+            {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+          </Text>
+        </View>
+        
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
+           {orbHistory.length === 0 ? (
+             <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
+               {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
+             </Text>
+           ) : (
+             orbHistory.map((orb, index) => (
+               <TouchableOpacity 
+                  key={orb.id || index} 
+                  style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}
+                  onPress={() => handleSwapOrb(orb)}
+               >
+                 <View style={styles.orbPreview}>
+                    {orb.layers.map((color, i) => (
+                      <View 
+                        key={i} 
+                        style={[
+                          styles.orbLayer, 
+                          { 
+                            backgroundColor: color, 
+                            width: 10 + (i * 4), 
+                            height: 10 + (i * 4),
+                            opacity: 0.8
+                          } 
+                        ]} 
+                      />
+                    ))}
+                    {orb.layers.length === 0 && <View style={[styles.orbLayer, { backgroundColor: '#ccc', width: 20, height: 20 }]} />}
+                 </View>
+                 <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
+                   {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                 </Text>
+                 <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
+                   {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
+                 </Text>
+               </TouchableOpacity>
+             ))
+           )}
         </ScrollView>
       </View>
-
-      {/* Flying Orb Animation Layer */}
-      {flyingOrb && (
-        <Animated.View 
-          style={[
-            styles.flyingOrb,
-            {
-              left: flyAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [flyingOrb.startX, sceneLayout.x + sceneLayout.width / 2 - 100] 
-              }),
-              top: flyAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [flyingOrb.startY, sceneLayout.y + sceneLayout.height / 2 - 100]
-              }),
-              transform: [
-                { scale: flyAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.5] }) }
-              ],
-              opacity: flyAnim.interpolate({ inputRange: [0, 0.9, 1], outputRange: [1, 1, 0] })
-            }
-          ]}
-          pointerEvents="none"
-        >
-           <Orb3DPreview orb={flyingOrb.orb} size={200} />
-           <View style={styles.flyingTrail} />
-        </Animated.View>
-      )}
     </View>
   );
 }
@@ -1100,7 +986,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,20,40,0.4)',
     marginHorizontal: 20,
     borderRadius: 24,
-    marginBottom: 20, // Space for bottom bar
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 0.5,
@@ -1218,86 +1103,66 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#e0e0ff',
   },
-  gardenBarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '30%',
-    justifyContent: 'flex-end',
-    paddingBottom: 20,
-    zIndex: 20,
-  },
-  barBlur: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+  gardenListContainer: {
+    paddingVertical: 10,
     borderTopWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    borderTopColor: 'rgba(139,92,246,0.2)',
+    paddingBottom: 100,
   },
-  barTitle: {
-    position: 'absolute',
-    top: 15,
-    left: 20,
-    color: '#aaa',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  gardenBarContent: {
-    paddingHorizontal: 20,
+  collectionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 30, 
-    gap: 16,
+    marginLeft: 20,
+    marginBottom: 10,
+    gap: 8,
   },
-  miniOrbItem: {
-    width: 80,
-    height: 80,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '900' as const,
+    color: '#e0e0ff',
+    letterSpacing: 0.5,
+  },
+  gardenList: {
+    paddingHorizontal: 15,
+  },
+  orbCard: {
+    width: 90,
+    height: 110,
+    borderRadius: 16,
+    marginHorizontal: 5,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  miniOrbSelected: {
-    width: 100,
-    height: 100,
-  },
-  miniOrbWrapper: {
-    width: '100%',
-    height: '100%',
-  },
-  selectedRing: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
+    padding: 10,
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
     borderColor: '#8b5cf6',
     shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  flyingOrb: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    zIndex: 1000,
+  orbPreview: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  flyingTrail: {
+  orbLayer: {
     position: 'absolute',
-    top: 50, left: 50,
-    width: 100, height: 100,
-    borderRadius: 50,
-    backgroundColor: '#8b5cf6',
-    opacity: 0.3,
-    transform: [{ scale: 1.5 }],
-    zIndex: -1,
+    borderRadius: 999,
+  },
+  orbDate: {
+    fontSize: 10,
+    marginBottom: 4,
+    color: '#b0b0ff',
+  },
+  orbSender: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    maxWidth: '100%',
+    color: '#e0e0ff',
   },
   devButton: {
     backgroundColor: '#333',
