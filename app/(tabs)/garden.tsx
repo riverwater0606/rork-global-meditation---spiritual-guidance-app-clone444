@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, Animated, Dimensions } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, Animated, Dimensions, FlatList } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
@@ -523,7 +523,7 @@ export default function GardenScreen() {
         friction: 8
       }),
       Animated.spring(orbPositionXAnim, {
-        toValue: -Dimensions.get('window').width * 0.25,
+        toValue: -Dimensions.get('window').width * 0.5, // Move further left
         useNativeDriver: true,
         friction: 8
       }),
@@ -563,46 +563,27 @@ export default function GardenScreen() {
   }, [galleryMode]);
 
   // Switch to selected orb
-  const switchToGalleryOrb = useCallback((index: number) => {
-    if (index < 0 || index >= orbHistory.length) return;
-    
-    const selectedOrb = orbHistory[index];
-    const width = Dimensions.get('window').width;
-
+  const handleSelectOrb = useCallback((orb: any) => {
     // 1. Instant State Swap
-    // We don't await because we want immediate UI feedback
-    // The provider will handle the state update which triggers re-render
-    swapOrb(selectedOrb.id);
+    // NO async, NO await, NO delay
+    swapOrb(orb.id);
     
     // 2. Instant Gallery Exit
     setGalleryMode(false);
     
     // 3. Reset Physics/Interaction State
     interactionState.current.mode = 'idle';
-    interactionState.current.spinVelocity = 0.05; // Give it a little spin
-    
-    // 4. Animate New Orb Entrance (Fly in from Right)
-    // Start from the gallery position (Right side)
-    orbPositionXAnim.setValue(width * 0.4);
+    interactionState.current.spinVelocity = 0.05;
+
+    // 4. Animation: Scale from 0.3 to 1.0 (Spring)
     orbScaleAnim.setValue(0.3);
-    
-    // Spring to Center
-    Animated.parallel([
-      Animated.spring(orbPositionXAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 15,
-        stiffness: 120,
-        mass: 0.8
-      }),
-      Animated.spring(orbScaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        damping: 15,
-        stiffness: 100,
-        mass: 0.8
-      })
-    ]).start();
+    Animated.spring(orbScaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 15,
+      stiffness: 120,
+      mass: 0.8
+    }).start();
 
     // 5. Visual Effects
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -615,7 +596,7 @@ export default function GardenScreen() {
       }, 800);
     });
 
-  }, [orbHistory, swapOrb]);
+  }, [swapOrb]);
 
   // Gestures
   const pinchGesture = Gesture.Pinch()
@@ -994,57 +975,60 @@ export default function GardenScreen() {
               <Text style={styles.galleryTitle}>
                 {settings.language === 'zh' ? '選擇光球' : 'Choose Orb'}
               </Text>
-              <ScrollView 
-                horizontal 
+              <FlatList
+                data={orbHistory}
+                horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(e) => {
-                  const index = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width * 0.6 * 0.5));
-                  setSelectedGalleryIndex(Math.max(0, Math.min(index, orbHistory.length - 1)));
-                }}
-                style={styles.galleryScroll}
-              >
-                {orbHistory.map((orb, index) => {
-                  const isSelected = index === selectedGalleryIndex;
-                  return (
+                keyExtractor={(item) => item.id}
+                snapToAlignment="center"
+                snapToInterval={Dimensions.get('window').width * 0.7}
+                decelerationRate="fast"
+                contentContainerStyle={{ paddingHorizontal: Dimensions.get('window').width * 0.15 }}
+                renderItem={({ item: orb, index }) => {
+                   // Calculate if selected based on visible index? 
+                   // For now simple click to select.
+                   // Or visual selection.
+                   const isSelected = selectedGalleryIndex === index;
+                   
+                   return (
                     <TouchableOpacity
-                      key={orb.id}
                       style={[
                         styles.galleryOrbContainer,
+                        { width: Dimensions.get('window').width * 0.7 },
                         isSelected && styles.galleryOrbSelected
                       ]}
-                      onPress={() => {
-                        setSelectedGalleryIndex(index);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                      onLongPress={() => switchToGalleryOrb(index)}
+                      onPress={() => handleSelectOrb(orb)}
+                      activeOpacity={0.9}
                     >
                       <View style={[styles.gallery3DOrb, isSelected && styles.gallery3DOrbSelected]}>
-                        <Canvas camera={{ position: [0, 0, 3] }}>
+                        <Canvas camera={{ position: [0, 0, 3] }} dpr={[1, 2]}>
                           <ambientLight intensity={0.5} />
                           <pointLight position={[5, 5, 5]} />
                           <OrbParticles 
                             layers={orb.layers} 
                             interactionState={{ current: { mode: 'idle', spinVelocity: 0.005, progress: 0 } }}
                             shape={orb.shape || 'default'}
-                            scale={0.8}
-                            brightness={isSelected ? 1 : 0.8}
+                            scale={isSelected ? 1.0 : 0.8}
+                            brightness={isSelected ? 1 : 0.7}
                           />
                         </Canvas>
                       </View>
+                      {isSelected && <View style={styles.selectionRing} />}
                       <Text style={[styles.galleryOrbDate, isSelected && styles.galleryOrbDateSelected]}>
                         {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       </Text>
                       <Text style={[styles.galleryOrbInfo, isSelected && styles.galleryOrbInfoSelected]} numberOfLines={1}>
                         {orb.sender || (settings.language === 'zh' ? '我自己' : 'Me')}
                       </Text>
-                      {isSelected && (
-                        <View style={styles.selectionRing} />
-                      )}
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                   );
+                }}
+                onMomentumScrollEnd={(e) => {
+                  const index = Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width * 0.7));
+                  setSelectedGalleryIndex(index);
+                }}
+              />
               <Text style={styles.galleryHint}>
                 {settings.language === 'zh' ? '長按選中的光球切換' : 'Long press to switch'}
               </Text>
@@ -1347,13 +1331,15 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: '65%',
+    width: '100%', // Full width for better centering
     paddingTop: 60,
     paddingBottom: 60,
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.8)', // Darker background for focus
+    zIndex: 20,
   },
   galleryTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 20,
@@ -1365,22 +1351,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   galleryOrbContainer: {
-    width: Dimensions.get('window').width * 0.6 * 0.5,
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
   },
   galleryOrbSelected: {
-    transform: [{ scale: 1.1 }],
+    transform: [{ scale: 1.05 }],
   },
   gallery3DOrb: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 200, // Larger orbs
+    height: 200,
+    borderRadius: 100,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    marginBottom: 12,
+    backgroundColor: 'transparent',
+    marginBottom: 20,
   },
   gallery3DOrbSelected: {
     borderWidth: 2,
@@ -1391,38 +1376,37 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
   },
   galleryOrbDate: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
     marginBottom: 4,
+    fontWeight: '500',
   },
   galleryOrbDateSelected: {
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: 'bold',
+    color: 'white',
   },
   galleryOrbInfo: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-  },
-  galleryOrbInfoSelected: {
+    fontSize: 16,
     color: 'white',
     fontWeight: 'bold',
   },
+  galleryOrbInfoSelected: {
+    color: 'white',
+  },
   selectionRing: {
     position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     borderWidth: 3,
     borderColor: '#8b5cf6',
     top: '50%',
-    marginTop: -90,
+    marginTop: -130, // Adjust based on layout
   },
   galleryHint: {
-    fontSize: 11,
+    fontSize: 14,
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 20,
     paddingHorizontal: 20,
   },
   galleryInstructions: {
