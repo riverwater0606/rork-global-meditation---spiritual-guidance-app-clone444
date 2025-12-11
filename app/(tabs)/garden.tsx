@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -455,6 +455,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
   );
 };
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const COLLAPSED_HEIGHT = 240; // Approx height of the footer area
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
+
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
@@ -473,6 +477,70 @@ export default function GardenScreen() {
     setOrbShape,
     setSharedSpinVelocity 
   } = useMeditation();
+  
+  const [isExpanded, setIsExpanded] = useState(false);
+  const panelHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
+  
+  const panelPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Capture vertical movements on the header
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        panelHeight.setOffset((panelHeight as any)._value);
+        panelHeight.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Dragging UP is negative dy. We want to increase height.
+        // newHeight = offset + (-dy)
+        // We invert dy so dragging up increases value
+        const dy = -gestureState.dy;
+        
+        // Simple bounds check during drag (optional, but good for UX)
+        // We let it be flexible and snap later
+        panelHeight.setValue(dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        panelHeight.flattenOffset();
+        const currentHeight = (panelHeight as any)._value;
+        const draggingUp = -gestureState.dy > 0;
+        const velocityUp = -gestureState.vy > 0.5;
+        
+        // Logic to snap to Open or Closed
+        // If dragged up significantly or fast -> Expand
+        if ((draggingUp && currentHeight > COLLAPSED_HEIGHT + 50) || velocityUp) {
+           Animated.spring(panelHeight, {
+             toValue: EXPANDED_HEIGHT,
+             useNativeDriver: false,
+             bounciness: 4
+           }).start(() => setIsExpanded(true));
+        } else {
+           // Collapse
+           Animated.spring(panelHeight, {
+             toValue: COLLAPSED_HEIGHT,
+             useNativeDriver: false,
+             bounciness: 4
+           }).start(() => setIsExpanded(false));
+        }
+      }
+    })
+  ).current;
+
+  const handleOrbSelect = (orb: any) => {
+    handleSwapOrb(orb);
+    // Auto collapse after selection if expanded
+    if (isExpanded) {
+      Animated.timing(panelHeight, {
+        toValue: COLLAPSED_HEIGHT,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: false
+      }).start(() => setIsExpanded(false));
+    }
+  };
+
   
   const { walletAddress } = useUser();
   
@@ -911,19 +979,47 @@ export default function GardenScreen() {
              </Text>
           </View>
       </View>
+      
+      {/* Spacer to prevent content from being hidden behind absolute panel */}
+      <View style={{ height: COLLAPSED_HEIGHT }} />
 
-      {/* Collection List */}
-      <View style={styles.gardenListContainer}>
-        <View style={styles.collectionHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-            <Archive size={18} color={currentTheme.text} />
-            <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-              {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+      {/* Draggable Collection List */}
+      <Animated.View 
+        style={[
+          styles.gardenListContainer, 
+          { 
+            height: panelHeight,
+            backgroundColor: currentTheme.background, // Ensure opaque background
+            // Add shadow for "sheet" feel
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 5,
+            elevation: 20,
+            paddingBottom: insets.bottom // Use safe area for bottom
+          }
+        ]}
+      >
+        {/* Draggable Header Area (Handle + Title) */}
+        <View 
+          {...panelPanResponder.panHandlers}
+          style={{ width: '100%', backgroundColor: 'transparent' }}
+        >
+          <View style={styles.dragHandleContainer}>
+            <View style={styles.dragHandle} />
+          </View>
+
+          <View style={styles.collectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Archive size={18} color={currentTheme.text} />
+              <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
+                {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+              </Text>
+            </View>
+            <Text style={[styles.progressText, { color: currentTheme.primary }]}>
+              {collectedCount}/7
             </Text>
           </View>
-          <Text style={[styles.progressText, { color: currentTheme.primary }]}>
-            {collectedCount}/7
-          </Text>
         </View>
         
         {/* Chakra Progress Bar */}
@@ -950,46 +1046,94 @@ export default function GardenScreen() {
           })}
         </View>
         
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
-           {orbHistory.length === 0 ? (
-             <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
-               {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
-             </Text>
-           ) : (
-             orbHistory.map((orb, index) => (
-               <TouchableOpacity 
-                  key={orb.id || index} 
-                  style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}
-                  onPress={() => handleSwapOrb(orb)}
-               >
-                 <View style={styles.orbPreview}>
-                    {orb.layers.map((color, i) => (
-                      <View 
-                        key={i} 
-                        style={[
-                          styles.orbLayer, 
-                          { 
-                            backgroundColor: color, 
-                            width: 10 + (i * 4), 
-                            height: 10 + (i * 4),
-                            opacity: 0.8
-                          } 
-                        ]} 
-                      />
-                    ))}
-                    {orb.layers.length === 0 && <View style={[styles.orbLayer, { backgroundColor: '#ccc', width: 20, height: 20 }]} />}
-                 </View>
-                 <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
-                   {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                 </Text>
-                 <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
-                   {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
-                 </Text>
-               </TouchableOpacity>
-             ))
-           )}
-        </ScrollView>
-      </View>
+        {isExpanded ? (
+          // GRID VIEW (Expanded)
+          <ScrollView 
+            style={styles.gardenList} 
+            contentContainerStyle={{ paddingBottom: 100, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}
+          >
+             {orbHistory.length === 0 ? (
+               <Text style={{ color: currentTheme.textSecondary, padding: 20, width: '100%', textAlign: 'center' }}>
+                 {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
+               </Text>
+             ) : (
+               orbHistory.map((orb, index) => (
+                 <TouchableOpacity 
+                    key={orb.id || index} 
+                    style={[styles.orbCard, { backgroundColor: currentTheme.surface, margin: 8 }]}
+                    onPress={() => handleOrbSelect(orb)}
+                 >
+                   <View style={styles.orbPreview}>
+                      {orb.layers.map((color, i) => (
+                        <View 
+                          key={i} 
+                          style={[
+                            styles.orbLayer, 
+                            { 
+                              backgroundColor: color, 
+                              width: 10 + (i * 4), 
+                              height: 10 + (i * 4),
+                              opacity: 0.8
+                            } 
+                          ]} 
+                        />
+                      ))}
+                      {orb.layers.length === 0 && <View style={[styles.orbLayer, { backgroundColor: '#ccc', width: 20, height: 20 }]} />}
+                   </View>
+                   <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
+                     {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                   </Text>
+                   <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
+                     {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
+                   </Text>
+                 </TouchableOpacity>
+               ))
+             )}
+          </ScrollView>
+        ) : (
+          // HORIZONTAL LIST (Collapsed)
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
+             {orbHistory.length === 0 ? (
+               <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
+                 {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
+               </Text>
+             ) : (
+               orbHistory.map((orb, index) => (
+                 <TouchableOpacity 
+                    key={orb.id || index} 
+                    style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}
+                    onPress={() => handleOrbSelect(orb)}
+                 >
+                   <View style={styles.orbPreview}>
+                      {orb.layers.map((color, i) => (
+                        <View 
+                          key={i} 
+                          style={[
+                            styles.orbLayer, 
+                            { 
+                              backgroundColor: color, 
+                              width: 10 + (i * 4), 
+                              height: 10 + (i * 4),
+                              opacity: 0.8
+                            } 
+                          ]} 
+                        />
+                      ))}
+                      {orb.layers.length === 0 && <View style={[styles.orbLayer, { backgroundColor: '#ccc', width: 20, height: 20 }]} />}
+                   </View>
+                   <Text style={[styles.orbDate, { color: currentTheme.textSecondary }]}>
+                     {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                   </Text>
+                   <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
+                     {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
+                   </Text>
+                 </TouchableOpacity>
+               ))
+             )}
+          </ScrollView>
+        )}
+      </Animated.View>
+
     </View>
   );
 }
@@ -1178,10 +1322,28 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   gardenListContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(139,92,246,0.2)',
-    paddingBottom: 100,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  dragHandleContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: -10, // Pull up to overlap with padding
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.3)',
   },
   collectionHeader: {
     flexDirection: 'row',
