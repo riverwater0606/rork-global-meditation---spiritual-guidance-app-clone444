@@ -1111,7 +1111,12 @@ export default function GardenScreen() {
           </ScrollView>
         ) : (
           // HORIZONTAL LIST (Collapsed)
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.gardenList}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          >
              {orbHistory.length === 0 ? (
                <Text style={{ color: currentTheme.textSecondary, padding: 20 }}>
                  {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
