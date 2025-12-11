@@ -1,9 +1,12 @@
-import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, Platform } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { GLView } from 'expo-gl';
+import { Image } from 'expo-image';
+import { useThree } from "@react-three/fiber";
 import { useMeditation, OrbShape, Orb } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
@@ -12,6 +15,7 @@ import { Clock, Zap, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 import { Orb3DPreview } from "@/components/Orb3DPreview";
+import { OrbPreview } from "@/components/OrbPreview";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -53,6 +57,43 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
   );
 });
 MinimalProgress.displayName = "MinimalProgress";
+
+// Snapshot Manager Component
+const SnapshotManager = ({ 
+  orbId, 
+  onSnapshot 
+}: { 
+  orbId: string, 
+  onSnapshot: (id: string, uri: string) => void 
+}) => {
+  const { gl } = useThree();
+  
+  useEffect(() => {
+    // Wait for scene to stabilize and particles to form
+    const timer = setTimeout(async () => {
+      try {
+        // Take high quality snapshot
+        // Access underlying WebGL context from Three.js renderer
+        const context = gl.getContext() as any; 
+        
+        const result = await GLView.takeSnapshotAsync(context, {
+          format: 'png',
+          result: 'data-uri'
+        } as any);
+        
+        if (result && result.uri) {
+          onSnapshot(orbId, result.uri as string);
+        }
+      } catch (e) {
+        console.warn("Snapshot failed", e);
+      }
+    }, 2000); // 2 seconds delay to ensure good render
+    
+    return () => clearTimeout(timer);
+  }, [orbId, gl]);
+  
+  return null;
+};
 
 // Orb Component with Sacred Geometry
 const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
@@ -474,6 +515,7 @@ export default function GardenScreen() {
     devInstantOrb, 
     devResetOrb, 
     devSendOrbToSelf,
+    updateOrbSnapshot,
     setOrbShape,
     setSharedSpinVelocity 
   } = useMeditation();
@@ -880,6 +922,11 @@ export default function GardenScreen() {
               interactionState={interactionState}
               shape={orbShape}
             />
+            {/* Automatic Snapshotter */}
+            <SnapshotManager 
+              orbId={currentOrb.id} 
+              onSnapshot={updateOrbSnapshot} 
+            />
           </Canvas>
         </Animated.View>
 
@@ -965,7 +1012,22 @@ export default function GardenScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.miniOrbWrapper}>
-                   <Orb3DPreview orb={orb} size={isSelected ? 100 : 80} />
+                   {orb.snapshot ? (
+                     <Image 
+                       source={{ uri: orb.snapshot }} 
+                       style={{ width: '100%', height: '100%', borderRadius: 50 }}
+                       contentFit="cover"
+                       transition={200}
+                     />
+                   ) : (
+                     <OrbPreview 
+                       orb={orb} 
+                       size={isSelected ? 100 : 80} 
+                       showInfo={false}
+                       theme={currentTheme}
+                       language={settings.language}
+                     />
+                   )}
                 </View>
                 {isSelected && <View style={styles.selectedRing} />}
               </TouchableOpacity>
