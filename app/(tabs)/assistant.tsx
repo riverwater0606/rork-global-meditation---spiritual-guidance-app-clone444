@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#FFFFFF",
     marginHorizontal: 12,

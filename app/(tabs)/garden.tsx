@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape } from "@/providers/MeditationProvider";
@@ -718,24 +719,33 @@ export default function GardenScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.title, { color: currentTheme.text }]}>
-            {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
-          </Text>
-          {isDev && (
-            <TouchableOpacity 
-              style={styles.devButton} 
-              onPress={() => setShowDevMenu(true)}
-            >
-              <Text style={styles.devButtonText}>DEV</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <Text style={[styles.subtitle, { color: currentTheme.textSecondary }]}>
-           {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
-        </Text>
-      </View>
+      <LinearGradient
+        colors={currentTheme.gradient as any}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <SafeAreaView edges={["top"]}>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Text style={styles.title}>
+                {settings.language === 'zh' ? "光球花園" : "Light Orb Garden"}
+              </Text>
+              {isDev && (
+                <TouchableOpacity 
+                  style={styles.devButton} 
+                  onPress={() => setShowDevMenu(true)}
+                >
+                  <Text style={styles.devButtonText}>DEV</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.subtitle}>
+               {currentOrb.layers.length}/7 Layers • {currentOrb.isAwakened ? "Awakened" : "Growing"}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
       {/* Dev Menu */}
       {showDevMenu && (
@@ -947,11 +957,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  headerGradient: {
+    paddingBottom: 20,
+  },
   header: {
-    paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 10,
-    backgroundColor: 'transparent',
+    paddingTop: 20,
   },
   headerTop: {
     flexDirection: 'row',
@@ -961,14 +972,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "900" as const,
-    color: '#e0e0ff',
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 15,
     marginTop: 4,
     fontWeight: '500' as const,
-    color: '#b0b0ff',
+    color: '#E0E7FF',
   },
   sceneContainer: {
     flex: 1,

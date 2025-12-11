@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700" as const,
     color: "#e0e0ff",
     letterSpacing: 0.3,

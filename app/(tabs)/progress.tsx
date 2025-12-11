@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   title: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "900" as const,
     color: "#e0e0ff",
     paddingHorizontal: 20,
