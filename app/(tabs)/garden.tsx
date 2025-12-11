@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useMeditation, OrbShape } from "@/providers/MeditationProvider";
+import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
@@ -476,7 +476,20 @@ export default function GardenScreen() {
   
   const { walletAddress } = useUser();
   
-  // Interaction State
+  // Chakra Collection Logic
+  const collectionProgress = useMemo(() => {
+    // Collect one orb of each level (1-7) to complete the rainbow
+    const stats = new Array(7).fill(false);
+    orbHistory.forEach(orb => {
+       if (orb.level >= 1 && orb.level <= 7) {
+         stats[orb.level - 1] = true; 
+       }
+    });
+    return stats;
+  }, [orbHistory]);
+  
+  const collectedCount = collectionProgress.filter(Boolean).length;
+
   const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
   const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
@@ -902,10 +915,39 @@ export default function GardenScreen() {
       {/* Collection List */}
       <View style={styles.gardenListContainer}>
         <View style={styles.collectionHeader}>
-          <Archive size={18} color={currentTheme.text} />
-          <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
-            {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Archive size={18} color={currentTheme.text} />
+            <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
+              {settings.language === 'zh' ? "花園收藏" : "Garden Collection"}
+            </Text>
+          </View>
+          <Text style={[styles.progressText, { color: currentTheme.primary }]}>
+            {collectedCount}/7
           </Text>
+        </View>
+        
+        {/* Chakra Progress Bar */}
+        <View style={styles.chakraProgressContainer}>
+          {CHAKRA_COLORS.map((color, index) => {
+             const isCollected = collectionProgress[index];
+             return (
+               <View key={index} style={styles.chakraSlot}>
+                 <View 
+                   style={[
+                     styles.chakraDot, 
+                     { 
+                       backgroundColor: isCollected ? color : 'transparent',
+                       borderColor: color,
+                       borderWidth: 1,
+                       opacity: isCollected ? 1 : 0.3
+                     }
+                   ]} 
+                 >
+                   {isCollected && <View style={styles.chakraGlow} />}
+                 </View>
+               </View>
+             );
+          })}
         </View>
         
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gardenList}>
@@ -1102,6 +1144,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#e0e0ff',
+  },
+  chakraProgressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  chakraSlot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 30,
+    height: 30,
+  },
+  chakraDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chakraGlow: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'white',
+    opacity: 0.5,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 20,
   },
   gardenListContainer: {
     paddingVertical: 10,
