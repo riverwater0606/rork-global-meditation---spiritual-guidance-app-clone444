@@ -29,18 +29,7 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
-export type OrbShape = 
-  | 'default' 
-  | 'flower-of-life' 
-  | 'merkaba' 
-  | 'seed-of-life'
-  | 'vesica-piscis'
-  | 'torus'
-  | 'sri-yantra'
-  | 'golden-spiral'
-  | 'vector-equilibrium'
-  | 'metatrons-cube'
-  | 'platonic-solids';
+export type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'mudra' | 'earth';
 
 export interface Orb {
   id: string;

@@ -3,18 +3,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Orb, OrbShape, useMeditation } from '@/providers/MeditationProvider';
-import { 
-  generateMerkabaData,
-  generateSeedOfLifeData,
-  generateVesicaPiscisData,
-  generateTorusData,
-  generateSriYantraData,
-  generateGoldenSpiralData,
-  generateVectorEquilibriumData,
-  generateMetatronsCubeData,
-  generatePlatonicSolidsData,
-  PARTICLE_COUNT 
-} from '@/constants/sacredGeometry';
+import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
 
 interface Orb3DPreviewProps {
   orb: Orb;
@@ -36,7 +25,10 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
       ? layers.map(c => new THREE.Color(c)) 
       : [new THREE.Color("#cccccc")];
     
-    const copyScaledData = (data: { positions: Float32Array; colors: Float32Array }) => {
+    // Generate based on shape
+    if (shape === 'merkaba') {
+      const data = generateMerkabaData();
+      // Scale down to match particleCount
       const scaleFactor = particleCount / PARTICLE_COUNT;
       for (let i = 0; i < particleCount; i++) {
         const srcIdx = Math.floor(i / scaleFactor);
@@ -47,27 +39,30 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
         colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
         colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
       }
-    };
-
-    // Generate based on shape
-    if (shape === 'merkaba') {
-      copyScaledData(generateMerkabaData());
-    } else if (shape === 'seed-of-life') {
-      copyScaledData(generateSeedOfLifeData());
-    } else if (shape === 'vesica-piscis') {
-      copyScaledData(generateVesicaPiscisData());
-    } else if (shape === 'torus') {
-      copyScaledData(generateTorusData());
-    } else if (shape === 'sri-yantra') {
-      copyScaledData(generateSriYantraData());
-    } else if (shape === 'golden-spiral') {
-      copyScaledData(generateGoldenSpiralData());
-    } else if (shape === 'vector-equilibrium') {
-      copyScaledData(generateVectorEquilibriumData());
-    } else if (shape === 'metatrons-cube') {
-      copyScaledData(generateMetatronsCubeData());
-    } else if (shape === 'platonic-solids') {
-      copyScaledData(generatePlatonicSolidsData(0));
+    } else if (shape === 'mudra') {
+      const data = generateMudraData();
+      const scaleFactor = particleCount / PARTICLE_COUNT;
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i / scaleFactor);
+        positions[i * 3] = data.positions[srcIdx * 3];
+        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
+        colors[i * 3] = data.colors[srcIdx * 3];
+        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
+    } else if (shape === 'earth') {
+      const data = generateEarthData();
+      const scaleFactor = particleCount / PARTICLE_COUNT;
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i / scaleFactor);
+        positions[i * 3] = data.positions[srcIdx * 3];
+        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
+        colors[i * 3] = data.colors[srcIdx * 3];
+        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
     } else if (shape === 'flower-of-life') {
       const circleRadius = 0.5;
       const centers: {x:number, y:number}[] = [{x:0,y:0}];
@@ -97,6 +92,43 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
         colors[i*3+1] = 0.5 + Math.random()*0.5;
         colors[i*3+2] = 0.5 + Math.random()*0.5;
       }
+    } else if (shape === 'star-of-david') {
+      const size = 1.2;
+      
+      for(let i=0; i<particleCount; i++) {
+        const isUp = i % 2 === 0;
+        const edge = Math.floor(Math.random() * 3);
+        const t = Math.random();
+        
+        let p1, p2, p3;
+        if (isUp) {
+          p1 = {x:0, y:size};
+          p2 = {x:size*Math.cos(210*Math.PI/180), y:size*Math.sin(210*Math.PI/180)};
+          p3 = {x:size*Math.cos(330*Math.PI/180), y:size*Math.sin(330*Math.PI/180)};
+        } else {
+          p1 = {x:0, y:-size};
+          p2 = {x:size*Math.cos(30*Math.PI/180), y:size*Math.sin(30*Math.PI/180)};
+          p3 = {x:size*Math.cos(150*Math.PI/180), y:size*Math.sin(150*Math.PI/180)};
+        }
+        
+        let A, B;
+        if (edge === 0) { A=p1; B=p2; }
+        else if (edge === 1) { A=p2; B=p3; }
+        else { A=p3; B=p1; }
+        
+        let px = A.x + (B.x - A.x) * t;
+        let py = A.y + (B.y - A.y) * t;
+        const scatter = (Math.random() - 0.5) * 0.05;
+        const z = isUp ? 0.05 : -0.05;
+        
+        positions[i*3] = px + scatter;
+        positions[i*3+1] = py + scatter;
+        positions[i*3+2] = z + (Math.random()-0.5)*0.02;
+
+        colors[i*3] = 0.0;
+        colors[i*3+1] = 0.8 + Math.random()*0.2;
+        colors[i*3+2] = 1.0;
+      }
     } else {
       // Default sphere
       for (let i = 0; i < particleCount; i++) {
@@ -122,10 +154,20 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
   useFrame((state, delta) => {
     if (!pointsRef.current) return;
     
-    let rotationSpeed = 0.001 + sharedSpinVelocity;
+    let rotationSpeed = 0.001;
+    
+    if (shape === 'earth') {
+      const autoSpeed = -0.00116;
+      rotationSpeed = autoSpeed + sharedSpinVelocity;
+    } else if (shape === 'merkaba') {
+      rotationSpeed = 0.001 + sharedSpinVelocity;
+    } else {
+      rotationSpeed = 0.001 + sharedSpinVelocity;
+    }
+    
     pointsRef.current.rotation.y += rotationSpeed;
     
-    if (shape === 'merkaba') {
+    if (shape === 'merkaba' || shape === 'earth') {
       pointsRef.current.rotation.z = 0;
       pointsRef.current.rotation.x = 0;
     }

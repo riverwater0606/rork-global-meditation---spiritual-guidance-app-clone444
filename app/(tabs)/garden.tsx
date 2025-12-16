@@ -7,18 +7,7 @@ import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { 
-  generateMerkabaData, 
-  generateSeedOfLifeData,
-  generateVesicaPiscisData,
-  generateTorusData,
-  generateSriYantraData,
-  generateGoldenSpiralData,
-  generateVectorEquilibriumData,
-  generateMetatronsCubeData,
-  generatePlatonicSolidsData,
-  PARTICLE_COUNT 
-} from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -162,7 +151,58 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       }
     };
 
+    // 2. Star of David (Interlocking Triangles) with Light Beams
+    const generateStarOfDavid = () => {
+       // Two large triangles
+       // T1: Pointing Up. T2: Pointing Down.
+       const size = 1.2;
+       
+       for(let i=0; i<particleCount; i++) {
+         const isUp = i % 2 === 0;
+         // Triangle parametric eq
+         // 3 edges.
+         const edge = Math.floor(Math.random() * 3);
+         const t = Math.random(); // Position on edge
+         
+         let p1, p2, p3;
+         if (isUp) {
+            // Angles: 90, 210, 330
+            p1 = {x:0, y:size};
+            p2 = {x:size*Math.cos(210*Math.PI/180), y:size*Math.sin(210*Math.PI/180)};
+            p3 = {x:size*Math.cos(330*Math.PI/180), y:size*Math.sin(330*Math.PI/180)};
+         } else {
+            // Angles: 30, 150, 270
+            p1 = {x:0, y:-size};
+            p2 = {x:size*Math.cos(30*Math.PI/180), y:size*Math.sin(30*Math.PI/180)};
+            p3 = {x:size*Math.cos(150*Math.PI/180), y:size*Math.sin(150*Math.PI/180)};
+         }
+         
+         let A, B;
+         if (edge === 0) { A=p1; B=p2; }
+         else if (edge === 1) { A=p2; B=p3; }
+         else { A=p3; B=p1; }
+         
+         // Point on edge
+         let px = A.x + (B.x - A.x) * t;
+         let py = A.y + (B.y - A.y) * t;
+         
+         // Add "Beams" effect (particles radiating out or concentrating on lines)
+         // We make the lines thick and glowing
+         const scatter = (Math.random() - 0.5) * 0.05;
+         
+         // Z depth to interlock
+         const z = isUp ? 0.05 : -0.05;
+         
+         targetPositions[i*3] = px + scatter;
+         targetPositions[i*3+1] = py + scatter;
+         targetPositions[i*3+2] = z + (Math.random()-0.5)*0.02;
 
+         // Cyan/Blue colors
+         colors[i*3] = 0.0;
+         colors[i*3+1] = 0.8 + Math.random()*0.2;
+         colors[i*3+2] = 1.0;
+       }
+    };
 
     // 3. Merkaba (Star Tetrahedron)
     const generateMerkaba = () => {
@@ -172,65 +212,17 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
-    // 4. Seed of Life
-    const generateSeedOfLife = () => {
-      const data = generateSeedOfLifeData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
+    // 4. Mudra (Prayer Hands)
+    const generateMudra = () => {
+       const data = generateMudraData();
+       targetPositions.set(data.positions);
+       colors.set(data.colors);
+       groups.set(data.groups);
     };
 
-    // 5. Vesica Piscis
-    const generateVesicaPiscis = () => {
-      const data = generateVesicaPiscisData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 6. Torus
-    const generateTorus = () => {
-      const data = generateTorusData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 7. Sri Yantra
-    const generateSriYantra = () => {
-      const data = generateSriYantraData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 8. Golden Spiral
-    const generateGoldenSpiral = () => {
-      const data = generateGoldenSpiralData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 9. Vector Equilibrium
-    const generateVectorEquilibrium = () => {
-      const data = generateVectorEquilibriumData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 10. Metatron's Cube
-    const generateMetatronsCube = () => {
-      const data = generateMetatronsCubeData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
-    // 11. Platonic Solids Cycle
-    const generatePlatonicSolids = () => {
-      const data = generatePlatonicSolidsData(0);
+    // 5. Earth
+    const generateEarth = () => {
+      const data = generateEarthData();
       targetPositions.set(data.positions);
       colors.set(data.colors);
       groups.set(data.groups);
@@ -271,15 +263,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     // Generate Target Shape based on prop
     if (shape === 'flower-of-life') generateFlowerOfLife();
+    else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
-    else if (shape === 'seed-of-life') generateSeedOfLife();
-    else if (shape === 'vesica-piscis') generateVesicaPiscis();
-    else if (shape === 'torus') generateTorus();
-    else if (shape === 'sri-yantra') generateSriYantra();
-    else if (shape === 'golden-spiral') generateGoldenSpiral();
-    else if (shape === 'vector-equilibrium') generateVectorEquilibrium();
-    else if (shape === 'metatrons-cube') generateMetatronsCube();
-    else if (shape === 'platonic-solids') generatePlatonicSolids();
+    else if (shape === 'mudra') generateMudra();
+    else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -315,12 +302,25 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // Rotation Logic
     let rotationSpeed = 0.001 + spinVelocity;
     
+    // Earth: 90s rotation (approx 0.0011 rad/frame at 60fps) + User Control
+    if (shape === 'earth') {
+       // Auto rotation: 1 rev / 90s (Clockwise from North = Negative Y)
+       // 2PI / (90 * 60) ~= 0.00116
+       const autoSpeed = -0.00116; 
+       rotationSpeed = autoSpeed + spinVelocity;
+    }
+    
     if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
     pointsRef.current.rotation.y += rotationSpeed;
     
-    // Keep certain shapes upright
-    if (shape === 'merkaba') {
+    // Merkaba needs to stay upright (no Z tilt from gestures if we supported them)
+    // Actually standard rotation is only Y.
+    // If we want to allow user to tilt earth? 
+    // For now keep Y rotation.
+    
+    if (shape === 'merkaba' || shape === 'earth') {
        pointsRef.current.rotation.z = 0;
+       // Earth needs to be upright
        pointsRef.current.rotation.x = 0; 
     }
     
@@ -367,27 +367,28 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const rz = tx * sin + tz * cos;
            tx = rx; tz = rz;
          }
-      } else if (shape === 'torus') {
-         // Flow animation
-         const flow = Math.sin(t * 2 + i * 0.01) * 0.03;
-         tx += flow;
-         ty += flow;
-      } else if (shape === 'golden-spiral') {
-         // Pulse from center outward
-         const pulse = 1 + Math.sin(t * 3) * 0.05;
-         tx *= pulse;
-         ty *= pulse;
-      } else if (shape === 'platonic-solids') {
-         // Cycle through shapes over time
-         const cycleT = (t % 50) / 10;
-         const morphProgress = cycleT - Math.floor(cycleT);
-         if (morphProgress < 0.1) {
-           // Morph animation
-           const morphScale = 1 + Math.sin(morphProgress * Math.PI * 10) * 0.2;
-           tx *= morphScale;
-           ty *= morphScale;
-           tz *= morphScale;
+      } else if (shape === 'mudra') {
+         // Breathing Pulse
+         const breath = Math.sin(t * 1.5); // ~4s period
+         const s = 1 + breath * 0.02; 
+         tx *= s; ty *= s; tz *= s;
+         
+         if (groups[i] === 1) { // Chakra
+            // Stronger glow pulse
+            const s2 = 1 + Math.sin(t * 4) * 0.15;
+            tx *= s2; ty *= s2; tz *= s2;
          }
+      } else if (shape === 'earth') {
+          // Earth Animation: 
+          // 1. Slow rotation of the "texture" (points) relative to the frame?
+          // No, we rotate the whole group in the standard rotation logic below.
+          // But user asked for "Unlock rotation... let user control".
+          // And also "90s slow rotation".
+          
+          // If we want the particles to move *on* the sphere while the sphere is static?
+          // No, usually we rotate the sphere container.
+          
+          // Let's handle Earth rotation in the main rotation logic (outside loop)
       } 
 
       // Modifiers based on mode
@@ -587,17 +588,12 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const orbShape = currentOrb.shape || 'default';
 
-  const shapes: { id: OrbShape; name: string; nameZh: string; icon: string }[] = [
+  const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
+    { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
     { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
-    { id: 'seed-of-life', name: 'Seed of Life', nameZh: '種子之生命', icon: '🌱' },
-    { id: 'vesica-piscis', name: 'Vesica Piscis', nameZh: '維西卡魚', icon: '🐟' },
-    { id: 'torus', name: 'Torus', nameZh: '托魯斯環', icon: '🍩' },
-    { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '斯里揚特拉', icon: '🔺' },
-    { id: 'golden-spiral', name: 'Golden Spiral', nameZh: '黃金螺旋', icon: '🌀' },
-    { id: 'vector-equilibrium', name: 'Vector Equilibrium', nameZh: '向量均衡', icon: '⚛️' },
-    { id: 'metatrons-cube', name: "Metatron's Cube", nameZh: '梅塔特隆立方', icon: '🔷' },
-    { id: 'platonic-solids', name: 'Platonic Solids', nameZh: '柏拉圖立體組', icon: '💎' },
+    { id: 'mudra', name: 'Mudra', nameZh: '禪定手印', icon: '🙏' },
+    { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
   // Pan Responder for Gestures
