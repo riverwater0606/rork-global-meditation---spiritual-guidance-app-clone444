@@ -108,263 +108,450 @@ export function generateMerkabaData() {
   return { positions, colors, groups };
 }
 
-// --- MUDRA (Prayer Hands) ---
-export function generateMudraData() {
+// --- SEED OF LIFE (種子之生命) ---
+export function generateSeedOfLifeData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
-
-  const skin = new THREE.Color("#ffcc88");
-  const gold = new THREE.Color("#ffd700");
-
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-     let p = new THREE.Vector3();
-     let c = new THREE.Color();
-     let g = 0;
-
-     if (i < PARTICLE_COUNT * 0.08) {
-        // Heart Chakra Glow
-        g = 1;
-        p = randomInSphere().multiplyScalar(0.15);
-        p.y -= 0.1; // Centered near base of palms
-        c.copy(gold).multiplyScalar(1.2);
-     } else {
-        // Hands
-        g = 0;
-        const isLeft = Math.random() > 0.5;
-        
-        // Model Right Hand roughly
-        // Palm: Flattened sphere
-        // Fingers: 5 cylinders
-        const part = Math.random();
-        
-        let lx = 0, ly = 0, lz = 0;
-
-        if (part < 0.45) {
-           // Palm
-           // x: 0.04..0.12 (thickness), y: -0.25..0, z: -0.1..0.1 (width)
-           // Actually let's map it simpler:
-           // Center (0.08, -0.15, 0)
-           const u = Math.random();
-           const v = Math.random();
-           const theta = 2 * Math.PI * u;
-           const phi = Math.acos(2 * v - 1);
-           
-           // Ellipsoid
-           lx = 0.02 * Math.sin(phi) * Math.cos(theta); // Thickness x
-           ly = 0.12 * Math.sin(phi) * Math.sin(theta); // Height y
-           lz = 0.08 * Math.cos(phi); // Width z
-           
-           lx += 0.05; // Offset from center line
-           ly -= 0.15; // Move down
-           
-           // Palm lines (denser)
-           if (lx < 0.055 && Math.random() < 0.3) {
-              c.setHex(0xffaa55);
-           } else {
-              c.copy(skin);
-           }
-        } else {
-           // Fingers
-           const fIdx = Math.floor(Math.random() * 5); // 0=Thumb, 1=Index...
-           const fT = Math.random(); // Length along finger
-           
-           // Base positions (relative to palm top)
-           // Index (1) to Pinky (4) are in a row at y~0
-           // Thumb (0) is lower and side
-           
-           if (fIdx === 0) { // Thumb
-              const len = 0.1;
-              const angle = Math.PI / 3; // Stick out
-              const r = 0.018;
-              
-              const h = fT * len;
-              lx = 0.08 + Math.cos(angle)*h;
-              ly = -0.15 + Math.sin(angle)*h; // Start from lower palm
-              lz = 0.05 + (Math.random()-0.5)*r;
-              
-              // Add thickness
-              lx += (Math.random()-0.5)*r;
-              ly += (Math.random()-0.5)*r;
-           } else {
-              // Fingers 1-4
-              // Spread Z: -0.06 to 0.06
-              const zBase = ((fIdx - 2.5) * 0.035);
-              let len = 0.16 - Math.abs(fIdx-2.5)*0.02; // Middle longest
-              if (fIdx===4) len *= 0.8;
-              
-              const h = fT * len;
-              const r = 0.014;
-              
-              lx = 0.05 + (Math.random()-0.5)*r;
-              ly = -0.05 + h; // Start near top of palm
-              lz = zBase + (Math.random()-0.5)*r;
-              
-              // Curvature: Bend tips inward (x decreases)
-              lx -= (h*h)*1.5;
-           }
-           c.copy(skin);
-        }
-
-        // Apply
-        p.set(lx, ly, lz);
-        
-        // Mirror if left
-        if (isLeft) {
-           p.x *= -1;
-           // Tenting
-           const ang = 0.15;
-           const cz = Math.cos(ang), sz = Math.sin(ang);
-           const nx = p.x * cz - p.z * sz;
-           const nz = p.x * sz + p.z * cz;
-           p.x = nx - 0.01; // Touch
-           p.z = nz;
-        } else {
-           const ang = -0.15;
-           const cz = Math.cos(ang), sz = Math.sin(ang);
-           const nx = p.x * cz - p.z * sz;
-           const nz = p.x * sz + p.z * cz;
-           p.x = nx + 0.01;
-           p.z = nz;
-        }
-     }
-
-     positions[i*3] = p.x;
-     positions[i*3+1] = p.y;
-     positions[i*3+2] = p.z;
-     colors[i*3] = c.r;
-     colors[i*3+1] = c.g;
-     colors[i*3+2] = c.b;
-     groups[i] = g;
+  
+  const circleRadius = 0.5;
+  const centers = [{ x: 0, y: 0 }];
+  
+  for (let i = 0; i < 6; i++) {
+    const angle = i * Math.PI / 3;
+    centers.push({ x: Math.cos(angle) * circleRadius, y: Math.sin(angle) * circleRadius });
   }
+  
+  const white = new THREE.Color("#ffffff");
+  const gold = new THREE.Color("#ffd700");
+  
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const circleIdx = i % centers.length;
+    const center = centers[circleIdx];
+    const theta = Math.random() * Math.PI * 2;
+    const r = circleRadius * (0.95 + Math.random() * 0.1);
+    
+    const px = center.x + r * Math.cos(theta);
+    const py = center.y + r * Math.sin(theta);
+    const pz = (Math.random() - 0.5) * 0.08;
+    
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+    
+    const c = circleIdx === 0 ? white : new THREE.Color().lerpColors(gold, white, Math.random() * 0.3);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = circleIdx;
+  }
+  
   return { positions, colors, groups };
 }
 
-// --- EARTH ---
-export function generateEarthData() {
+// --- VESICA PISCIS (維西卡魚) ---
+export function generateVesicaPiscisData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
-
-  const R = 1.0;
   
-  // Precompute vectors for caps
-  const landNodes = LAND_CAPS.map(c => ({
-      v: new THREE.Vector3().setFromSphericalCoords(1, (90 - c.lat) * Math.PI/180, (c.lon + 180) * Math.PI/180),
-      // Use cosine of radius. Stricter boundary.
-      minDot: Math.cos(c.r * Math.PI / 180) 
-  }));
-
-  const cityNodes = CITY_CAPS.map(c => ({
-      v: new THREE.Vector3().setFromSphericalCoords(1, (90 - c.lat) * Math.PI/180, (c.lon + 180) * Math.PI/180),
-      minDot: Math.cos(c.r * Math.PI / 180),
-      color: new THREE.Color(c.color)
-  }));
-
-  // Sun direction (Left lit) - Softened for ambient feel since we rotate the earth
-  // const sunDir = new THREE.Vector3(-1, 0.2, 0.5).normalize(); // Removed hard sun to avoid rotating shadows
-
-  // Noise for clouds
-  const isCloud = (p: THREE.Vector3) => {
-     // Simple spatial noise
-     const s = 4.0;
-     const n = Math.sin(p.x*s) * Math.sin(p.y*s*1.5 + p.z*2) * Math.cos(p.z*s);
-     return n > 0.4;
-  };
-
+  const circleRadius = 0.6;
+  const separation = circleRadius * 0.8;
+  const paleBlue = new THREE.Color("#87ceeb");
+  const white = new THREE.Color("#ffffff");
+  
   for (let i = 0; i < PARTICLE_COUNT; i++) {
-     let p = new THREE.Vector3();
-     let c = new THREE.Color();
-     let g = 0;
-     
-     // Rejection sampling for better distribution
-     let found = false;
-     let attempts = 0;
-
-     while (!found && attempts < 15) { // Increased attempts
-        attempts++;
-        p = randomInSphere().normalize().multiplyScalar(R);
-
-        // 1. Clouds (Floating) - 20% of particles (Increased for realism)
-        if (i < PARTICLE_COUNT * 0.20) {
-           if (isCloud(p)) {
-              p.multiplyScalar(1.06); // Float above
-              c.set(CONTINENT_COLORS.cloud);
-              c.multiplyScalar(0.8); // Transparent
-              found = true;
-              continue;
-           }
-        }
-
-        // 2. Check Land
-        let landDot = -1;
-        for (const node of landNodes) {
-           // Add noise to the radius check to fuzz edges (Fix for "Square/Blocky" look)
-           const edgeNoise = (Math.random() - 0.5) * 0.02;
-           const d = p.dot(node.v);
-           if (d > node.minDot + edgeNoise) {
-              if (d > landDot) landDot = d; // Max overlap
-           }
-        }
-        
-        // Determine Day/Night - REMOVED BAKED SHADOWS (User complained about separation line)
-        // Instead we use a subtle gradient based on Y to give depth without rotating shadows
-        const isLand = landDot > -1;
-        
-        // Mock latitude lighting (poles darker)
-        const poleFactor = 1.0 - Math.abs(p.y) * 0.3;
-
-        if (isLand) {
-           // Land
-           c.set(CONTINENT_COLORS.land).multiplyScalar(poleFactor);
-           
-           // Cities (Always visible but subtle)
-           let isCity = false;
-           for (const city of cityNodes) {
-              if (p.dot(city.v) > city.minDot) {
-                 isCity = true;
-                 break;
-              }
-           }
-           
-           // Day Land
-           if (isCity && Math.random() < 0.3) { // 30% of city area has lights even in day (reflection?) or just style
-               c.set(CONTINENT_COLORS.city);
-           }
-           
-           // Ice caps
-           if (Math.abs(p.y) > 0.9) c.set(CONTINENT_COLORS.ice);
-           
-           found = true; 
-        } else {
-           // Ocean
-           // Reduce ocean density to make land pop, but kept higher than before (0.6 -> 0.4 skip)
-           // Fix "Very empty side" issue
-           if (Math.random() > 0.55) { // Skip 55% of ocean points -> Land is 2x denser
-               continue; 
-           }
-           
-           // Deep Ocean Color with variation
-           c.set(CONTINENT_COLORS.ocean).multiplyScalar(poleFactor * (0.8 + Math.random() * 0.4));
-           
-           found = true;
-        }
-     }
-     
-     // Fallback
-     if (!found) {
-        p = randomInSphere().normalize().multiplyScalar(R);
-        c.set(CONTINENT_COLORS.ocean).multiplyScalar(0.5);
-     }
-
-     positions[i*3] = p.x;
-     positions[i*3+1] = p.y;
-     positions[i*3+2] = p.z;
-     colors[i*3] = c.r;
-     colors[i*3+1] = c.g;
-     colors[i*3+2] = c.b;
-     groups[i] = g;
+    const isLeftCircle = i < PARTICLE_COUNT / 2;
+    const centerX = isLeftCircle ? -separation / 2 : separation / 2;
+    
+    const theta = Math.random() * Math.PI * 2;
+    const r = circleRadius * (0.96 + Math.random() * 0.08);
+    
+    const px = centerX + r * Math.cos(theta);
+    const py = r * Math.sin(theta);
+    const pz = (Math.random() - 0.5) * 0.05;
+    
+    const distToCenter = Math.sqrt(px * px + py * py);
+    const isInLens = distToCenter < circleRadius * 0.5;
+    
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+    
+    const c = isInLens ? white : paleBlue;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = isInLens ? 1 : 0;
   }
+  
+  return { positions, colors, groups };
+}
 
+// --- TORUS (托魯斯環) ---
+export function generateTorusData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const majorRadius = 0.8;
+  const minorRadius = 0.3;
+  const chakraColors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3"];
+  
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * Math.PI * 2;
+    
+    const px = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
+    const py = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
+    const pz = minorRadius * Math.sin(v);
+    
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+    
+    const colorIdx = Math.floor((u / (Math.PI * 2)) * chakraColors.length) % chakraColors.length;
+    const c = new THREE.Color(chakraColors[colorIdx]);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = colorIdx;
+  }
+  
+  return { positions, colors, groups };
+}
+
+// --- SRI YANTRA (斯里揚特拉) ---
+export function generateSriYantraData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const size = 1.0;
+  const gold = new THREE.Color("#ffd700");
+  const purple = new THREE.Color("#9400d3");
+  const white = new THREE.Color("#ffffff");
+  
+  const triangles = [];
+  for (let i = 0; i < 5; i++) {
+    const s = size * (0.3 + i * 0.15);
+    triangles.push({ p1: { x: 0, y: s }, p2: { x: -s * 0.866, y: -s * 0.5 }, p3: { x: s * 0.866, y: -s * 0.5 }, down: false });
+  }
+  for (let i = 0; i < 4; i++) {
+    const s = size * (0.35 + i * 0.15);
+    triangles.push({ p1: { x: 0, y: -s }, p2: { x: -s * 0.866, y: s * 0.5 }, p3: { x: s * 0.866, y: s * 0.5 }, down: true });
+  }
+  
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    if (i < 100) {
+      const theta = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.03;
+      positions[i * 3] = r * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(theta);
+      positions[i * 3 + 2] = 0;
+      colors[i * 3] = white.r;
+      colors[i * 3 + 1] = white.g;
+      colors[i * 3 + 2] = white.b;
+      groups[i] = 2;
+    } else {
+      const tri = triangles[Math.floor(Math.random() * triangles.length)];
+      const edge = Math.floor(Math.random() * 3);
+      const t = Math.random();
+      
+      let A, B;
+      if (edge === 0) { A = tri.p1; B = tri.p2; }
+      else if (edge === 1) { A = tri.p2; B = tri.p3; }
+      else { A = tri.p3; B = tri.p1; }
+      
+      const px = A.x + (B.x - A.x) * t;
+      const py = A.y + (B.y - A.y) * t;
+      
+      positions[i * 3] = px;
+      positions[i * 3 + 1] = py;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+      
+      const c = Math.random() < 0.2 ? purple : gold;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+      groups[i] = tri.down ? 1 : 0;
+    }
+  }
+  
+  return { positions, colors, groups };
+}
+
+// --- GOLDEN SPIRAL (黃金螺旋) ---
+export function generateGoldenSpiralData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const phi = 1.618033988749895;
+  const gold = new THREE.Color("#ffd700");
+  const purple = new THREE.Color("#9400d3");
+  
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const t = i / PARTICLE_COUNT;
+    const angle = t * Math.PI * 8;
+    const radius = t * 1.5 * Math.pow(phi, angle / (Math.PI * 2));
+    
+    const px = radius * Math.cos(angle);
+    const py = radius * Math.sin(angle);
+    const pz = (Math.random() - 0.5) * 0.1;
+    
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+    
+    const c = new THREE.Color().lerpColors(gold, purple, t);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = Math.floor(t * 5);
+  }
+  
+  return { positions, colors, groups };
+}
+
+// --- VECTOR EQUILIBRIUM (向量均衡) ---
+export function generateVectorEquilibriumData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const sphereRadius = 0.15;
+  const mainRadius = 0.8;
+  const centers = [new THREE.Vector3(0, 0, 0)];
+  const chakraColors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3"];
+  const white = new THREE.Color("#ffffff");
+  const purple = new THREE.Color("#9400d3");
+  
+  for (let i = 0; i < 12; i++) {
+    const angle = i * Math.PI / 6;
+    const x = mainRadius * Math.cos(angle);
+    const y = mainRadius * Math.sin(angle);
+    const z = (i % 2 === 0) ? 0.3 : -0.3;
+    centers.push(new THREE.Vector3(x, y, z));
+  }
+  
+  const particlesPerSphere = Math.floor(PARTICLE_COUNT * 0.7 / centers.length);
+  const particlesForLines = PARTICLE_COUNT - particlesPerSphere * centers.length;
+  
+  let idx = 0;
+  for (let s = 0; s < centers.length; s++) {
+    const center = centers[s];
+    const color = s === 0 ? white : new THREE.Color(chakraColors[s % chakraColors.length]);
+    
+    for (let p = 0; p < particlesPerSphere && idx < PARTICLE_COUNT - particlesForLines; p++) {
+      const pt = randomInSphere().multiplyScalar(sphereRadius).add(center);
+      positions[idx * 3] = pt.x;
+      positions[idx * 3 + 1] = pt.y;
+      positions[idx * 3 + 2] = pt.z;
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = s;
+      idx++;
+    }
+  }
+  
+  for (let i = idx; i < PARTICLE_COUNT; i++) {
+    const s1 = Math.floor(Math.random() * centers.length);
+    let s2 = Math.floor(Math.random() * centers.length);
+    while (s2 === s1) s2 = Math.floor(Math.random() * centers.length);
+    
+    const t = Math.random();
+    const pt = new THREE.Vector3().lerpVectors(centers[s1], centers[s2], t);
+    positions[i * 3] = pt.x;
+    positions[i * 3 + 1] = pt.y;
+    positions[i * 3 + 2] = pt.z;
+    colors[i * 3] = purple.r;
+    colors[i * 3 + 1] = purple.g;
+    colors[i * 3 + 2] = purple.b;
+    groups[i] = 99;
+  }
+  
+  return { positions, colors, groups };
+}
+
+// --- METATRON'S CUBE (梅塔特隆立方) ---
+export function generateMetatronsCubeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const circleRadius = 0.2;
+  const centers = [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.6, 0, 0),
+    new THREE.Vector3(-0.6, 0, 0),
+    new THREE.Vector3(0, 0.6, 0),
+    new THREE.Vector3(0, -0.6, 0),
+    new THREE.Vector3(0.42, 0.42, 0),
+    new THREE.Vector3(-0.42, 0.42, 0),
+    new THREE.Vector3(0.42, -0.42, 0),
+    new THREE.Vector3(-0.42, -0.42, 0),
+    new THREE.Vector3(0, 0, 0.6),
+    new THREE.Vector3(0, 0, -0.6),
+    new THREE.Vector3(0.3, 0.3, 0.3),
+    new THREE.Vector3(-0.3, -0.3, -0.3)
+  ];
+  
+  const white = new THREE.Color("#ffffff");
+  const chakraColors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#9400d3"];
+  
+  const particlesForLines = Math.floor(PARTICLE_COUNT * 0.7);
+  const particlesForCircles = PARTICLE_COUNT - particlesForLines;
+  
+  let idx = 0;
+  for (; idx < particlesForLines; idx++) {
+    const c1 = Math.floor(Math.random() * centers.length);
+    let c2 = Math.floor(Math.random() * centers.length);
+    while (c2 === c1) c2 = Math.floor(Math.random() * centers.length);
+    
+    const t = Math.random();
+    const pt = new THREE.Vector3().lerpVectors(centers[c1], centers[c2], t);
+    positions[idx * 3] = pt.x;
+    positions[idx * 3 + 1] = pt.y;
+    positions[idx * 3 + 2] = pt.z;
+    colors[idx * 3] = white.r;
+    colors[idx * 3 + 1] = white.g;
+    colors[idx * 3 + 2] = white.b;
+    groups[idx] = 0;
+  }
+  
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const cIdx = Math.floor(Math.random() * centers.length);
+    const center = centers[cIdx];
+    const theta = Math.random() * Math.PI * 2;
+    const r = circleRadius;
+    
+    const px = center.x + r * Math.cos(theta);
+    const py = center.y + r * Math.sin(theta);
+    const pz = center.z;
+    
+    positions[idx * 3] = px;
+    positions[idx * 3 + 1] = py;
+    positions[idx * 3 + 2] = pz;
+    
+    const color = new THREE.Color(chakraColors[cIdx % chakraColors.length]);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = cIdx;
+  }
+  
+  return { positions, colors, groups };
+}
+
+// --- PLATONIC SOLIDS CYCLE (柏拉圖立體組) ---
+export function generatePlatonicSolidsData(time: number = 0) {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  
+  const cycleTime = (time % 50) / 10;
+  const solidIndex = Math.floor(cycleTime);
+  const chakraColors = ["#ff0000", "#ff7f00", "#ffff00", "#00ff00", "#0000ff"];
+  const color = new THREE.Color(chakraColors[solidIndex % 5]);
+  
+  const vertices: THREE.Vector3[] = [];
+  const edges: [number, number][] = [];
+  
+  if (solidIndex === 0) {
+    vertices.push(
+      new THREE.Vector3(1, 1, 1),
+      new THREE.Vector3(1, -1, -1),
+      new THREE.Vector3(-1, 1, -1),
+      new THREE.Vector3(-1, -1, 1)
+    );
+    edges.push([0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]);
+  } else if (solidIndex === 1) {
+    vertices.push(
+      new THREE.Vector3(1, 1, 1),
+      new THREE.Vector3(1, 1, -1),
+      new THREE.Vector3(1, -1, 1),
+      new THREE.Vector3(1, -1, -1),
+      new THREE.Vector3(-1, 1, 1),
+      new THREE.Vector3(-1, 1, -1),
+      new THREE.Vector3(-1, -1, 1),
+      new THREE.Vector3(-1, -1, -1)
+    );
+    edges.push([0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]);
+  } else if (solidIndex === 2) {
+    vertices.push(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, -1, 0),
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(0, 0, -1)
+    );
+    edges.push([0, 2], [0, 3], [0, 4], [0, 5], [1, 2], [1, 3], [1, 4], [1, 5], [2, 4], [2, 5], [3, 4], [3, 5]);
+  } else if (solidIndex === 3) {
+    const phi = 1.618033988749895;
+    vertices.push(
+      new THREE.Vector3(1, 1, 1),
+      new THREE.Vector3(1, 1, -1),
+      new THREE.Vector3(1, -1, 1),
+      new THREE.Vector3(1, -1, -1),
+      new THREE.Vector3(-1, 1, 1),
+      new THREE.Vector3(-1, 1, -1),
+      new THREE.Vector3(-1, -1, 1),
+      new THREE.Vector3(-1, -1, -1),
+      new THREE.Vector3(0, phi, 1 / phi),
+      new THREE.Vector3(0, phi, -1 / phi),
+      new THREE.Vector3(0, -phi, 1 / phi),
+      new THREE.Vector3(0, -phi, -1 / phi),
+      new THREE.Vector3(1 / phi, 0, phi),
+      new THREE.Vector3(1 / phi, 0, -phi),
+      new THREE.Vector3(-1 / phi, 0, phi),
+      new THREE.Vector3(-1 / phi, 0, -phi),
+      new THREE.Vector3(phi, 1 / phi, 0),
+      new THREE.Vector3(phi, -1 / phi, 0),
+      new THREE.Vector3(-phi, 1 / phi, 0),
+      new THREE.Vector3(-phi, -1 / phi, 0)
+    );
+    for (let i = 0; i < 20; i++) {
+      for (let j = i + 1; j < 20; j++) {
+        if (vertices[i].distanceTo(vertices[j]) < 1.3) edges.push([i, j]);
+      }
+    }
+  } else {
+    const phi = 1.618033988749895;
+    vertices.push(
+      new THREE.Vector3(0, 1, phi),
+      new THREE.Vector3(0, 1, -phi),
+      new THREE.Vector3(0, -1, phi),
+      new THREE.Vector3(0, -1, -phi),
+      new THREE.Vector3(1, phi, 0),
+      new THREE.Vector3(1, -phi, 0),
+      new THREE.Vector3(-1, phi, 0),
+      new THREE.Vector3(-1, -phi, 0),
+      new THREE.Vector3(phi, 0, 1),
+      new THREE.Vector3(phi, 0, -1),
+      new THREE.Vector3(-phi, 0, 1),
+      new THREE.Vector3(-phi, 0, -1)
+    );
+    edges.push([0, 2], [0, 4], [0, 6], [0, 8], [0, 10], [1, 3], [1, 4], [1, 6], [1, 9], [1, 11], [2, 5], [2, 7], [2, 8], [2, 10], [3, 5], [3, 7], [3, 9], [3, 11], [4, 6], [4, 8], [4, 9], [5, 7], [5, 8], [5, 9], [6, 10], [6, 11], [7, 10], [7, 11], [8, 9], [10, 11]);
+  }
+  
+  vertices.forEach(v => v.normalize().multiplyScalar(0.8));
+  
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const edge = edges[Math.floor(Math.random() * edges.length)];
+    const t = Math.random();
+    const pt = new THREE.Vector3().lerpVectors(vertices[edge[0]], vertices[edge[1]], t);
+    
+    positions[i * 3] = pt.x;
+    positions[i * 3 + 1] = pt.y;
+    positions[i * 3 + 2] = pt.z;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+    groups[i] = solidIndex;
+  }
+  
   return { positions, colors, groups };
 }
