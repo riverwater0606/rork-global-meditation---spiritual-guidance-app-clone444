@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateMudraData, generateEarthData, generateMercuryData, generateVenusData, generateMarsData, generateJupiterData, generateSaturnData, generateUranusData, generateNeptuneData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -220,9 +220,65 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
        groups.set(data.groups);
     };
 
-    // 5. Earth
+    // 5. Mercury
+    const generateMercury = () => {
+      const data = generateMercuryData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 6. Venus
+    const generateVenus = () => {
+      const data = generateVenusData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 7. Earth
     const generateEarth = () => {
       const data = generateEarthData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 8. Mars
+    const generateMars = () => {
+      const data = generateMarsData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 9. Jupiter
+    const generateJupiter = () => {
+      const data = generateJupiterData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 10. Saturn
+    const generateSaturn = () => {
+      const data = generateSaturnData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 11. Uranus
+    const generateUranus = () => {
+      const data = generateUranusData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 12. Neptune
+    const generateNeptune = () => {
+      const data = generateNeptuneData();
       targetPositions.set(data.positions);
       colors.set(data.colors);
       groups.set(data.groups);
@@ -266,7 +322,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'mudra') generateMudra();
+    else if (shape === 'mercury') generateMercury();
+    else if (shape === 'venus') generateVenus();
     else if (shape === 'earth') generateEarth();
+    else if (shape === 'mars') generateMars();
+    else if (shape === 'jupiter') generateJupiter();
+    else if (shape === 'saturn') generateSaturn();
+    else if (shape === 'uranus') generateUranus();
+    else if (shape === 'neptune') generateNeptune();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -302,11 +365,30 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // Rotation Logic
     let rotationSpeed = 0.001 + spinVelocity;
     
-    // Earth: 90s rotation (approx 0.0011 rad/frame at 60fps) + User Control
-    if (shape === 'earth') {
-       // Auto rotation: 1 rev / 90s (Clockwise from North = Negative Y)
-       // 2PI / (90 * 60) ~= 0.00116
-       const autoSpeed = -0.00116; 
+    // Planet-specific rotation speeds
+    if (shape === 'mercury') {
+       const autoSpeed = -0.0003; // Slow rotation (58.6 days)
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'venus') {
+       const autoSpeed = 0.00015; // Very slow, retrograde (243 days)
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'earth') {
+       const autoSpeed = -0.00116; // 1 rev / 90s in app time
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'mars') {
+       const autoSpeed = -0.0012; // Similar to Earth (24.6 hours)
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'jupiter') {
+       const autoSpeed = -0.0035; // Fast rotation (~10 hours) - full turn every 30s
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'saturn') {
+       const autoSpeed = -0.0028; // Fast (~10.7 hours)
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'uranus') {
+       const autoSpeed = -0.0022; // Tilted rotation (~17 hours)
+       rotationSpeed = autoSpeed + spinVelocity;
+    } else if (shape === 'neptune') {
+       const autoSpeed = -0.0025; // Fast (~16 hours)
        rotationSpeed = autoSpeed + spinVelocity;
     }
     
@@ -318,10 +400,20 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // If we want to allow user to tilt earth? 
     // For now keep Y rotation.
     
-    if (shape === 'merkaba' || shape === 'earth') {
+    // Keep planets and merkaba upright
+    const planetsAndSpecial = ['merkaba', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
+    if (planetsAndSpecial.includes(shape)) {
        pointsRef.current.rotation.z = 0;
-       // Earth needs to be upright
-       pointsRef.current.rotation.x = 0; 
+       pointsRef.current.rotation.x = 0;
+       
+       // Special tilt for Uranus (sideways rotation)
+       if (shape === 'uranus') {
+         pointsRef.current.rotation.z = Math.PI / 2.2; // ~82° tilt
+       }
+       // Special tilt for Saturn (rings)
+       if (shape === 'saturn') {
+         pointsRef.current.rotation.x = 0.4; // ~23° tilt for ring visibility
+       }
     }
     
     // Access geometry attributes
@@ -588,12 +680,19 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const orbShape = currentOrb.shape || 'default';
 
-  const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
+  const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
     { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
+    { id: 'mercury', name: 'Mercury', nameZh: '水星', icon: '☿️' },
+    { id: 'venus', name: 'Venus', nameZh: '金星', icon: '♀️' },
+    { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
+    { id: 'mars', name: 'Mars', nameZh: '火星', icon: '♂️' },
+    { id: 'jupiter', name: 'Jupiter', nameZh: '木星', icon: '♃' },
+    { id: 'saturn', name: 'Saturn', nameZh: '土星', icon: '♄' },
+    { id: 'uranus', name: 'Uranus', nameZh: '天王星', icon: '♅' },
+    { id: 'neptune', name: 'Neptune', nameZh: '海王星', icon: '♆' },
     { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
     { id: 'mudra', name: 'Mudra', nameZh: '禪定手印', icon: '🙏' },
-    { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
   // Pan Responder for Gestures
@@ -937,7 +1036,7 @@ export default function GardenScreen() {
 
         <Canvas camera={{ position: [0, 0, 4] }}>
           <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} />
+          <pointLight position={[10, 10, 10]} intensity={1} />
           <OrbParticles 
             layers={currentOrb.layers} 
             interactionState={interactionState}
