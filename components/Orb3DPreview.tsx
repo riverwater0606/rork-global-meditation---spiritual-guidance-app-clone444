@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Orb, OrbShape, useMeditation } from '@/providers/MeditationProvider';
-import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
+import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
 
 interface Orb3DPreviewProps {
   orb: Orb;
@@ -29,18 +29,6 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
     if (shape === 'merkaba') {
       const data = generateMerkabaData();
       // Scale down to match particleCount
-      const scaleFactor = particleCount / PARTICLE_COUNT;
-      for (let i = 0; i < particleCount; i++) {
-        const srcIdx = Math.floor(i / scaleFactor);
-        positions[i * 3] = data.positions[srcIdx * 3];
-        positions[i * 3 + 1] = data.positions[srcIdx * 3 + 1];
-        positions[i * 3 + 2] = data.positions[srcIdx * 3 + 2];
-        colors[i * 3] = data.colors[srcIdx * 3];
-        colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
-        colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
-      }
-    } else if (shape === 'mudra') {
-      const data = generateMudraData();
       const scaleFactor = particleCount / PARTICLE_COUNT;
       for (let i = 0; i < particleCount; i++) {
         const srcIdx = Math.floor(i / scaleFactor);

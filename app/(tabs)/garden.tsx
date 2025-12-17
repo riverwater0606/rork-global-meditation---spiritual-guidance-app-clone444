@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateMudraData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -212,13 +212,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
-    // 4. Mudra (Prayer Hands)
-    const generateMudra = () => {
-       const data = generateMudraData();
-       targetPositions.set(data.positions);
-       colors.set(data.colors);
-       groups.set(data.groups);
-    };
+    // 4. Mudra (Prayer Hands) - REMOVED
 
     // 5. Earth
     const generateEarth = () => {
@@ -265,7 +259,6 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     if (shape === 'flower-of-life') generateFlowerOfLife();
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
-    else if (shape === 'mudra') generateMudra();
     else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
@@ -366,17 +359,6 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const rx = tx * cos - tz * sin;
            const rz = tx * sin + tz * cos;
            tx = rx; tz = rz;
-         }
-      } else if (shape === 'mudra') {
-         // Breathing Pulse
-         const breath = Math.sin(t * 1.5); // ~4s period
-         const s = 1 + breath * 0.02; 
-         tx *= s; ty *= s; tz *= s;
-         
-         if (groups[i] === 1) { // Chakra
-            // Stronger glow pulse
-            const s2 = 1 + Math.sin(t * 4) * 0.15;
-            tx *= s2; ty *= s2; tz *= s2;
          }
       } else if (shape === 'earth') {
           // Earth Animation: 
@@ -588,11 +570,10 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const orbShape = currentOrb.shape || 'default';
 
-  const shapes: Array<{ id: OrbShape, name: string, nameZh: string, icon: string }> = [
+  const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
     { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
     { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
-    { id: 'mudra', name: 'Mudra', nameZh: '禪定手印', icon: '🙏' },
     { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
