@@ -212,7 +212,83 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
-    // 4. Mudra (Prayer Hands) - REMOVED
+    // 4. Seed of Life
+    const generateSeedOfLife = () => {
+      const circleRadius = 0.5;
+      const centers: {x:number, y:number, isCenter: boolean}[] = [{x:0, y:0, isCenter: true}];
+      for(let i=0; i<6; i++) {
+        const angle = i * Math.PI / 3;
+        centers.push({ 
+            x: Math.cos(angle)*circleRadius, 
+            y: Math.sin(angle)*circleRadius,
+            isCenter: false
+        });
+      }
+
+      // Intersection points
+      const intersections: {x:number, y:number}[] = [{x:0, y:0}];
+      // 6 centers of outer circles
+      for(let i=1; i<7; i++) intersections.push({x: centers[i].x, y: centers[i].y});
+      // 6 outer tips (R * sqrt(3))
+      const tipRadius = circleRadius * Math.sqrt(3); 
+      for(let i=0; i<6; i++) {
+          const angle = i * Math.PI / 3 + Math.PI / 6;
+          intersections.push({
+              x: Math.cos(angle) * tipRadius,
+              y: Math.sin(angle) * tipRadius
+          });
+      }
+
+      const intersectionCount = Math.floor(particleCount * 0.15); // High density on intersections
+      const circleCount = particleCount - intersectionCount;
+      
+      const gold = new THREE.Color("#FFD700");
+      
+      let pIdx = 0;
+      
+      // Circles (Arcs)
+      for(let i=0; i<circleCount; i++) {
+          const cIdx = Math.floor(Math.random() * 7);
+          const center = centers[cIdx];
+          const theta = Math.random() * Math.PI * 2;
+          
+          targetPositions[pIdx*3] = center.x + circleRadius * Math.cos(theta);
+          targetPositions[pIdx*3+1] = center.y + circleRadius * Math.sin(theta);
+          targetPositions[pIdx*3+2] = (Math.random() - 0.5) * 0.02;
+          
+          if (center.isCenter) {
+             // Center: Pure White
+             colors[pIdx*3] = 1.0;
+             colors[pIdx*3+1] = 1.0;
+             colors[pIdx*3+2] = 1.0;
+          } else {
+             // Outer: Gold Gradient
+             const v = 0.8 + Math.random() * 0.4; // Bright gold
+             colors[pIdx*3] = gold.r * v;
+             colors[pIdx*3+1] = gold.g * v;
+             colors[pIdx*3+2] = gold.b * v;
+          }
+          pIdx++;
+      }
+
+      // Intersections (Super Bright)
+      for(let i=0; i<intersectionCount; i++) {
+          const intIdx = Math.floor(Math.random() * intersections.length);
+          const point = intersections[intIdx];
+          
+          const spread = 0.04; 
+          targetPositions[pIdx*3] = point.x + (Math.random()-0.5)*spread;
+          targetPositions[pIdx*3+1] = point.y + (Math.random()-0.5)*spread;
+          targetPositions[pIdx*3+2] = (Math.random()-0.5)*spread + 0.08; // Popped out
+          
+          // Super bright white
+          colors[pIdx*3] = 1.0;
+          colors[pIdx*3+1] = 1.0;
+          colors[pIdx*3+2] = 1.0;
+          
+          pIdx++;
+      }
+    };
 
     // 5. Earth
     const generateEarth = () => {
@@ -259,6 +335,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     if (shape === 'flower-of-life') generateFlowerOfLife();
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
+    else if (shape === 'seed-of-life') generateSeedOfLife();
     else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
@@ -574,6 +651,7 @@ export default function GardenScreen() {
     { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
     { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
     { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
+    { id: 'seed-of-life', name: 'Seed of Life', nameZh: '種子之生命', icon: '🏵️' },
     { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
