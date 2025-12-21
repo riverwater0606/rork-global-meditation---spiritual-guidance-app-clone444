@@ -29,7 +29,7 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
-export type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'earth' | 'seed-of-life';
+export type OrbShape = 'default' | 'flower-of-life' | 'star-of-david' | 'merkaba' | 'earth';
 
 export interface Orb {
   id: string;
