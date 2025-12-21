@@ -110,51 +110,36 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const [sharedSpinVelocity, setSharedSpinVelocity] = useState(0);
 
   useEffect(() => {
-    loadStats();
-    loadCustomMeditations();
-    loadOrbData();
+    const loadData = async () => {
+      try {
+        const savedStats = await AsyncStorage.getItem("meditationStats");
+        const savedAchievements = await AsyncStorage.getItem("achievements");
+        
+        if (savedStats) {
+          const parsed = JSON.parse(savedStats);
+          setStats(parsed);
+          updateWeekProgress(parsed);
+        }
+        
+        if (savedAchievements) {
+          setAchievements(JSON.parse(savedAchievements));
+        }
+
+        const savedCustom = await AsyncStorage.getItem("customMeditations");
+        if (savedCustom) {
+          setCustomMeditations(JSON.parse(savedCustom));
+        }
+
+        const savedOrb = await AsyncStorage.getItem("currentOrb");
+        const savedHistory = await AsyncStorage.getItem("orbHistory");
+        if (savedOrb) setCurrentOrb(JSON.parse(savedOrb));
+        if (savedHistory) setOrbHistory(JSON.parse(savedHistory));
+      } catch (error) {
+        console.error("Error loading data:", error);
+      }
+    };
+    loadData();
   }, []);
-
-  const loadStats = async () => {
-    try {
-      const savedStats = await AsyncStorage.getItem("meditationStats");
-      const savedAchievements = await AsyncStorage.getItem("achievements");
-      
-      if (savedStats) {
-        const parsed = JSON.parse(savedStats);
-        setStats(parsed);
-        updateWeekProgress(parsed);
-      }
-      
-      if (savedAchievements) {
-        setAchievements(JSON.parse(savedAchievements));
-      }
-    } catch (error) {
-      console.error("Error loading stats:", error);
-    }
-  };
-
-  const loadCustomMeditations = async () => {
-    try {
-      const saved = await AsyncStorage.getItem("customMeditations");
-      if (saved) {
-        setCustomMeditations(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error("Error loading custom meditations:", error);
-    }
-  };
-
-  const loadOrbData = async () => {
-    try {
-      const savedOrb = await AsyncStorage.getItem("currentOrb");
-      const savedHistory = await AsyncStorage.getItem("orbHistory");
-      if (savedOrb) setCurrentOrb(JSON.parse(savedOrb));
-      if (savedHistory) setOrbHistory(JSON.parse(savedHistory));
-    } catch (e) {
-      console.error("Failed to load orb data", e);
-    }
-  };
 
   const updateWeekProgress = (currentStats: MeditationStats) => {
     const today = new Date().getDay();
@@ -199,10 +184,12 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Orb Logic
-    // Only grow if explicitly requested (garden) AND not grown today
-    const alreadyGrownToday = currentOrb.lastLayerAddedAt && new Date(currentOrb.lastLayerAddedAt).toDateString() === todayStr;
+    // Only grow if explicitly requested (garden) 
+    // FOR TESTING: Removed "AND not grown today" check
+    // const alreadyGrownToday = currentOrb.lastLayerAddedAt && new Date(currentOrb.lastLayerAddedAt).toDateString() === todayStr;
     
-    if (growOrb && !alreadyGrownToday && !currentOrb.isAwakened) {
+    // if (growOrb && !alreadyGrownToday && !currentOrb.isAwakened) {
+    if (growOrb && !currentOrb.isAwakened) {
        const nextLevel = currentOrb.level + 1;
        if (nextLevel <= 7) {
          const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
@@ -375,7 +362,8 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   }, [stats.lastSessionDate]);
 
   const cultivateDailyOrb = async () => {
-    if (hasGrownOrbToday || currentOrb.isAwakened) return;
+    // FOR TESTING: Removed daily limit check
+    // if (hasGrownOrbToday || currentOrb.isAwakened) return;
 
     // Count as a session
     const duration = 7; // 7 minutes
@@ -383,14 +371,25 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   };
 
   const storeOrb = async () => {
+    console.log("storeOrb called. Current Orb:", JSON.stringify(currentOrb));
+    
     // Allow storing if there are layers OR if the shape is not default
-    if (currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default')) return;
+    const isDefault = !currentOrb.shape || currentOrb.shape === 'default';
+    const isEmpty = currentOrb.level === 0 && currentOrb.layers.length === 0;
+    
+    if (isEmpty && isDefault) {
+      console.log("storeOrb aborted: Orb is empty and default shape.");
+      return;
+    }
     
     const storedOrb = { 
       ...currentOrb, 
       id: currentOrb.id === 'orb-init' ? `orb-${Date.now()}` : currentOrb.id,
       completedAt: new Date().toISOString() 
     };
+    
+    console.log("Storing orb to history:", storedOrb);
+    
     const newHistory = [storedOrb, ...orbHistory];
     setOrbHistory(newHistory);
     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
@@ -408,8 +407,8 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     const newHistory = [...orbHistory];
     newHistory.splice(orbIndex, 1); // Remove retrieved orb
 
-    // If current orb has progress, save it to history
-    if (currentOrb.level > 0 || currentOrb.layers.length > 0) {
+    // If current orb has progress OR non-default shape, save it to history
+    if (currentOrb.level > 0 || currentOrb.layers.length > 0 || (currentOrb.shape && currentOrb.shape !== 'default')) {
       newHistory.unshift({ ...currentOrb });
     }
 

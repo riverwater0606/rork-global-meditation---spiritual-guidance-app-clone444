@@ -507,6 +507,7 @@ export default function GardenScreen() {
   const [isMeditating, setIsMeditating] = useState(false);
   const [meditationTimeLeft, setMeditationTimeLeft] = useState(0);
   const [showAwakenedModal, setShowAwakenedModal] = useState(false);
+  const [showGrowthModal, setShowGrowthModal] = useState(false);
   const [awakenedIntention, setAwakenedIntention] = useState("");
   const [awakenedDuration, setAwakenedDuration] = useState(15); // minutes
   const meditationTimerRef = useRef<any>(null);
@@ -695,17 +696,20 @@ export default function GardenScreen() {
 
   // Meditation Logic
   const startMeditation = (durationMinutes: number, intention: string = "") => {
-    if (isMeditating) return;
+    // Reset state first to ensure clean start
+    if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
     
+    console.log("Starting meditation:", durationMinutes, "minutes");
+    
+    // Set immediate state
     setMeditationTimeLeft(durationMinutes * 60);
     setIsMeditating(true);
     interactionState.current.mode = 'meditating';
     
-    if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
-    
     const startTime = Date.now();
     const endTime = startTime + durationMinutes * 60 * 1000;
     
+    // Start timer
     meditationTimerRef.current = setInterval(() => {
       const now = Date.now();
       const left = Math.max(0, Math.ceil((endTime - now) / 1000));
@@ -718,6 +722,7 @@ export default function GardenScreen() {
   };
   
   const stopMeditation = () => {
+    console.log("Stopping meditation...");
     if (meditationTimerRef.current) {
       clearInterval(meditationTimerRef.current);
       meditationTimerRef.current = null;
@@ -730,7 +735,8 @@ export default function GardenScreen() {
      stopMeditation();
      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
      
-     if (!currentOrb.isAwakened && !hasGrownOrbToday) {
+     // FOR TESTING: Removed !hasGrownOrbToday check
+     if (!currentOrb.isAwakened) {
        await cultivateDailyOrb();
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
@@ -950,6 +956,57 @@ export default function GardenScreen() {
         </View>
       </Modal>
 
+      {/* Growth Meditation Modal */}
+      <Modal
+        visible={showGrowthModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGrowthModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.shapeModal, { backgroundColor: currentTheme.surface }]}>
+            <View style={styles.shapeModalHeader}>
+               <Sparkles size={24} color={currentTheme.primary} />
+               <Text style={[styles.shapeModalTitle, { color: currentTheme.text }]}>
+                 {settings.language === 'zh' ? '培育光球' : 'Grow Orb'}
+               </Text>
+            </View>
+
+            <Text style={[styles.inputLabel, { color: currentTheme.text, fontSize: 16, marginBottom: 20, textAlign: 'center' }]}>
+               {settings.language === 'zh' 
+                 ? '準備好進行 7 分鐘的培育冥想了嗎？' 
+                 : 'Ready for a 7-minute growth meditation?'}
+            </Text>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#333' }]}
+                onPress={() => setShowGrowthModal(false)}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {settings.language === 'zh' ? '取消' : 'Cancel'}
+                 </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: currentTheme.primary }]}
+                onPress={() => {
+                   setShowGrowthModal(false);
+                   // Small delay to allow modal to close smoothly before starting animation/timer
+                   setTimeout(() => {
+                     startMeditation(7, "Growth");
+                   }, 300);
+                }}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {settings.language === 'zh' ? '開始 (7分鐘)' : 'Start (7 min)'}
+                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Awakened Meditation Modal */}
       <Modal
         visible={showAwakenedModal}
@@ -1104,20 +1161,7 @@ export default function GardenScreen() {
                   if (currentOrb.isAwakened) {
                      setShowAwakenedModal(true);
                   } else {
-                     // ALWAYS ALLOW FOR TESTING (User requested removal of daily limit check)
-                     // if (hasGrownOrbToday) { ... } else { ... } -> Simply start logic
-                     
-                     Alert.alert(
-                        settings.language === 'zh' ? "開始培育" : "Start Growth",
-                        settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
-                        [
-                           { text: "Cancel", style: "cancel" },
-                           { text: "Start", onPress: () => {
-                               console.log("Starting meditation...");
-                               startMeditation(7, "Growth");
-                           }}
-                        ]
-                     );
+                     setShowGrowthModal(true);
                   }
                }}
              >
@@ -1238,9 +1282,17 @@ export default function GardenScreen() {
                </Text>
              ) : (
                orbHistory.map((orb, index) => {
-                 const shapeName = orb.shape && orb.shape !== 'default' 
-                    ? shapes.find(s => s.id === orb.shape)?.nameZh || orb.shape 
+                 const shapeNameZh = orb.shape && orb.shape !== 'default' 
+                    ? shapes.find(s => s.id === orb.shape)?.nameZh 
                     : null;
+                 const shapeNameEn = orb.shape && orb.shape !== 'default'
+                    ? shapes.find(s => s.id === orb.shape)?.name
+                    : null;
+                 
+                 const displayName = settings.language === 'zh' 
+                    ? (shapeNameZh || orb.sender || "我自己")
+                    : (shapeNameEn || orb.sender || "Me");
+
                  return (
                  <TouchableOpacity 
                     key={orb.id || index} 
@@ -1268,9 +1320,7 @@ export default function GardenScreen() {
                      {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                    </Text>
                    <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
-                     {shapeName 
-                       ? (settings.language === 'zh' ? shapeName : shapes.find(s => s.id === orb.shape)?.name || shapeName)
-                       : (orb.sender || (settings.language === 'zh' ? "我自己" : "Me"))}
+                     {displayName}
                    </Text>
                  </TouchableOpacity>
                )})
@@ -1290,9 +1340,17 @@ export default function GardenScreen() {
                </Text>
              ) : (
                orbHistory.map((orb, index) => {
-                 const shapeName = orb.shape && orb.shape !== 'default' 
-                    ? shapes.find(s => s.id === orb.shape)?.nameZh || orb.shape 
+                 const shapeNameZh = orb.shape && orb.shape !== 'default' 
+                    ? shapes.find(s => s.id === orb.shape)?.nameZh 
                     : null;
+                 const shapeNameEn = orb.shape && orb.shape !== 'default'
+                    ? shapes.find(s => s.id === orb.shape)?.name
+                    : null;
+                 
+                 const displayName = settings.language === 'zh' 
+                    ? (shapeNameZh || orb.sender || "我自己")
+                    : (shapeNameEn || orb.sender || "Me");
+
                  return (
                  <TouchableOpacity 
                     key={orb.id || index} 
@@ -1320,9 +1378,7 @@ export default function GardenScreen() {
                      {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                    </Text>
                    <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
-                     {shapeName 
-                       ? (settings.language === 'zh' ? shapeName : shapes.find(s => s.id === orb.shape)?.name || shapeName)
-                       : (orb.sender || (settings.language === 'zh' ? "我自己" : "Me"))}
+                     {displayName}
                    </Text>
                  </TouchableOpacity>
                )})
@@ -1333,7 +1389,7 @@ export default function GardenScreen() {
 
       {/* Moved Meditation Overlay to the very end to ensure it is on top of everything */}
       {isMeditating && (
-        <View style={styles.meditationOverlay}>
+        <View style={styles.meditationOverlay} pointerEvents="auto">
            <View style={styles.timerContainer}>
               <Text style={styles.timerText}>
                  {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
@@ -1345,13 +1401,14 @@ export default function GardenScreen() {
            
            <TouchableOpacity 
              style={styles.stopButton}
-             onPress={() => {
-               console.log("Stop button pressed - stopping immediately");
-               // Direct stop without alert to fix "no reaction" issue
-               stopMeditation();
+             activeOpacity={0.6}
+             hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
+             onPress={(e) => {
+                e.stopPropagation(); // Prevent propagation
+                stopMeditation();
              }}
            >
-              <X size={24} color="white" />
+              <X size={32} color="white" />
            </TouchableOpacity>
         </View>
       )}
