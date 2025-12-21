@@ -1026,52 +1026,7 @@ export default function GardenScreen() {
 
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
-        {/* Start Button Overlay */}
-        {!isMeditating && interactionState.current.mode !== 'meditating' && (
-          <View style={styles.startButtonContainer}>
-             <TouchableOpacity
-               style={[
-                 styles.startButton,
-                 (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled
-               ]}
-               onPress={() => {
-                  console.log("Start button pressed"); // Debug log
-                  if (currentOrb.isAwakened) {
-                     setShowAwakenedModal(true);
-                  } else {
-                     if (hasGrownOrbToday) {
-                        Alert.alert(
-                          settings.language === 'zh' ? "今日已完成" : "Done Today",
-                          settings.language === 'zh' ? "光球已吸收今日能量。" : "Your orb has absorbed today's energy."
-                        );
-                     } else {
-                        Alert.alert(
-                           settings.language === 'zh' ? "開始培育" : "Start Growth",
-                           settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
-                           [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Start", onPress: () => {
-                                  console.log("Starting meditation...");
-                                  startMeditation(7, "Growth");
-                              }}
-                           ]
-                        );
-                     }
-                  }
-               }}
-             >
-                <Play size={20} color="white" fill="white" />
-                <Text style={styles.startButtonText}>
-                   {!currentOrb.isAwakened 
-                      ? (hasGrownOrbToday 
-                          ? (settings.language === 'zh' ? "今日已完成" : "Done Today") 
-                          : (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)"))
-                      : (settings.language === 'zh' ? "開始冥想" : "Meditate")
-                   }
-                </Text>
-             </TouchableOpacity>
-          </View>
-        )}
+
         <TouchableOpacity
           style={styles.shapeButton}
           onPress={() => setShowShapeSelector(true)}
@@ -1136,36 +1091,54 @@ export default function GardenScreen() {
         )}
       </View>
 
-      {/* Moved Meditation Overlay Outside of SceneContainer to avoid PanResponder conflicts */}
-      {isMeditating && (
-        <View style={styles.meditationOverlay}>
-           <View style={styles.timerContainer}>
-              <Text style={styles.timerText}>
-                 {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
-              </Text>
-              {awakenedIntention ? (
-                 <Text style={styles.intentionText}>{awakenedIntention}</Text>
-              ) : null}
-           </View>
-           
-           <TouchableOpacity 
-             style={styles.stopButton}
-             onPress={() => {
-               console.log("Stop button pressed");
-               Alert.alert(
-                  settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
-                  settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
-                  [
-                     { text: "Cancel", style: "cancel" },
-                     { text: "Stop", style: "destructive", onPress: stopMeditation }
-                  ]
-               );
-             }}
-           >
-              <X size={24} color="white" />
-           </TouchableOpacity>
-        </View>
-      )}
+      {/* Start Button Overlay - Moved outside sceneContainer */}
+      {!isMeditating && interactionState.current.mode !== 'meditating' && (
+          <View style={styles.startButtonContainer}>
+             <TouchableOpacity
+               style={[
+                 styles.startButton,
+                 (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled
+               ]}
+               onPress={() => {
+                  console.log("Start button pressed"); // Debug log
+                  if (currentOrb.isAwakened) {
+                     setShowAwakenedModal(true);
+                  } else {
+                     if (hasGrownOrbToday) {
+                        Alert.alert(
+                          settings.language === 'zh' ? "今日已完成" : "Done Today",
+                          settings.language === 'zh' ? "光球已吸收今日能量。" : "Your orb has absorbed today's energy."
+                        );
+                     } else {
+                        Alert.alert(
+                           settings.language === 'zh' ? "開始培育" : "Start Growth",
+                           settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
+                           [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Start", onPress: () => {
+                                  console.log("Starting meditation...");
+                                  startMeditation(7, "Growth");
+                              }}
+                           ]
+                        );
+                     }
+                  }
+               }}
+             >
+                <Play size={20} color="white" fill="white" />
+                <Text style={styles.startButtonText}>
+                   {!currentOrb.isAwakened 
+                      ? (hasGrownOrbToday 
+                          ? (settings.language === 'zh' ? "今日已完成" : "Done Today") 
+                          : (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)"))
+                      : (settings.language === 'zh' ? "開始冥想" : "Meditate")
+                   }
+                </Text>
+             </TouchableOpacity>
+          </View>
+        )}
+
+
 
       {/* Info Cards */}
       <View style={styles.infoContainer}>
@@ -1363,6 +1336,37 @@ export default function GardenScreen() {
           </ScrollView>
         )}
       </Animated.View>
+
+      {/* Moved Meditation Overlay to the very end to ensure it is on top of everything */}
+      {isMeditating && (
+        <View style={styles.meditationOverlay}>
+           <View style={styles.timerContainer}>
+              <Text style={styles.timerText}>
+                 {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
+              </Text>
+              {awakenedIntention ? (
+                 <Text style={styles.intentionText}>{awakenedIntention}</Text>
+              ) : null}
+           </View>
+           
+           <TouchableOpacity 
+             style={styles.stopButton}
+             onPress={() => {
+               console.log("Stop button pressed");
+               Alert.alert(
+                  settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
+                  settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
+                  [
+                     { text: "Cancel", style: "cancel" },
+                     { text: "Stop", style: "destructive", onPress: stopMeditation }
+                  ]
+               );
+             }}
+           >
+              <X size={24} color="white" />
+           </TouchableOpacity>
+        </View>
+      )}
 
     </View>
   );
@@ -1777,10 +1781,11 @@ const styles = StyleSheet.create({
   },
   meditationOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
+    zIndex: 20001,
+    elevation: 100,
   },
   timerContainer: {
     alignItems: 'center',
@@ -1811,9 +1816,10 @@ const styles = StyleSheet.create({
   },
   startButtonContainer: {
     position: 'absolute',
-    bottom: 150, // Increased from 80 to 150 to avoid being covered by garden collection panel (approx 120px)
+    bottom: 250,
     alignSelf: 'center',
-    zIndex: 15,
+    zIndex: 20000,
+    elevation: 90,
   },
   startButton: {
     flexDirection: 'row',
