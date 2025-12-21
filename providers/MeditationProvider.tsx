@@ -383,7 +383,8 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   };
 
   const storeOrb = async () => {
-    if (currentOrb.level === 0 && currentOrb.layers.length === 0) return;
+    // Allow storing if there are layers OR if the shape is not default
+    if (currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default')) return;
     
     const storedOrb = { ...currentOrb, completedAt: new Date().toISOString() };
     const newHistory = [storedOrb, ...orbHistory];

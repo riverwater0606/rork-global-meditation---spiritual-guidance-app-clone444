@@ -456,6 +456,13 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 
+const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
+  { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
+  { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
+  { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
+  { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
+];
+
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
@@ -480,6 +487,17 @@ export default function GardenScreen() {
     setOrbShape,
     setSharedSpinVelocity 
   } = useMeditation();
+
+  // Refs for stale closure fix in PanResponder
+  const currentOrbRef = useRef(currentOrb);
+  const storeOrbRef = useRef(storeOrb);
+  const sendOrbRef = useRef(sendOrb);
+  
+  useEffect(() => {
+    currentOrbRef.current = currentOrb;
+    storeOrbRef.current = storeOrb;
+    sendOrbRef.current = sendOrb;
+  }, [currentOrb, storeOrb, sendOrb]);
   
   const [isExpanded, setIsExpanded] = useState(false);
   // Initialize with the calculated collapsed height
@@ -602,13 +620,6 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const orbShape = currentOrb.shape || 'default';
 
-  const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
-    { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
-    { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
-    { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
-    { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
-  ];
-  
   // Toggle Diffuse
   const toggleDiffuse = () => {
      const nextMode = interactionState.current.mode === 'diffused' ? 'idle' : 'diffused';
@@ -621,9 +632,8 @@ export default function GardenScreen() {
     PanResponder.create({
       // Critical for responsiveness:
       onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
+      // REMOVED Capture to allow buttons to work
       onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
       
       // Ensure we don't lose the gesture easily
       onPanResponderTerminationRequest: () => false,
@@ -786,13 +796,14 @@ export default function GardenScreen() {
     animateStore();
     
     setTimeout(async () => {
-       await storeOrb();
+       await storeOrbRef.current();
        interactionState.current.mode = 'idle'; 
     }, 2000);
   };
 
   const handleSendOrb = async () => {
-    if (!currentOrb.isAwakened && currentOrb.level < 1 && currentOrb.layers.length === 0) {
+    const orb = currentOrbRef.current;
+    if (!orb.isAwakened && orb.level < 1 && orb.layers.length === 0) {
       Alert.alert("Orb Empty", "Grow your orb before sending.");
       return;
     }
@@ -818,7 +829,7 @@ export default function GardenScreen() {
                }
              }
 
-             await sendOrb("friend-id", "May you be happy.");
+             await sendOrbRef.current("friend-id", "May you be happy.");
              Alert.alert("Sent!", "Your light has been shared.");
           }
         }
@@ -1015,35 +1026,6 @@ export default function GardenScreen() {
 
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
-        {isMeditating && (
-          <View style={styles.meditationOverlay}>
-             <View style={styles.timerContainer}>
-                <Text style={styles.timerText}>
-                   {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
-                </Text>
-                {awakenedIntention ? (
-                   <Text style={styles.intentionText}>{awakenedIntention}</Text>
-                ) : null}
-             </View>
-             
-             <TouchableOpacity 
-               style={styles.stopButton}
-               onPress={() => {
-                 Alert.alert(
-                    settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
-                    settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
-                    [
-                       { text: "Cancel", style: "cancel" },
-                       { text: "Stop", style: "destructive", onPress: stopMeditation }
-                    ]
-                 );
-               }}
-             >
-                <X size={24} color="white" />
-             </TouchableOpacity>
-          </View>
-        )}
-
         {/* Start Button Overlay */}
         {!isMeditating && interactionState.current.mode !== 'meditating' && (
           <View style={styles.startButtonContainer}>
@@ -1053,6 +1035,7 @@ export default function GardenScreen() {
                  (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled
                ]}
                onPress={() => {
+                  console.log("Start button pressed"); // Debug log
                   if (currentOrb.isAwakened) {
                      setShowAwakenedModal(true);
                   } else {
@@ -1067,7 +1050,10 @@ export default function GardenScreen() {
                            settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
                            [
                               { text: "Cancel", style: "cancel" },
-                              { text: "Start", onPress: () => startMeditation(7, "Growth") }
+                              { text: "Start", onPress: () => {
+                                  console.log("Starting meditation...");
+                                  startMeditation(7, "Growth");
+                              }}
                            ]
                         );
                      }
@@ -1149,6 +1135,37 @@ export default function GardenScreen() {
           </View>
         )}
       </View>
+
+      {/* Moved Meditation Overlay Outside of SceneContainer to avoid PanResponder conflicts */}
+      {isMeditating && (
+        <View style={styles.meditationOverlay}>
+           <View style={styles.timerContainer}>
+              <Text style={styles.timerText}>
+                 {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
+              </Text>
+              {awakenedIntention ? (
+                 <Text style={styles.intentionText}>{awakenedIntention}</Text>
+              ) : null}
+           </View>
+           
+           <TouchableOpacity 
+             style={styles.stopButton}
+             onPress={() => {
+               console.log("Stop button pressed");
+               Alert.alert(
+                  settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
+                  settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
+                  [
+                     { text: "Cancel", style: "cancel" },
+                     { text: "Stop", style: "destructive", onPress: stopMeditation }
+                  ]
+               );
+             }}
+           >
+              <X size={24} color="white" />
+           </TouchableOpacity>
+        </View>
+      )}
 
       {/* Info Cards */}
       <View style={styles.infoContainer}>
@@ -1253,7 +1270,11 @@ export default function GardenScreen() {
                  {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
                </Text>
              ) : (
-               orbHistory.map((orb, index) => (
+               orbHistory.map((orb, index) => {
+                 const shapeName = orb.shape && orb.shape !== 'default' 
+                    ? shapes.find(s => s.id === orb.shape)?.nameZh || orb.shape 
+                    : null;
+                 return (
                  <TouchableOpacity 
                     key={orb.id || index} 
                     style={[styles.orbCard, { backgroundColor: currentTheme.surface, margin: 8 }]}
@@ -1280,10 +1301,12 @@ export default function GardenScreen() {
                      {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                    </Text>
                    <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
-                     {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
+                     {shapeName 
+                       ? (settings.language === 'zh' ? shapeName : shapes.find(s => s.id === orb.shape)?.name || shapeName)
+                       : (orb.sender || (settings.language === 'zh' ? "我自己" : "Me"))}
                    </Text>
                  </TouchableOpacity>
-               ))
+               )})
              )}
           </ScrollView>
         ) : (
@@ -1299,7 +1322,11 @@ export default function GardenScreen() {
                  {settings.language === 'zh' ? "暫無收藏" : "Empty collection"}
                </Text>
              ) : (
-               orbHistory.map((orb, index) => (
+               orbHistory.map((orb, index) => {
+                 const shapeName = orb.shape && orb.shape !== 'default' 
+                    ? shapes.find(s => s.id === orb.shape)?.nameZh || orb.shape 
+                    : null;
+                 return (
                  <TouchableOpacity 
                     key={orb.id || index} 
                     style={[styles.orbCard, { backgroundColor: currentTheme.surface }]}
@@ -1326,10 +1353,12 @@ export default function GardenScreen() {
                      {new Date(orb.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                    </Text>
                    <Text style={[styles.orbSender, { color: currentTheme.text }]} numberOfLines={1}>
-                     {orb.sender || (settings.language === 'zh' ? "我自己" : "Me")}
+                     {shapeName 
+                       ? (settings.language === 'zh' ? shapeName : shapes.find(s => s.id === orb.shape)?.name || shapeName)
+                       : (orb.sender || (settings.language === 'zh' ? "我自己" : "Me"))}
                    </Text>
                  </TouchableOpacity>
-               ))
+               )})
              )}
           </ScrollView>
         )}
@@ -1782,7 +1811,7 @@ const styles = StyleSheet.create({
   },
   startButtonContainer: {
     position: 'absolute',
-    bottom: 80, // Above instructions
+    bottom: 150, // Increased from 80 to 150 to avoid being covered by garden collection panel (approx 120px)
     alignSelf: 'center',
     zIndex: 15,
   },
