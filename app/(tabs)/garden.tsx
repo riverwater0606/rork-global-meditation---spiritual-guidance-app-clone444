@@ -1097,40 +1097,34 @@ export default function GardenScreen() {
              <TouchableOpacity
                style={[
                  styles.startButton,
-                 (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled
+                 // (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled // DISABLE DAILY LIMIT CHECK
                ]}
                onPress={() => {
                   console.log("Start button pressed"); // Debug log
                   if (currentOrb.isAwakened) {
                      setShowAwakenedModal(true);
                   } else {
-                     if (hasGrownOrbToday) {
-                        Alert.alert(
-                          settings.language === 'zh' ? "今日已完成" : "Done Today",
-                          settings.language === 'zh' ? "光球已吸收今日能量。" : "Your orb has absorbed today's energy."
-                        );
-                     } else {
-                        Alert.alert(
-                           settings.language === 'zh' ? "開始培育" : "Start Growth",
-                           settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
-                           [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Start", onPress: () => {
-                                  console.log("Starting meditation...");
-                                  startMeditation(7, "Growth");
-                              }}
-                           ]
-                        );
-                     }
+                     // ALWAYS ALLOW FOR TESTING (User requested removal of daily limit check)
+                     // if (hasGrownOrbToday) { ... } else { ... } -> Simply start logic
+                     
+                     Alert.alert(
+                        settings.language === 'zh' ? "開始培育" : "Start Growth",
+                        settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
+                        [
+                           { text: "Cancel", style: "cancel" },
+                           { text: "Start", onPress: () => {
+                               console.log("Starting meditation...");
+                               startMeditation(7, "Growth");
+                           }}
+                        ]
+                     );
                   }
                }}
              >
                 <Play size={20} color="white" fill="white" />
                 <Text style={styles.startButtonText}>
                    {!currentOrb.isAwakened 
-                      ? (hasGrownOrbToday 
-                          ? (settings.language === 'zh' ? "今日已完成" : "Done Today") 
-                          : (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)"))
+                      ? (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)") // Always show Grow option
                       : (settings.language === 'zh' ? "開始冥想" : "Meditate")
                    }
                 </Text>
@@ -1352,15 +1346,9 @@ export default function GardenScreen() {
            <TouchableOpacity 
              style={styles.stopButton}
              onPress={() => {
-               console.log("Stop button pressed");
-               Alert.alert(
-                  settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
-                  settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
-                  [
-                     { text: "Cancel", style: "cancel" },
-                     { text: "Stop", style: "destructive", onPress: stopMeditation }
-                  ]
-               );
+               console.log("Stop button pressed - stopping immediately");
+               // Direct stop without alert to fix "no reaction" issue
+               stopMeditation();
              }}
            >
               <X size={24} color="white" />
