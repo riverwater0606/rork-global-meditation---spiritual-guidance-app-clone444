@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -8,7 +8,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Play } from "lucide-react-native";
 import { MiniKit } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
@@ -304,6 +304,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     }
     
     if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
+    if (mode === 'meditating') rotationSpeed = 0.005; // Gentle rotation during meditation
     pointsRef.current.rotation.y += rotationSpeed;
     
     // Merkaba needs to stay upright (no Z tilt from gestures if we supported them)
@@ -399,6 +400,21 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       else if (mode === 'explode') {
          tx *= 2.0; ty *= 2.0; tz *= 2.0;
       }
+      else if (mode === 'diffused') {
+         // Scatter outward like a cloud/nebula
+         // We use the original position but scale it up and add some sine wave movement
+         const scatter = 1.5 + Math.sin(t + i * 0.1) * 0.2;
+         tx *= scatter;
+         ty *= scatter;
+         tz *= scatter;
+      }
+      else if (mode === 'meditating') {
+         // Gentle breathing effect
+         const breath = 1.0 + Math.sin(t * 0.5) * 0.05;
+         tx *= breath;
+         ty *= breath;
+         tz *= breath;
+      }
       
       const lerpFactor = 0.1;
       currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
@@ -456,7 +472,8 @@ export default function GardenScreen() {
     orbHistory, 
     hasGrownOrbToday,
     cultivateDailyOrb,
-    devAddLayer, 
+    completeMeditation,
+    devAddLayer,  
     devInstantOrb, 
     devResetOrb, 
     devSendOrbToSelf,
@@ -467,6 +484,14 @@ export default function GardenScreen() {
   const [isExpanded, setIsExpanded] = useState(false);
   // Initialize with the calculated collapsed height
   const panelHeight = useRef(new Animated.Value(collapsedHeight)).current;
+
+  // Meditation State
+  const [isMeditating, setIsMeditating] = useState(false);
+  const [meditationTimeLeft, setMeditationTimeLeft] = useState(0);
+  const [showAwakenedModal, setShowAwakenedModal] = useState(false);
+  const [awakenedIntention, setAwakenedIntention] = useState("");
+  const [awakenedDuration, setAwakenedDuration] = useState(15); // minutes
+  const meditationTimerRef = useRef<any>(null);
 
   // Update ref when insets change
   useEffect(() => {
@@ -480,6 +505,13 @@ export default function GardenScreen() {
       }).start();
     }
   }, [collapsedHeight, isExpanded, panelHeight]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
+    };
+  }, []);
   
   const panelPanResponder = useRef(
     PanResponder.create({
@@ -577,6 +609,13 @@ export default function GardenScreen() {
     { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
   ];
   
+  // Toggle Diffuse
+  const toggleDiffuse = () => {
+     const nextMode = interactionState.current.mode === 'diffused' ? 'idle' : 'diffused';
+     interactionState.current.mode = nextMode;
+     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   // Pan Responder for Gestures
   const panResponder = useRef(
     PanResponder.create({
@@ -591,8 +630,8 @@ export default function GardenScreen() {
       onShouldBlockNativeResponder: () => true,
       
       onPanResponderGrant: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        startGathering();
+        // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // REMOVED: startGathering();
       },
       
       onPanResponderMove: (evt, gestureState) => {
@@ -610,7 +649,7 @@ export default function GardenScreen() {
         const SWIPE_DISTANCE = 100; // Reduced from 150
         const VELOCITY_THRESHOLD = 0.5; // Reduced from 0.8
         
-        if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle') {
+        if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle' || interactionState.current.mode === 'diffused') {
            if (Math.abs(dy) > Math.abs(dx) * 1.5) { // Prioritize vertical movement
              if (dy < -SWIPE_DISTANCE && vy < -VELOCITY_THRESHOLD) { // Swipe UP
                triggerHeartAnimation();
@@ -622,6 +661,12 @@ export default function GardenScreen() {
       },
       
       onPanResponderRelease: (evt, gestureState) => {
+        // Check for Tap
+        const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10 && Math.abs(gestureState.vx) < 0.1 && Math.abs(gestureState.vy) < 0.1;
+        if (isTap && !isMeditating) {
+           toggleDiffuse();
+        }
+
         // Capture final velocity for fling effect
         // Only update if there is significant velocity, otherwise keep momentum or settle
         if (Math.abs(gestureState.vx) > 0.05) {
@@ -638,42 +683,65 @@ export default function GardenScreen() {
     })
   ).current;
 
-  const startGathering = () => {
-    // Don't restart if already doing something special
-    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'appear') return;
-
-    interactionState.current.mode = 'gather';
+  // Meditation Logic
+  const startMeditation = (durationMinutes: number, intention: string = "") => {
+    if (isMeditating) return;
+    
+    setMeditationTimeLeft(durationMinutes * 60);
+    setIsMeditating(true);
+    interactionState.current.mode = 'meditating';
+    
+    if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
     
     const startTime = Date.now();
+    const endTime = startTime + durationMinutes * 60 * 1000;
     
-    if (progressInterval.current) clearInterval(progressInterval.current);
-    
-    progressInterval.current = setInterval(() => {
-      // If we are in gather mode, increase progress
-      // But if we moved to 'heart' or 'store', this interval should have been cleared.
-      // Double check mode here just in case
-      if (interactionState.current.mode !== 'gather') {
-        if (progressInterval.current) clearInterval(progressInterval.current);
-        return;
-      }
+    meditationTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      const left = Math.max(0, Math.ceil((endTime - now) / 1000));
+      setMeditationTimeLeft(left);
       
-      const elapsed = Date.now() - startTime;
-      const newProgress = Math.min(elapsed / GATHER_DURATION, 1.0);
-      
-      interactionState.current.progress = newProgress;
-      if (progressOverlayRef.current) {
-        progressOverlayRef.current.update(newProgress);
+      if (left <= 0) {
+        finishMeditation(durationMinutes);
       }
-      
-      if (newProgress >= 1.0) {
-         triggerCultivation();
-      }
-    }, 16);
+    }, 1000);
+  };
+  
+  const stopMeditation = () => {
+    if (meditationTimerRef.current) {
+      clearInterval(meditationTimerRef.current);
+      meditationTimerRef.current = null;
+    }
+    setIsMeditating(false);
+    interactionState.current.mode = 'idle';
+  };
+  
+  const finishMeditation = async (durationMinutes: number) => {
+     stopMeditation();
+     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+     
+     if (!currentOrb.isAwakened && !hasGrownOrbToday) {
+       await cultivateDailyOrb();
+       Alert.alert(
+          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
+          settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
+       );
+     } else {
+       await completeMeditation("awakened-session", durationMinutes, false);
+       Alert.alert(
+          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
+          settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
+       );
+     }
   };
 
   const stopGathering = () => {
     // If in special animation, don't stop
-    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'explode' || interactionState.current.mode === 'appear') return;
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'store' || interactionState.current.mode === 'explode' || interactionState.current.mode === 'appear' || interactionState.current.mode === 'meditating') return;
+    
+    // Only reset if we were gathering (which we don't do anymore via hold)
+    // But if we are diffused, keep it diffused until tap toggles it off
+    if (interactionState.current.mode === 'diffused') return;
 
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
@@ -688,28 +756,6 @@ export default function GardenScreen() {
         progressOverlayRef.current.reset();
       }
     }
-  };
-
-  const triggerCultivation = () => {
-    if (progressInterval.current) {
-      clearInterval(progressInterval.current);
-      progressInterval.current = null;
-    }
-    
-    interactionState.current.mode = 'explode';
-    interactionState.current.progress = 0;
-    if (progressOverlayRef.current) progressOverlayRef.current.reset();
-    
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    if (!hasGrownOrbToday && !currentOrb.isAwakened) {
-       cultivateDailyOrb();
-       Alert.alert("Energy Gathered", "Your orb has absorbed today's light.");
-    }
-    
-    setTimeout(() => {
-      interactionState.current.mode = 'idle';
-    }, 2000);
   };
 
   const triggerHeartAnimation = () => {
@@ -893,8 +939,153 @@ export default function GardenScreen() {
         </View>
       </Modal>
 
+      {/* Awakened Meditation Modal */}
+      <Modal
+        visible={showAwakenedModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAwakenedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.shapeModal, { backgroundColor: currentTheme.surface }]}>
+            <View style={styles.shapeModalHeader}>
+               <Sparkles size={24} color={currentTheme.primary} />
+               <Text style={[styles.shapeModalTitle, { color: currentTheme.text }]}>
+                 {settings.language === 'zh' ? '冥想設定' : 'Meditation Setup'}
+               </Text>
+            </View>
+
+            <Text style={[styles.inputLabel, { color: currentTheme.textSecondary }]}>
+               {settings.language === 'zh' ? '意圖 (可選)' : 'Intention (Optional)'}
+            </Text>
+            <TextInput
+               style={[styles.input, { color: currentTheme.text, borderColor: currentTheme.border || '#333' }]}
+               placeholder={settings.language === 'zh' ? '例如：平靜、療癒...' : 'e.g., Peace, Healing...'}
+               placeholderTextColor={currentTheme.textSecondary}
+               value={awakenedIntention}
+               onChangeText={setAwakenedIntention}
+            />
+
+            <Text style={[styles.inputLabel, { color: currentTheme.textSecondary, marginTop: 16 }]}>
+               {settings.language === 'zh' ? '時間 (分鐘)' : 'Duration (Minutes)'}
+            </Text>
+            <View style={styles.durationSelector}>
+               {[5, 10, 15, 20, 30, 60].map(m => (
+                 <TouchableOpacity
+                   key={m}
+                   style={[
+                     styles.durationButton, 
+                     awakenedDuration === m && { backgroundColor: currentTheme.primary, borderColor: currentTheme.primary }
+                   ]}
+                   onPress={() => setAwakenedDuration(m)}
+                 >
+                    <Text style={[
+                      styles.durationText, 
+                      awakenedDuration === m ? { color: 'white' } : { color: currentTheme.text }
+                    ]}>{m}</Text>
+                 </TouchableOpacity>
+               ))}
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#333' }]}
+                onPress={() => setShowAwakenedModal(false)}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {settings.language === 'zh' ? '取消' : 'Cancel'}
+                 </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: currentTheme.primary }]}
+                onPress={() => {
+                   setShowAwakenedModal(false);
+                   startMeditation(awakenedDuration, awakenedIntention);
+                }}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {settings.language === 'zh' ? '開始' : 'Start'}
+                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
+        {isMeditating && (
+          <View style={styles.meditationOverlay}>
+             <View style={styles.timerContainer}>
+                <Text style={styles.timerText}>
+                   {Math.floor(meditationTimeLeft / 60)}:{(meditationTimeLeft % 60).toString().padStart(2, '0')}
+                </Text>
+                {awakenedIntention ? (
+                   <Text style={styles.intentionText}>{awakenedIntention}</Text>
+                ) : null}
+             </View>
+             
+             <TouchableOpacity 
+               style={styles.stopButton}
+               onPress={() => {
+                 Alert.alert(
+                    settings.language === 'zh' ? "停止冥想？" : "Stop Meditation?",
+                    settings.language === 'zh' ? "現在停止將不計入完成。" : "Stopping now will not count as complete.",
+                    [
+                       { text: "Cancel", style: "cancel" },
+                       { text: "Stop", style: "destructive", onPress: stopMeditation }
+                    ]
+                 );
+               }}
+             >
+                <X size={24} color="white" />
+             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Start Button Overlay */}
+        {!isMeditating && interactionState.current.mode !== 'meditating' && (
+          <View style={styles.startButtonContainer}>
+             <TouchableOpacity
+               style={[
+                 styles.startButton,
+                 (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled
+               ]}
+               onPress={() => {
+                  if (currentOrb.isAwakened) {
+                     setShowAwakenedModal(true);
+                  } else {
+                     if (hasGrownOrbToday) {
+                        Alert.alert(
+                          settings.language === 'zh' ? "今日已完成" : "Done Today",
+                          settings.language === 'zh' ? "光球已吸收今日能量。" : "Your orb has absorbed today's energy."
+                        );
+                     } else {
+                        Alert.alert(
+                           settings.language === 'zh' ? "開始培育" : "Start Growth",
+                           settings.language === 'zh' ? "開始7分鐘冥想以培育光球？" : "Start 7-minute meditation to grow your orb?",
+                           [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Start", onPress: () => startMeditation(7, "Growth") }
+                           ]
+                        );
+                     }
+                  }
+               }}
+             >
+                <Play size={20} color="white" fill="white" />
+                <Text style={styles.startButtonText}>
+                   {!currentOrb.isAwakened 
+                      ? (hasGrownOrbToday 
+                          ? (settings.language === 'zh' ? "今日已完成" : "Done Today") 
+                          : (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)"))
+                      : (settings.language === 'zh' ? "開始冥想" : "Meditate")
+                   }
+                </Text>
+             </TouchableOpacity>
+          </View>
+        )}
         <TouchableOpacity
           style={styles.shapeButton}
           onPress={() => setShowShapeSelector(true)}
@@ -933,26 +1124,30 @@ export default function GardenScreen() {
           duration={GATHER_DURATION} 
         />
         
-        <View style={styles.instructions}>
-           <View style={styles.instructionRow}>
-              <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.instructionText}>
-                {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
-              </Text>
-           </View>
-           <View style={styles.instructionRow}>
-              <View style={styles.holdDot} />
-              <Text style={styles.instructionText}>
-                {settings.language === 'zh' ? "長按聚集" : "Hold to Gather"}
-              </Text>
-           </View>
-           <View style={styles.instructionRow}>
-              <ArrowDown size={14} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.instructionText}>
-                {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
-              </Text>
-           </View>
-        </View>
+        {!isMeditating && (
+          <View style={styles.instructions}>
+             <View style={styles.instructionRow}>
+                <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
+                <Text style={styles.instructionText}>
+                  {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
+                </Text>
+             </View>
+             
+             <View style={styles.instructionRow}>
+                <View style={styles.holdDot} />
+                <Text style={styles.instructionText}>
+                  {settings.language === 'zh' ? "點擊擴散" : "Tap to Diffuse"}
+                </Text>
+             </View>
+             
+             <View style={styles.instructionRow}>
+                <ArrowDown size={14} color="rgba(255,255,255,0.6)" />
+                <Text style={styles.instructionText}>
+                  {settings.language === 'zh' ? "下滑收藏" : "Swipe Down to Store"}
+                </Text>
+             </View>
+          </View>
+        )}
       </View>
 
       {/* Info Cards */}
@@ -1510,5 +1705,108 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    fontSize: 16,
+  },
+  durationSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
+  },
+  durationButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  durationText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meditationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  timerContainer: {
+    alignItems: 'center',
+  },
+  timerText: {
+    fontSize: 60,
+    fontWeight: '100',
+    color: 'white',
+    fontVariant: ['tabular-nums'],
+  },
+  intentionText: {
+    fontSize: 18,
+    color: '#E0E7FF',
+    marginTop: 10,
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+  stopButton: {
+    marginTop: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  startButtonContainer: {
+    position: 'absolute',
+    bottom: 80, // Above instructions
+    alignSelf: 'center',
+    zIndex: 15,
+  },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    gap: 8,
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  startButtonDisabled: {
+    backgroundColor: '#666',
+    shadowOpacity: 0,
+  },
+  startButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
