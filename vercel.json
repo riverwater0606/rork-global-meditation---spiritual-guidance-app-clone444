@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "npx expo export -p web",
+  "buildCommand": "rm -f metro.config.js && echo \"const { getDefaultConfig } = require('expo/metro-config'); module.exports = getDefaultConfig(__dirname);\" > metro.config.js && npx expo export -p web",
   "devCommand": "npx expo start",
   "installCommand": "npm install --legacy-peer-deps",
   "outputDirectory": "dist",
