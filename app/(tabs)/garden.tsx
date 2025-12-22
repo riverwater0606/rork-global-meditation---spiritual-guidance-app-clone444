@@ -509,7 +509,11 @@ export default function GardenScreen() {
   const [showAwakenedModal, setShowAwakenedModal] = useState(false);
   const [showGrowthModal, setShowGrowthModal] = useState(false);
   const [awakenedIntention, setAwakenedIntention] = useState("");
-  const [awakenedDuration, setAwakenedDuration] = useState(15); // minutes
+  const [awakenedDuration, setAwakenedDuration] = useState(15);
+  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [giftMessage, setGiftMessage] = useState("");
+  const [selectedFriend, setSelectedFriend] = useState<{ wallet: string; name?: string } | null>(null);
+  const [isGifting, setIsGifting] = useState(false); // minutes
   const meditationTimerRef = useRef<any>(null);
 
   // Update ref when insets change
@@ -775,20 +779,27 @@ export default function GardenScreen() {
   };
 
   const triggerHeartAnimation = () => {
+    // Check if orb is giftable (not empty white ball)
+    const isEmptyWhiteBall = currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default');
+    
+    if (isEmptyWhiteBall) {
+      Alert.alert(
+        settings.language === 'zh' ? "無法贈送" : "Cannot Gift",
+        settings.language === 'zh' ? "請先培育或改變光球形態" : "Grow or transform your orb first"
+      );
+      return;
+    }
+    
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (progressOverlayRef.current) progressOverlayRef.current.reset();
     
     interactionState.current.mode = 'heart';
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
-    // Wait for animation then trigger send
+    // Open gift modal after animation starts
     setTimeout(() => {
-       handleSendOrb();
-       // Reset after action
-       setTimeout(() => {
-         interactionState.current.mode = 'idle';
-       }, 1000);
-    }, 1500);
+       setShowGiftModal(true);
+    }, 800);
   };
 
   const animateStore = () => {
@@ -807,40 +818,123 @@ export default function GardenScreen() {
     }, 2000);
   };
 
-  const handleSendOrb = async () => {
-    const orb = currentOrbRef.current;
-    if (!orb.isAwakened && orb.level < 1 && orb.layers.length === 0) {
-      Alert.alert("Orb Empty", "Grow your orb before sending.");
+  const handleSelectFriend = async () => {
+    if (!MiniKit || !MiniKit.isInstalled()) {
+      Alert.alert(
+        settings.language === 'zh' ? "需要 World App" : "World App Required",
+        settings.language === 'zh' ? "請在 World App 中打開此應用" : "Please open this app in World App"
+      );
       return;
     }
 
-    Alert.alert(
-      settings.language === 'zh' ? "贈送光球" : "Send Orb",
-      settings.language === 'zh' ? "選擇一位朋友分享能量" : "Choose a friend to share energy with.",
-      [
-        { text: "Cancel", style: "cancel", onPress: () => interactionState.current.mode = 'idle' },
-        {
-          text: "Send via World App",
-          onPress: async () => {
-             if (MiniKit && MiniKit.isInstalled()) {
-               try {
-                  const res = await MiniKit.commands.transferNft({
-                    collectionAddress: "0x1234567890123456789012345678901234567890", 
-                    tokenId: "1", 
-                    recipient: "0xFriendAddress", 
-                  });
-                  console.log(res);
-               } catch (e) {
-                 console.warn("MiniKit transfer failed/mocked", e);
-               }
-             }
+    try {
+      const result = await MiniKit.commands.shareContacts({
+        isMultiSelectEnabled: false
+      });
+      
+      if (result && result.contacts && result.contacts.length > 0) {
+        const contact = result.contacts[0];
+        setSelectedFriend({
+          wallet: contact.walletAddress,
+          name: contact.name || contact.walletAddress.slice(0, 8)
+        });
+      }
+    } catch (e) {
+      console.warn("MiniKit shareContacts failed:", e);
+      Alert.alert(
+        settings.language === 'zh' ? "選擇失敗" : "Selection Failed",
+        settings.language === 'zh' ? "請重試" : "Please try again"
+      );
+    }
+  };
 
-             await sendOrbRef.current("friend-id", "May you be happy.");
-             Alert.alert("Sent!", "Your light has been shared.");
-          }
+  const handleConfirmGift = async () => {
+    if (!selectedFriend) {
+      Alert.alert(
+        settings.language === 'zh' ? "請選擇朋友" : "Please Select Friend",
+        settings.language === 'zh' ? "先選擇要贈送的朋友" : "Choose a friend first"
+      );
+      return;
+    }
+
+    setIsGifting(true);
+
+    try {
+      // Note: Replace with your actual NFT contract address and ABI
+      const NFT_CONTRACT = "0x1234567890123456789012345678901234567890";
+      const tokenId = currentOrb.id;
+
+      if (MiniKit && MiniKit.isInstalled()) {
+        try {
+          // Send NFT using MiniKit sendTransaction
+          const result = await MiniKit.commands.sendTransaction({
+            transaction: [{
+              address: NFT_CONTRACT,
+              abi: [
+                {
+                  name: 'safeTransferFrom',
+                  type: 'function',
+                  inputs: [
+                    { name: 'from', type: 'address' },
+                    { name: 'to', type: 'address' },
+                    { name: 'tokenId', type: 'uint256' }
+                  ]
+                }
+              ],
+              functionName: 'safeTransferFrom',
+              args: [walletAddress, selectedFriend.wallet, tokenId]
+            }]
+          });
+          
+          console.log("Transaction result:", result);
+        } catch (e) {
+          console.warn("MiniKit sendTransaction failed (mocked for dev):", e);
         }
-      ]
-    );
+      }
+
+      // Close modal
+      setShowGiftModal(false);
+      
+      // Trigger flying away animation
+      interactionState.current.mode = 'explode';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Send orb and reset
+      setTimeout(async () => {
+        await sendOrbRef.current(selectedFriend.name || "Friend", giftMessage || "May love and energy flow forever.");
+        
+        // Reset states
+        setGiftMessage("");
+        setSelectedFriend(null);
+        setIsGifting(false);
+        interactionState.current.mode = 'idle';
+        
+        // Show success message
+        Alert.alert(
+          settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+          settings.language === 'zh' 
+            ? `已贈送給 ${selectedFriend.name || "朋友"}，願愛與能量永流` 
+            : `Gifted to ${selectedFriend.name || "Friend"}, may love and energy flow forever`
+        );
+      }, 2000);
+    } catch (error) {
+      console.error("Gift failed:", error);
+      setIsGifting(false);
+      Alert.alert(
+        settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
+        settings.language === 'zh' ? "請重試" : "Please try again"
+      );
+    }
+  };
+
+  const handleCancelGift = () => {
+    setShowGiftModal(false);
+    setGiftMessage("");
+    setSelectedFriend(null);
+    // Reset animation
+    setTimeout(() => {
+      interactionState.current.mode = 'idle';
+    }, 500);
   };
 
   const handleSwapOrb = async (orb: any) => {
@@ -1007,6 +1101,92 @@ export default function GardenScreen() {
         </View>
       </Modal>
 
+      {/* Gift Modal */}
+      <Modal
+        visible={showGiftModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCancelGift}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.shapeModal, { backgroundColor: currentTheme.surface }]}>
+            <View style={styles.shapeModalHeader}>
+               <Text style={styles.giftHeart}>💝</Text>
+               <Text style={[styles.shapeModalTitle, { color: currentTheme.text }]}>
+                 {settings.language === 'zh' ? '贈送光球' : 'Gift Orb'}
+               </Text>
+            </View>
+
+            {/* Heart Orb Preview */}
+            <View style={styles.giftOrbPreview}>
+              {currentOrb.layers.map((color, i) => (
+                <View 
+                  key={i} 
+                  style={[
+                    styles.giftOrbLayer, 
+                    { 
+                      backgroundColor: color, 
+                      width: 20 + (i * 8), 
+                      height: 20 + (i * 8),
+                      opacity: 0.9
+                    } 
+                  ]} 
+                />
+              ))}
+            </View>
+
+            <Text style={[styles.inputLabel, { color: currentTheme.textSecondary }]}>
+               {settings.language === 'zh' ? '祝福訊息' : 'Blessing Message'}
+            </Text>
+            <TextInput
+               style={[styles.input, { color: currentTheme.text, borderColor: currentTheme.border || '#333' }]}
+               placeholder={settings.language === 'zh' ? '願這顆光球帶來...' : 'May this orb bring...'}
+               placeholderTextColor={currentTheme.textSecondary}
+               value={giftMessage}
+               onChangeText={setGiftMessage}
+               multiline
+               numberOfLines={3}
+            />
+
+            <TouchableOpacity
+              style={[styles.selectFriendButton, { borderColor: currentTheme.primary }]}
+              onPress={handleSelectFriend}
+              disabled={isGifting}
+            >
+              <Text style={[styles.selectFriendText, { color: currentTheme.primary }]}>
+                {selectedFriend 
+                  ? `✓ ${selectedFriend.name}` 
+                  : (settings.language === 'zh' ? '選擇朋友' : 'Select Friend')}
+              </Text>
+            </TouchableOpacity>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#333' }]}
+                onPress={handleCancelGift}
+                disabled={isGifting}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {settings.language === 'zh' ? '取消' : 'Cancel'}
+                 </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: currentTheme.primary, opacity: (isGifting || !selectedFriend) ? 0.5 : 1 }]}
+                onPress={handleConfirmGift}
+                disabled={isGifting || !selectedFriend}
+              >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                   {isGifting 
+                     ? (settings.language === 'zh' ? '贈送中...' : 'Gifting...') 
+                     : (settings.language === 'zh' ? '確認贈送' : 'Confirm Gift')}
+                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Awakened Meditation Modal */}
       <Modal
         visible={showAwakenedModal}
@@ -1127,7 +1307,7 @@ export default function GardenScreen() {
              <View style={styles.instructionRow}>
                 <ArrowUp size={14} color="rgba(255,255,255,0.6)" />
                 <Text style={styles.instructionText}>
-                  {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Send"}
+                  {settings.language === 'zh' ? "上滑贈送" : "Swipe Up to Gift"}
                 </Text>
              </View>
              
@@ -1888,5 +2068,32 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  giftHeart: {
+    fontSize: 32,
+  },
+  giftOrbPreview: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginVertical: 20,
+  },
+  giftOrbLayer: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  selectFriendButton: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 24,
+  },
+  selectFriendText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
