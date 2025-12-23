@@ -820,10 +820,12 @@ export default function GardenScreen() {
 
   const handleSelectFriend = async () => {
     if (!MiniKit || !MiniKit.isInstalled()) {
-      Alert.alert(
-        settings.language === 'zh' ? "需要 World App" : "World App Required",
-        settings.language === 'zh' ? "請在 World App 中打開此應用" : "Please open this app in World App"
-      );
+      // For dev/testing without MiniKit
+      console.log("MiniKit not installed, mocking friend selection");
+      setSelectedFriend({
+        wallet: "0x123...mock",
+        name: "Mock Friend"
+      });
       return;
     }
 
@@ -832,12 +834,17 @@ export default function GardenScreen() {
         isMultiSelectEnabled: false
       });
       
+      console.log("ShareContacts result:", result);
+
       if (result && result.contacts && result.contacts.length > 0) {
         const contact = result.contacts[0];
         setSelectedFriend({
           wallet: contact.walletAddress,
           name: contact.name || contact.walletAddress.slice(0, 8)
         });
+      } else {
+        // User cancelled or no contact selected
+        console.log("No contact selected");
       }
     } catch (e) {
       console.warn("MiniKit shareContacts failed:", e);
@@ -862,11 +869,16 @@ export default function GardenScreen() {
     try {
       // Note: Replace with your actual NFT contract address and ABI
       const NFT_CONTRACT = "0x1234567890123456789012345678901234567890";
-      const tokenId = currentOrb.id;
+      
+      // Generate a numeric token ID from the string ID for the mock contract call
+      // This prevents potential crashes if MiniKit expects a uint256
+      const numericTokenId = currentOrb.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0).toString();
 
       if (MiniKit && MiniKit.isInstalled()) {
         try {
+          console.log("Sending transaction via MiniKit...");
           // Send NFT using MiniKit sendTransaction
+          // We await this, but we catch errors so the UI flow continues even if tx fails/cancelled
           const result = await MiniKit.commands.sendTransaction({
             transaction: [{
               address: NFT_CONTRACT,
@@ -882,41 +894,49 @@ export default function GardenScreen() {
                 }
               ],
               functionName: 'safeTransferFrom',
-              args: [walletAddress, selectedFriend.wallet, tokenId]
+              args: [walletAddress, selectedFriend.wallet, numericTokenId]
             }]
           });
           
           console.log("Transaction result:", result);
         } catch (e) {
-          console.warn("MiniKit sendTransaction failed (mocked for dev):", e);
+          console.warn("MiniKit sendTransaction failed (mocked/cancelled):", e);
+          // We continue anyway to simulate success for the user interaction in this demo
         }
       }
 
-      // Close modal
+      // Close modal immediately
       setShowGiftModal(false);
       
       // Trigger flying away animation
       interactionState.current.mode = 'explode';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      // Send orb and reset
+      // Send orb and reset after animation
       setTimeout(async () => {
-        await sendOrbRef.current(selectedFriend.name || "Friend", giftMessage || "May love and energy flow forever.");
-        
-        // Reset states
-        setGiftMessage("");
-        setSelectedFriend(null);
-        setIsGifting(false);
-        interactionState.current.mode = 'idle';
-        
-        // Show success message
-        Alert.alert(
-          settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
-          settings.language === 'zh' 
-            ? `已贈送給 ${selectedFriend.name || "朋友"}，願愛與能量永流` 
-            : `Gifted to ${selectedFriend.name || "Friend"}, may love and energy flow forever`
-        );
+        try {
+          await sendOrbRef.current(selectedFriend.name || "Friend", giftMessage || "May love and energy flow forever.");
+          
+          // Reset states
+          setGiftMessage("");
+          setSelectedFriend(null);
+          setIsGifting(false);
+          interactionState.current.mode = 'idle';
+          
+          // Show success message
+          Alert.alert(
+            settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+            settings.language === 'zh' 
+              ? `已贈送給 ${selectedFriend.name || "朋友"}，願愛與能量永流` 
+              : `Gifted to ${selectedFriend.name || "Friend"}, may love and energy flow forever`
+          );
+        } catch (err) {
+          console.error("Error in sendOrb execution:", err);
+          setIsGifting(false);
+          interactionState.current.mode = 'idle';
+        }
       }, 2000);
+
     } catch (error) {
       console.error("Gift failed:", error);
       setIsGifting(false);
