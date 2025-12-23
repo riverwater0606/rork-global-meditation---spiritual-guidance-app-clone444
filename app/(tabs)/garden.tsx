@@ -512,7 +512,6 @@ export default function GardenScreen() {
   const [awakenedDuration, setAwakenedDuration] = useState(15);
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
-  const [selectedFriend, setSelectedFriend] = useState<{ wallet: string; name?: string } | null>(null);
   const [isGifting, setIsGifting] = useState(false); // minutes
   const meditationTimerRef = useRef<any>(null);
 
@@ -818,145 +817,121 @@ export default function GardenScreen() {
     }, 2000);
   };
 
-  const handleSelectFriend = async () => {
+  const handleGiftFlow = async () => {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
-      console.log("Device: Development/Expo Go - Mocking Friend Selection");
-      setSelectedFriend({
-        wallet: "0x1234567890123456789012345678901234567890",
-        name: "Test Friend"
-      });
+      console.log("Device: Development/Expo Go - Mocking Gift Flow");
+      
+      setIsGifting(true);
+      
+      // Mock delay
+      setTimeout(() => {
+         const mockName = "Test Friend";
+         finishGifting(mockName);
+      }, 2000);
       return;
     }
 
     // 2. Real MiniKit Environment
     try {
-      console.log("Opening MiniKit Contact Picker...");
-      const result = await MiniKit.commands.shareContacts({
+      console.log("Starting Gift Flow...");
+      setIsGifting(true);
+
+      // A. Share Contacts
+      const contactResult = await MiniKit.commands.shareContacts({
         isMultiSelectEnabled: false
       });
       
-      console.log("MiniKit shareContacts result:", JSON.stringify(result));
-
-      if (result && result.contacts && result.contacts.length > 0) {
-        const contact = result.contacts[0];
-        setSelectedFriend({
-          wallet: contact.walletAddress,
-          name: contact.name || `User ${contact.walletAddress.slice(0, 4)}`
-        });
-      } else {
-         console.log("No contacts returned or user cancelled");
+      // Check if user cancelled
+      if (!contactResult || !contactResult.contacts || contactResult.contacts.length === 0) {
+         console.log("Contact selection cancelled");
+         setIsGifting(false);
+         return;
       }
+
+      const contact = contactResult.contacts[0];
+      const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
+
+      // B. Immediately Send Transaction
+      const NFT_CONTRACT = "0xc54d241764653835017e91459a933612d184457e"; 
+      const numericTokenId = currentOrb.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0).toString();
+      
+      const txResult = await MiniKit.commands.sendTransaction({
+          transaction: [{
+              address: NFT_CONTRACT,
+              abi: [{
+                  name: 'safeTransferFrom',
+                  type: 'function',
+                  inputs: [
+                      { name: 'from', type: 'address' },
+                      { name: 'to', type: 'address' },
+                      { name: 'tokenId', type: 'uint256' }
+                  ]
+              }],
+              functionName: 'safeTransferFrom',
+              args: [walletAddress, contact.walletAddress, numericTokenId]
+          }]
+      });
+      
+      // Check result
+      if (!txResult) {
+          console.log("Transaction cancelled or failed");
+          setIsGifting(false);
+          Alert.alert(
+              settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
+              settings.language === 'zh' ? "請重試" : "Please try again"
+          );
+          return;
+      }
+
+      // C. Success
+      finishGifting(friendName);
+
     } catch (e) {
-      console.error("MiniKit shareContacts error:", e);
+      console.error("Gift flow critical error:", e);
+      setIsGifting(false);
       Alert.alert(
-        settings.language === 'zh' ? "選擇失敗" : "Selection Failed",
-        settings.language === 'zh' ? "請重試" : "Please try again"
+        settings.language === 'zh' ? "錯誤" : "Error", 
+        settings.language === 'zh' ? "發生未知錯誤" : "Something went wrong"
       );
     }
   };
 
-  const handleConfirmGift = async () => {
-    if (!selectedFriend) return;
-    
-    setIsGifting(true);
-    
-    // START TRANSACTION FLOW
-    try {
-        if (MiniKit && MiniKit.isInstalled()) {
-            console.log("Starting MiniKit transaction...");
-            try {
-                // Mock Contract Address - Replace with real one in production
-                const NFT_CONTRACT = "0xc54d241764653835017e91459a933612d184457e"; 
-                // Generate a numeric token ID from the string ID for ABI compatibility
-                const numericTokenId = currentOrb.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0).toString();
-                
-                const result = await MiniKit.commands.sendTransaction({
-                    transaction: [{
-                        address: NFT_CONTRACT,
-                        abi: [{
-                            name: 'safeTransferFrom',
-                            type: 'function',
-                            inputs: [
-                                { name: 'from', type: 'address' },
-                                { name: 'to', type: 'address' },
-                                { name: 'tokenId', type: 'uint256' }
-                            ]
-                        }],
-                        functionName: 'safeTransferFrom',
-                        args: [walletAddress, selectedFriend.wallet, numericTokenId]
-                    }]
-                });
-                
-                console.log("Transaction Result:", result);
-                
-                // If result is null/undefined, it usually means cancellation in MiniKit
-                if (!result) {
-                    console.log("Transaction cancelled");
-                    setIsGifting(false);
-                    return;
-                }
-            } catch (err) {
-                console.log("Transaction failed or cancelled:", err);
-                setIsGifting(false);
-                // Don't show alert for cancellation, but log it
-                return; 
-            }
-        } else {
-            // Mock delay for Dev environment
-            console.log("Mocking transaction delay...");
-            await new Promise(r => setTimeout(r, 2000));
-        }
-        
-        // --- SUCCESS FLOW ---
-        console.log("Transaction successful, starting animation...");
-        
-        // 1. Close modal immediately
-        setShowGiftModal(false);
-        
-        // 2. Start Animation (Explode/Fly away)
-        interactionState.current.mode = 'explode';
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // 3. Wait for animation then complete the process
-        setTimeout(async () => {
-             try {
-               await sendOrbRef.current(selectedFriend.name || "Friend", giftMessage || "May love and energy flow forever.");
-               
-               // Reset UI
-               setGiftMessage("");
-               setSelectedFriend(null);
-               setIsGifting(false);
-               interactionState.current.mode = 'idle';
-               
-               Alert.alert(
-                   settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
-                   settings.language === 'zh' 
-                    ? `已贈送給 ${selectedFriend.name}` 
-                    : `Gifted to ${selectedFriend.name}`
-               );
-             } catch (postTxError) {
-                console.error("Error in post-transaction cleanup:", postTxError);
-                // Even if cleanup fails, reset UI
-                setIsGifting(false);
-                interactionState.current.mode = 'idle';
-             }
-        }, 1500);
-
-    } catch (e) {
-        console.error("Gift flow critical error:", e);
-        setIsGifting(false);
-        Alert.alert(
-            settings.language === 'zh' ? "錯誤" : "Error", 
-            settings.language === 'zh' ? "發生未知錯誤" : "Something went wrong"
-        );
-    }
+  const finishGifting = (friendName: string) => {
+      // 1. Close modal immediately
+      setShowGiftModal(false);
+      
+      // 2. Start Animation (Explode/Fly away)
+      interactionState.current.mode = 'explode';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // 3. Wait for animation then complete the process
+      setTimeout(async () => {
+           try {
+             await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
+             
+             // Reset UI
+             setGiftMessage("");
+             setIsGifting(false);
+             interactionState.current.mode = 'idle';
+             
+             Alert.alert(
+                 settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+                 settings.language === 'zh' 
+                  ? `已贈送給 ${friendName}，願愛與能量永流` 
+                  : `Gifted to ${friendName}, may love and energy flow forever.`
+             );
+           } catch (postTxError) {
+              console.error("Error in post-transaction cleanup:", postTxError);
+              setIsGifting(false);
+              interactionState.current.mode = 'idle';
+           }
+      }, 1500);
   };
 
   const handleCancelGift = () => {
     setShowGiftModal(false);
     setGiftMessage("");
-    setSelectedFriend(null);
     // Reset animation
     setTimeout(() => {
       interactionState.current.mode = 'idle';
@@ -1175,14 +1150,14 @@ export default function GardenScreen() {
             />
 
             <TouchableOpacity
-              style={[styles.selectFriendButton, { borderColor: currentTheme.primary }]}
-              onPress={handleSelectFriend}
+              style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGifting ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
+              onPress={handleGiftFlow}
               disabled={isGifting}
             >
               <Text style={[styles.selectFriendText, { color: currentTheme.primary }]}>
-                {selectedFriend 
-                  ? `✓ ${selectedFriend.name}` 
-                  : (settings.language === 'zh' ? '選擇朋友' : 'Select Friend')}
+                {isGifting 
+                  ? (settings.language === 'zh' ? '贈送中...' : 'Gifting...')
+                  : (settings.language === 'zh' ? '選擇朋友並贈送' : 'Select Friend & Gift')}
               </Text>
             </TouchableOpacity>
             
@@ -1194,18 +1169,6 @@ export default function GardenScreen() {
               >
                  <Text style={{ color: 'white', fontWeight: 'bold' }}>
                    {settings.language === 'zh' ? '取消' : 'Cancel'}
-                 </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: currentTheme.primary, opacity: (isGifting || !selectedFriend) ? 0.5 : 1 }]}
-                onPress={handleConfirmGift}
-                disabled={isGifting || !selectedFriend}
-              >
-                 <Text style={{ color: 'white', fontWeight: 'bold' }}>
-                   {isGifting 
-                     ? (settings.language === 'zh' ? '贈送中...' : 'Gifting...') 
-                     : (settings.language === 'zh' ? '確認贈送' : 'Confirm Gift')}
                  </Text>
               </TouchableOpacity>
             </View>
