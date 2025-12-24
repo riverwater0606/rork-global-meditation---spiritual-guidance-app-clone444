@@ -829,15 +829,8 @@ export default function GardenScreen() {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
       console.log("Device: Development/Expo Go - Mocking Gift Flow");
-      
-      // MOCK FLOW for Expo Go
-      // Simulate selection (no modal in mock)
-      setIsGifting(true); // Show "Gifting..." state
-      
-      setTimeout(() => {
-         const mockName = "Test Friend";
-         finishGifting(mockName);
-      }, 2000);
+      // IMMEDIATELY trigger success flow for testing
+      finishGifting("Test Friend");
       return;
     }
 
