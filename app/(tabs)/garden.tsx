@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unknown-property */
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -829,7 +830,6 @@ export default function GardenScreen() {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
       console.log("Device: Development/Expo Go - Mocking Gift Flow");
-      // IMMEDIATELY trigger success flow for testing
       finishGifting("Test Friend");
       return;
     }
@@ -852,15 +852,14 @@ export default function GardenScreen() {
       const contact = contactResult.contacts[0];
       const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
 
-      // 3. On shareContacts success -> Show "贈送中..." + disable button
+      // 3. Immediately show success state (Optimistic UI)
       setIsGifting(true);
 
-      // B. Immediately Send Transaction
-      // Use existing contract address or the one for this project
+      // B. Send Transaction in BACKGROUND (Don't await result for UI)
       const NFT_CONTRACT = "0xc54d241764653835017e91459a933612d184457e"; 
       const numericTokenId = currentOrb.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0).toString();
       
-      const txResult = await MiniKit.commands.sendTransaction({
+      MiniKit.commands.sendTransaction({
           transaction: [{
               address: NFT_CONTRACT,
               abi: [{
@@ -875,20 +874,26 @@ export default function GardenScreen() {
               functionName: 'safeTransferFrom',
               args: [walletAddress, contact.walletAddress, numericTokenId]
           }]
-      });
-      
-      // Check result
-      if (!txResult) {
-          console.log("Transaction cancelled or failed");
-          setIsGifting(false);
+      }).then((txResult: any) => {
+          if (!txResult) {
+              console.log("Transaction cancelled/failed (Background)");
+              // Prompt: "If real error → show alert... but still disappear orb"
+              Alert.alert(
+                  settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
+                  settings.language === 'zh' ? "請重試" : "Please try again"
+              );
+          } else {
+              console.log("Transaction success (Background)");
+          }
+      }).catch((e: any) => {
+          console.error("Transaction error (Background):", e);
           Alert.alert(
               settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
               settings.language === 'zh' ? "請重試" : "Please try again"
           );
-          return;
-      }
+      });
 
-      // C. Success
+      // C. ALWAYS SUCCEED IMMEDIATELY IN UI
       finishGifting(friendName);
 
     } catch (e) {
