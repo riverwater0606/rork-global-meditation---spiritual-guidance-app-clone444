@@ -398,7 +398,15 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
         tz *= 0.01;
       }
       else if (mode === 'explode') {
-         tx *= 2.0; ty *= 2.0; tz *= 2.0;
+         // Heart flying away effect (Gift sent)
+         tx = heartPositions[ix];
+         ty = heartPositions[iy];
+         tz = heartPositions[iz];
+         
+         const flyScale = 2.0;
+         tx *= flyScale + (Math.random() - 0.5) * 0.5;
+         ty = ty * flyScale + 5.0; // Fly UP off screen
+         tz *= flyScale + (Math.random() - 0.5) * 0.5;
       }
       else if (mode === 'diffused') {
          // Scatter outward like a cloud/nebula
@@ -822,9 +830,10 @@ export default function GardenScreen() {
     if (!MiniKit || !MiniKit.isInstalled()) {
       console.log("Device: Development/Expo Go - Mocking Gift Flow");
       
-      setIsGifting(true);
+      // MOCK FLOW for Expo Go
+      // Simulate selection (no modal in mock)
+      setIsGifting(true); // Show "Gifting..." state
       
-      // Mock delay
       setTimeout(() => {
          const mockName = "Test Friend";
          finishGifting(mockName);
@@ -835,9 +844,8 @@ export default function GardenScreen() {
     // 2. Real MiniKit Environment
     try {
       console.log("Starting Gift Flow...");
-      setIsGifting(true);
-
-      // A. Share Contacts
+      
+      // A. Share Contacts - User selects friend first
       const contactResult = await MiniKit.commands.shareContacts({
         isMultiSelectEnabled: false
       });
@@ -845,14 +853,17 @@ export default function GardenScreen() {
       // Check if user cancelled
       if (!contactResult || !contactResult.contacts || contactResult.contacts.length === 0) {
          console.log("Contact selection cancelled");
-         setIsGifting(false);
          return;
       }
 
       const contact = contactResult.contacts[0];
       const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
 
+      // 3. On shareContacts success -> Show "贈送中..." + disable button
+      setIsGifting(true);
+
       // B. Immediately Send Transaction
+      // Use existing contract address or the one for this project
       const NFT_CONTRACT = "0xc54d241764653835017e91459a933612d184457e"; 
       const numericTokenId = currentOrb.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0).toString();
       
