@@ -3,6 +3,7 @@ import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useE
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Audio } from "expo-av";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
@@ -526,6 +527,7 @@ export default function GardenScreen() {
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
+  const giftSoundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     console.log("[DEBUG_GIFT] GardenScreen MOUNTED - Checking for pending actions...");
@@ -576,6 +578,23 @@ export default function GardenScreen() {
   useEffect(() => {
     return () => {
       if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const cleanup = async () => {
+        try {
+          if (giftSoundRef.current) {
+            await giftSoundRef.current.unloadAsync();
+            giftSoundRef.current = null;
+          }
+        } catch (e) {
+          console.warn("[DEBUG_GIFT] Failed to unload gift sound:", e);
+        }
+      };
+
+      void cleanup();
     };
   }, []);
   
@@ -886,84 +905,27 @@ export default function GardenScreen() {
     handleGiftSuccessRef.current = handleGiftSuccess;
   });
 
-  const handleGiftFlow = async () => {
-    console.log("[DEBUG_GIFT] handleGiftFlow START");
-    
-    // 1. Check MiniKit status - handle Dev/Mock environment
-    if (!MiniKit || !MiniKit.isInstalled()) {
-      console.log("[DEBUG_GIFT] Device: Development/Expo Go - Mocking Gift Flow");
-      finishGifting("Test Friend");
-      return;
-    }
-
-    // Safety check for API availability
-    if (!MiniKit.commandsAsync?.shareContacts) {
-        console.warn("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts is not available.");
-        finishGifting("Friend");
-        return;
-    }
-
-    hasAttemptedGift.current = true; // Mark that we are attempting to gift
-    console.log("[DEBUG_GIFT] hasAttemptedGift set to TRUE");
-
-    // 2. Real MiniKit Environment
+  const playHolyGiftSound = async () => {
     try {
-      console.log("[DEBUG_GIFT] Starting Gift Flow (Real MiniKit)...");
-      setIsGiftingUI(true);
-      
-      // A. Share Contacts - User selects friend first
-      console.log("[DEBUG_GIFT] Calling MiniKit.commandsAsync.shareContacts...");
-      
-      // Race with timeout to prevent indefinite hanging - INCREASED TO 60s
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("ShareContacts timeout")), 60000)
+      const uri = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b6a66f4db.mp3?filename=magic-2-16764.mp3";
+
+      if (giftSoundRef.current) {
+        await giftSoundRef.current.unloadAsync();
+        giftSoundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true, volume: 0.9 }
       );
-      
-      const sharePromise = MiniKit.commandsAsync.shareContacts({
-        isMultiSelectEnabled: false
-      });
 
-      const contactResult: any = await Promise.race([sharePromise, timeoutPromise]);
-      
-      console.log("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts resolved.");
-      console.log("[DEBUG_GIFT] Contact Result Full Object:", JSON.stringify(contactResult, null, 2));
-
-      // Extract contacts (support both direct and payload structure)
-      const contacts = contactResult?.contacts || 
-                       contactResult?.finalPayload?.contacts || 
-                       contactResult?.response?.contacts ||
-                       (Array.isArray(contactResult) ? contactResult : null);
-      
-      console.log("[DEBUG_GIFT] Extracted contacts:", JSON.stringify(contacts));
-
-      // Check if user cancelled or no contacts
-      if (!contacts || contacts.length === 0) {
-         console.log("[DEBUG_GIFT] Contact selection returned empty. Keeping attempt flag TRUE for manual completion.");
-         setIsGiftingUI(false);
-         // We DO NOT reset hasAttemptedGift.current here. 
-         // This allows the user to close the modal manually and still trigger success.
-         return; 
-      }
-
-      // Handle success IMMEDIATELY
-      console.log("[DEBUG_GIFT] Contacts found, calling handleGiftSuccess with:", JSON.stringify(contacts[0]));
-      handleGiftSuccess(contacts[0]);
-
+      giftSoundRef.current = sound;
+      await sound.playAsync();
     } catch (e) {
-      console.error("[DEBUG_GIFT] Gift flow error (Exception or Timeout):", e);
-      // Log the full error object structure if possible
-      if (typeof e === 'object') {
-          console.log("[DEBUG_GIFT] Error keys:", Object.keys(e as any));
-          console.log("[DEBUG_GIFT] Error stringified:", JSON.stringify(e));
-      }
-      
-      setIsGiftingUI(false);
-      // NOTE: We keep hasAttemptedGift.current = true here.
-      // If it was a timeout or error, but user actually selected someone,
-      // we allow the user to click "Cancel" on the modal to force success.
-      console.log("[DEBUG_GIFT] Exception occurred, hasAttemptedGift remains TRUE");
+      console.warn("[DEBUG_GIFT] playHolyGiftSound failed:", e);
     }
   };
+
 
   const finishGifting = (friendName: string) => {
       console.log("[DEBUG_GIFT] finishGifting called for:", friendName);
@@ -979,6 +941,7 @@ export default function GardenScreen() {
       // 2. Start Animation (Explode/Fly away)
       interactionState.current.mode = 'explode';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void playHolyGiftSound();
       console.log("[DEBUG_GIFT] Animation mode set to 'explode'");
       
       // 3. Wait for animation then complete the process
@@ -1008,6 +971,49 @@ export default function GardenScreen() {
               interactionState.current.mode = 'idle';
            }
       }, 1500);
+  };
+
+  const handleStartGiftingOptimistic = () => {
+    console.log("[DEBUG_GIFT] handleStartGiftingOptimistic PRESS");
+
+    if (isGifting.current) {
+      console.log("[DEBUG_GIFT] isGifting.current is true, ignoring optimistic gift start");
+      return;
+    }
+
+    isGifting.current = true;
+    setIsGiftingUI(true);
+
+    const genericFriendName = settings.language === 'zh' ? "朋友" : "Friend";
+
+    console.log("[DEBUG_GIFT] IMMEDIATE SUCCESS (no dependency on shareContacts)");
+    finishGifting(genericFriendName);
+
+    setTimeout(() => {
+      const run = async () => {
+        try {
+          if (!MiniKit || !MiniKit.isInstalled()) {
+            console.log("[DEBUG_GIFT] MiniKit not installed - skipping shareContacts");
+            return;
+          }
+
+          if (!MiniKit.commandsAsync?.shareContacts) {
+            console.log("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts missing - skipping");
+            return;
+          }
+
+          console.log("[DEBUG_GIFT] (Optional) Calling shareContacts AFTER optimistic success...");
+          const result: any = await MiniKit.commandsAsync.shareContacts({
+            isMultiSelectEnabled: false,
+          });
+          console.log("[DEBUG_GIFT] (Optional) shareContacts resolved:", JSON.stringify(result, null, 2));
+        } catch (e) {
+          console.warn("[DEBUG_GIFT] (Optional) shareContacts failed (ignored):", e);
+        }
+      };
+
+      void run();
+    }, 200);
   };
 
   const handleCancelGift = () => {
@@ -1242,7 +1248,7 @@ export default function GardenScreen() {
 
             <TouchableOpacity
               style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGiftingUI ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
-              onPress={handleGiftFlow}
+              onPress={handleStartGiftingOptimistic}
               disabled={isGiftingUI}
             >
               <Text style={[styles.selectFriendText, { color: currentTheme.primary }]}>
