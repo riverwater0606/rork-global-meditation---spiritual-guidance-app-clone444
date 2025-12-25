@@ -861,12 +861,14 @@ export default function GardenScreen() {
     console.log("Gift Success for:", friendName);
 
     // 1. UI Success Flow IMMEDIATELY (Optimistic)
+    // We don't wait for transaction. We assume success.
     finishGifting(friendName);
 
     // 2. Background Transaction
     const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
     
-    MiniKit.commands.sendTransaction({
+    // Construct transaction payload
+    const txPayload = {
         transaction: [{
             address: NFT_CONTRACT,
             abi: [{
@@ -904,11 +906,21 @@ export default function GardenScreen() {
                 ],
                 "0x" // _data
             ]
-        }]
-    }).then((txResult: any) => {
-        console.log("Transaction result:", txResult);
+        }],
+        // Adding actionId as requested for backend verification/tracking if needed
+        actionId: "gift-light-orb-nft"
+    };
+
+    console.log("Sending background transaction...", JSON.stringify(txPayload));
+
+    MiniKit.commands.sendTransaction(txPayload)
+    .then((txResult: any) => {
+        console.log("Transaction result (Background):", txResult);
     }).catch((e: any) => {
         console.error("Transaction error (Background):", e);
+        // We do NOT show error to user because we already showed success.
+        // This is a trade-off for better UX. 
+        // In a real money app we would handle this differently, but for a free gift orb it's acceptable.
     });
   };
 
