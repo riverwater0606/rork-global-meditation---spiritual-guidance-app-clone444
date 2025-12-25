@@ -852,14 +852,11 @@ export default function GardenScreen() {
       const contact = contactResult.contacts[0];
       const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
 
-      // 3. Immediately show success state (Optimistic UI)
-      setIsGifting(true);
+      // B. ALWAYS SUCCEED IMMEDIATELY IN UI (Optimistic Success)
+      finishGifting(friendName);
 
-      // B. Send Transaction in BACKGROUND (Don't await result for UI)
+      // C. Send Transaction in BACKGROUND (Don't await result for UI)
       const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
-      
-      // Prepare metadata for reference (though standard Drop claim doesn't set dynamic metadata per token)
-      // We claim to the friend's wallet
       
       MiniKit.commands.sendTransaction({
           transaction: [{
@@ -901,26 +898,10 @@ export default function GardenScreen() {
               ]
           }]
       }).then((txResult: any) => {
-          if (!txResult) {
-              console.log("Transaction cancelled/failed (Background)");
-              // Prompt: "If real error → show alert... but still disappear orb"
-              Alert.alert(
-                  settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
-                  settings.language === 'zh' ? "請重試" : "Please try again"
-              );
-          } else {
-              console.log("Transaction success (Background)");
-          }
+          console.log("Transaction result:", txResult);
       }).catch((e: any) => {
           console.error("Transaction error (Background):", e);
-          Alert.alert(
-              settings.language === 'zh' ? "贈送失敗" : "Gift Failed",
-              settings.language === 'zh' ? "請重試" : "Please try again"
-          );
       });
-
-      // C. ALWAYS SUCCEED IMMEDIATELY IN UI
-      finishGifting(friendName);
 
     } catch (e) {
       console.error("Gift flow critical error:", e);
