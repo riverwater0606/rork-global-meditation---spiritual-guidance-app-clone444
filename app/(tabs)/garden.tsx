@@ -537,14 +537,9 @@ export default function GardenScreen() {
            handleGiftSuccessRef.current(contacts[0]);
         }
       });
-      
-      MiniKit.subscribe(ResponseEvent.MiniAppSendTransaction, (payload: any) => {
-        console.log("SendTransaction Event Payload:", payload);
-      });
 
       return () => {
         MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
-        MiniKit.unsubscribe(ResponseEvent.MiniAppSendTransaction);
       };
     }
   }, []);
@@ -859,57 +854,12 @@ export default function GardenScreen() {
     const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
     console.log("Gift Success for:", friendName);
 
-    // 1. UI Success Flow IMMEDIATELY (Optimistic)
+    // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
     finishGifting(friendName);
 
-    // 2. Background Transaction
-    const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
-    
-    const txPayload = {
-        transaction: [{
-            address: NFT_CONTRACT,
-            abi: [{
-                name: 'claim',
-                type: 'function',
-                inputs: [
-                    { name: '_receiver', type: 'address' },
-                    { name: '_quantity', type: 'uint256' },
-                    { name: '_currency', type: 'address' },
-                    { name: '_pricePerToken', type: 'uint256' },
-                    {
-                        name: '_allowlistProof',
-                        type: 'tuple',
-                        components: [
-                            { name: 'proof', type: 'bytes32[]' },
-                            { name: 'quantityLimitPerWallet', type: 'uint256' },
-                            { name: 'pricePerToken', type: 'uint256' },
-                            { name: 'currency', type: 'address' }
-                        ]
-                    },
-                    { name: '_data', type: 'bytes' }
-                ]
-            }],
-            functionName: 'claim',
-            args: [
-                contact.walletAddress, 
-                "1", 
-                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", 
-                "0", 
-                [ [], "0", "0", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" ],
-                "0x" 
-            ]
-        }],
-        actionId: "gift-light-orb-nft"
-    };
-
-    console.log("Sending background transaction...", JSON.stringify(txPayload));
-
-    MiniKit.commands.sendTransaction(txPayload)
-    .then((txResult: any) => {
-        console.log("Transaction result (Background):", txResult);
-    }).catch((e: any) => {
-        console.error("Transaction error (Background):", e);
-    });
+    // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
+    // We only record the gift locally via finishGifting -> sendOrb
+    console.log("Gift simulated successfully (Local Mode)");
   };
 
   useEffect(() => {
