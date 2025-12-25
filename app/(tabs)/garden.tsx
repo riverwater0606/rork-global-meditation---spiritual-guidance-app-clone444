@@ -521,14 +521,22 @@ export default function GardenScreen() {
   const [awakenedDuration, setAwakenedDuration] = useState(15);
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
-  const [isGifting, setIsGifting] = useState(false); // minutes
+  const isGifting = useRef(false); // Ref for lock to prevent double execution
+  const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
   const meditationTimerRef = useRef<any>(null);
+  const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
 
   // Subscribe to MiniKit Events
   useEffect(() => {
     if (MiniKit && MiniKit.isInstalled()) {
       MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
         console.log("ShareContacts Event Payload:", payload);
+        if (payload?.status === 'success' || payload?.response?.status === 'success') {
+           const contacts = payload?.response?.contacts || payload?.contacts;
+           if (contacts && contacts.length > 0) {
+              handleGiftSuccessRef.current(contacts[0]);
+           }
+        }
       });
       
       MiniKit.subscribe(ResponseEvent.MiniAppSendTransaction, (payload: any) => {
@@ -824,6 +832,7 @@ export default function GardenScreen() {
     
     // Open gift modal after animation starts
     setTimeout(() => {
+       isGifting.current = false; // Reset lock
        setShowGiftModal(true);
     }, 800);
   };
@@ -844,6 +853,69 @@ export default function GardenScreen() {
     }, 2000);
   };
 
+  const handleGiftSuccess = (contact: any) => {
+    if (isGifting.current) return;
+    isGifting.current = true;
+
+    const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
+    console.log("Gift Success for:", friendName);
+
+    // 1. UI Success Flow IMMEDIATELY (Optimistic)
+    finishGifting(friendName);
+
+    // 2. Background Transaction
+    const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
+    
+    MiniKit.commands.sendTransaction({
+        transaction: [{
+            address: NFT_CONTRACT,
+            abi: [{
+                name: 'claim',
+                type: 'function',
+                inputs: [
+                    { name: '_receiver', type: 'address' },
+                    { name: '_quantity', type: 'uint256' },
+                    { name: '_currency', type: 'address' },
+                    { name: '_pricePerToken', type: 'uint256' },
+                    {
+                        name: '_allowlistProof',
+                        type: 'tuple',
+                        components: [
+                            { name: 'proof', type: 'bytes32[]' },
+                            { name: 'quantityLimitPerWallet', type: 'uint256' },
+                            { name: 'pricePerToken', type: 'uint256' },
+                            { name: 'currency', type: 'address' }
+                        ]
+                    },
+                    { name: '_data', type: 'bytes' }
+                ]
+            }],
+            functionName: 'claim',
+            args: [
+                contact.walletAddress, // _receiver
+                "1", // _quantity
+                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // _currency (Native)
+                "0", // _pricePerToken
+                [ // _allowlistProof (tuple)
+                    [], // proof
+                    "0", // quantityLimitPerWallet
+                    "0", // pricePerToken
+                    "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" // currency
+                ],
+                "0x" // _data
+            ]
+        }]
+    }).then((txResult: any) => {
+        console.log("Transaction result:", txResult);
+    }).catch((e: any) => {
+        console.error("Transaction error (Background):", e);
+    });
+  };
+
+  useEffect(() => {
+    handleGiftSuccessRef.current = handleGiftSuccess;
+  });
+
   const handleGiftFlow = async () => {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
@@ -855,7 +927,7 @@ export default function GardenScreen() {
     // 2. Real MiniKit Environment
     try {
       console.log("Starting Gift Flow...");
-      setIsGifting(true);
+      setIsGiftingUI(true);
       
       // A. Share Contacts - User selects friend first
       // Use official async command
@@ -871,67 +943,16 @@ export default function GardenScreen() {
       // Check if user cancelled
       if (!contacts || contacts.length === 0) {
          console.log("Contact selection cancelled");
-         setIsGifting(false);
+         setIsGiftingUI(false);
          return;
       }
 
-      const contact = contacts[0];
-      const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
-
-      // B. ALWAYS SUCCEED IMMEDIATELY IN UI (Optimistic Success)
-      finishGifting(friendName);
-
-      // C. Send Transaction in BACKGROUND (Don't await result for UI)
-      const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
-      
-      MiniKit.commands.sendTransaction({
-          transaction: [{
-              address: NFT_CONTRACT,
-              abi: [{
-                  name: 'claim',
-                  type: 'function',
-                  inputs: [
-                      { name: '_receiver', type: 'address' },
-                      { name: '_quantity', type: 'uint256' },
-                      { name: '_currency', type: 'address' },
-                      { name: '_pricePerToken', type: 'uint256' },
-                      {
-                          name: '_allowlistProof',
-                          type: 'tuple',
-                          components: [
-                              { name: 'proof', type: 'bytes32[]' },
-                              { name: 'quantityLimitPerWallet', type: 'uint256' },
-                              { name: 'pricePerToken', type: 'uint256' },
-                              { name: 'currency', type: 'address' }
-                          ]
-                      },
-                      { name: '_data', type: 'bytes' }
-                  ]
-              }],
-              functionName: 'claim',
-              args: [
-                  contact.walletAddress, // _receiver
-                  "1", // _quantity
-                  "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // _currency (Native)
-                  "0", // _pricePerToken
-                  [ // _allowlistProof (tuple)
-                      [], // proof
-                      "0", // quantityLimitPerWallet
-                      "0", // pricePerToken
-                      "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" // currency
-                  ],
-                  "0x" // _data
-              ]
-          }]
-      }).then((txResult: any) => {
-          console.log("Transaction result:", txResult);
-      }).catch((e: any) => {
-          console.error("Transaction error (Background):", e);
-      });
+      // Handle success
+      handleGiftSuccess(contacts[0]);
 
     } catch (e) {
       console.error("Gift flow critical error:", e);
-      setIsGifting(false);
+      setIsGiftingUI(false);
       Alert.alert(
         settings.language === 'zh' ? "錯誤" : "Error", 
         settings.language === 'zh' ? "發生未知錯誤" : "Something went wrong"
@@ -954,7 +975,8 @@ export default function GardenScreen() {
              
              // Reset UI
              setGiftMessage("");
-             setIsGifting(false);
+             setIsGiftingUI(false);
+             isGifting.current = false; // Release lock
              interactionState.current.mode = 'idle';
              
              Alert.alert(
@@ -965,7 +987,8 @@ export default function GardenScreen() {
              );
            } catch (postTxError) {
               console.error("Error in post-transaction cleanup:", postTxError);
-              setIsGifting(false);
+              setIsGiftingUI(false);
+              isGifting.current = false;
               interactionState.current.mode = 'idle';
            }
       }, 1500);
@@ -1192,12 +1215,12 @@ export default function GardenScreen() {
             />
 
             <TouchableOpacity
-              style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGifting ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
+              style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGiftingUI ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
               onPress={handleGiftFlow}
-              disabled={isGifting}
+              disabled={isGiftingUI}
             >
               <Text style={[styles.selectFriendText, { color: currentTheme.primary }]}>
-                {isGifting 
+                {isGiftingUI 
                   ? (settings.language === 'zh' ? '贈送中...' : 'Gifting...')
                   : (settings.language === 'zh' ? '選擇朋友並贈送' : 'Select Friend & Gift')}
               </Text>
@@ -1207,7 +1230,7 @@ export default function GardenScreen() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: '#333' }]}
                 onPress={handleCancelGift}
-                disabled={isGifting}
+                disabled={isGiftingUI}
               >
                  <Text style={{ color: 'white', fontWeight: 'bold' }}>
                    {settings.language === 'zh' ? '取消' : 'Cancel'}
