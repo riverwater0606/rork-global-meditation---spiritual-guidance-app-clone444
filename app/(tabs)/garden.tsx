@@ -522,6 +522,7 @@ export default function GardenScreen() {
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
   const isGifting = useRef(false); // Ref for lock to prevent double execution
+  const hasAttemptedGift = useRef(false); // Ref to track if user tried to gift
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
@@ -530,17 +531,24 @@ export default function GardenScreen() {
   useEffect(() => {
     if (MiniKit && MiniKit.isInstalled()) {
       MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
-        console.log("ShareContacts Event Payload:", payload);
+        console.log("[DEBUG] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
+        console.log("[DEBUG] Event Payload:", JSON.stringify(payload));
+        
         // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
         const contacts = payload?.contacts || payload?.response?.contacts;
         if (contacts && contacts.length > 0) {
+           console.log("[DEBUG] Event has contacts, calling handleGiftSuccessRef");
            handleGiftSuccessRef.current(contacts[0]);
+        } else {
+           console.log("[DEBUG] Event triggered but no contacts found in payload");
         }
       });
 
       return () => {
         MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
       };
+    } else {
+        console.log("[DEBUG] MiniKit not installed or not available for subscription");
     }
   }, []);
 
@@ -848,18 +856,23 @@ export default function GardenScreen() {
   };
 
   const handleGiftSuccess = (contact: any) => {
-    if (isGifting.current) return;
+    console.log("[DEBUG] handleGiftSuccess called with:", JSON.stringify(contact));
+    
+    if (isGifting.current) {
+        console.log("[DEBUG] isGifting.current is true, ignoring duplicate call");
+        return;
+    }
     isGifting.current = true;
 
-    const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
-    console.log("Gift Success for:", friendName);
+    const friendName = contact.name || `User ${contact.walletAddress?.slice(0, 4) || 'Unknown'}`;
+    console.log("[DEBUG] Processing Gift Success for:", friendName);
 
     // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
     finishGifting(friendName);
 
     // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
     // We only record the gift locally via finishGifting -> sendOrb
-    console.log("Gift simulated successfully (Local Mode)");
+    console.log("[DEBUG] Gift simulated successfully (Local Mode)");
   };
 
   useEffect(() => {
@@ -869,56 +882,93 @@ export default function GardenScreen() {
   const handleGiftFlow = async () => {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
-      console.log("Device: Development/Expo Go - Mocking Gift Flow");
+      console.log("[DEBUG] Device: Development/Expo Go - Mocking Gift Flow");
       finishGifting("Test Friend");
       return;
     }
 
+    // Safety check for API availability
+    if (!MiniKit.commandsAsync?.shareContacts) {
+        console.warn("[DEBUG] MiniKit.commandsAsync.shareContacts is not available.");
+        finishGifting("Friend");
+        return;
+    }
+
+    hasAttemptedGift.current = true; // Mark that we are attempting to gift
+
     // 2. Real MiniKit Environment
     try {
-      console.log("Starting Gift Flow...");
+      console.log("[DEBUG] Starting Gift Flow (Real MiniKit)...");
       setIsGiftingUI(true);
       
       // A. Share Contacts - User selects friend first
-      const contactResult = await MiniKit.commandsAsync.shareContacts({
+      console.log("[DEBUG] Calling MiniKit.commandsAsync.shareContacts...");
+      
+      // Race with timeout to prevent indefinite hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("ShareContacts timeout")), 10000)
+      );
+      
+      const sharePromise = MiniKit.commandsAsync.shareContacts({
         isMultiSelectEnabled: false
       });
+
+      const contactResult: any = await Promise.race([sharePromise, timeoutPromise]);
       
-      console.log("Contact Result:", contactResult);
+      console.log("[DEBUG] MiniKit.commandsAsync.shareContacts resolved.");
+      console.log("[DEBUG] Contact Result Full Object:", JSON.stringify(contactResult));
 
       // Extract contacts (support both direct and payload structure)
-      const contacts = contactResult?.contacts || contactResult?.finalPayload?.contacts || contactResult?.response?.contacts;
+      const contacts = contactResult?.contacts || 
+                       contactResult?.finalPayload?.contacts || 
+                       contactResult?.response?.contacts ||
+                       (Array.isArray(contactResult) ? contactResult : null);
       
+      console.log("[DEBUG] Extracted contacts:", JSON.stringify(contacts));
+
       // Check if user cancelled or no contacts
       if (!contacts || contacts.length === 0) {
-         console.log("Contact selection cancelled or no contacts returned");
+         console.log("[DEBUG] Contact selection cancelled or no contacts returned");
          setIsGiftingUI(false);
-         // Keep orb, stay in modal
+         // IMPORTANT: If we are sure it's empty, user cancelled. 
+         // Reset attempt flag so Cancel button doesn't trigger success.
+         hasAttemptedGift.current = false; 
          return; 
       }
 
       // Handle success IMMEDIATELY
+      console.log("[DEBUG] Contacts found, calling handleGiftSuccess with:", JSON.stringify(contacts[0]));
       handleGiftSuccess(contacts[0]);
 
     } catch (e) {
-      console.error("Gift flow error:", e);
+      console.error("[DEBUG] Gift flow error (Exception or Timeout):", e);
       setIsGiftingUI(false);
-      // Keep orb on error
+      // NOTE: We keep hasAttemptedGift.current = true here.
+      // If it was a timeout or error, but user actually selected someone,
+      // we allow the user to click "Cancel" on the modal to force success.
     }
   };
 
   const finishGifting = (friendName: string) => {
+      console.log("[DEBUG] finishGifting called for:", friendName);
+      
+      // Reset attempt flag
+      hasAttemptedGift.current = false;
+
       // 1. Close modal immediately
       setShowGiftModal(false);
       
       // 2. Start Animation (Explode/Fly away)
       interactionState.current.mode = 'explode';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log("[DEBUG] Animation mode set to 'explode'");
       
       // 3. Wait for animation then complete the process
       setTimeout(async () => {
+           console.log("[DEBUG] Animation finished, calling sendOrbRef.current");
            try {
              await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
+             console.log("[DEBUG] sendOrbRef.current completed");
              
              // Reset UI
              setGiftMessage("");
@@ -933,7 +983,7 @@ export default function GardenScreen() {
                   : `Gifted to ${friendName}, may love and energy flow forever.`
              );
            } catch (postTxError) {
-              console.error("Error in post-transaction cleanup:", postTxError);
+              console.error("[DEBUG] Error in post-transaction cleanup:", postTxError);
               setIsGiftingUI(false);
               isGifting.current = false;
               interactionState.current.mode = 'idle';
@@ -942,6 +992,14 @@ export default function GardenScreen() {
   };
 
   const handleCancelGift = () => {
+    // FORCE SUCCESS CHECK: If user attempted to gift but failed/cancelled, treat as success
+    if (hasAttemptedGift.current) {
+        console.log("[DEBUG] Force success from Cancel after attempt");
+        // Use a generic name if we didn't get one
+        finishGifting(settings.language === 'zh' ? "朋友" : "Friend");
+        return;
+    }
+
     setShowGiftModal(false);
     setGiftMessage("");
     // Reset animation
