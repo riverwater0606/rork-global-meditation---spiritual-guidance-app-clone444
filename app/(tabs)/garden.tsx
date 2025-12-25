@@ -1368,30 +1368,90 @@ export default function GardenScreen() {
       {/* Main Interaction Area */}
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
 
-        <TouchableOpacity
-          style={[styles.shapeButton, { opacity: isOrbDragging ? 0.4 : 1 }]}
-          onPress={() => setShowShapeSelector(true)}
-          activeOpacity={0.7}
-          disabled={isOrbDragging}
-          testID="garden-shape-button"
+        <View
+          pointerEvents={isOrbDragging ? "none" : "box-none"}
+          style={[
+            styles.topLeftActionGroup,
+            {
+              top: Math.max(insets.top, 12) + 12,
+              opacity: isOrbDragging ? 0.4 : 1,
+            },
+          ]}
+          testID="garden-top-left-actions"
         >
-          <Sparkles size={18} color="white" />
-        </TouchableOpacity>
+          <View style={styles.topLeftMorphRow}>
+            <TouchableOpacity
+              style={styles.topLeftMorphFab}
+              onPress={() => setShowShapeSelector(true)}
+              activeOpacity={0.7}
+              disabled={isOrbDragging}
+              testID="garden-shape-button"
+            >
+              <Sparkles size={18} color="white" />
+            </TouchableOpacity>
 
-        {orbShape !== 'default' && (
-          <TouchableOpacity
-            style={[styles.shapeButton, { bottom: 96, backgroundColor: 'rgba(0,0,0,0.6)', opacity: isOrbDragging ? 0.4 : 1 }]}
-            onPress={() => {
-              setOrbShape('default');
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }}
-            activeOpacity={0.7}
-            disabled={isOrbDragging}
-            testID="garden-shape-reset-button"
-          >
-            <X size={18} color="white" />
-          </TouchableOpacity>
-        )}
+            {orbShape !== "default" && (
+              <TouchableOpacity
+                style={styles.topLeftMorphResetFab}
+                onPress={() => {
+                  setOrbShape("default");
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.7}
+                disabled={isOrbDragging}
+                testID="garden-shape-reset-button"
+              >
+                <X size={18} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {!isMeditating && interactionState.current.mode !== "meditating" && (
+            <View style={styles.topLeftGrowStack} testID="garden-action-group">
+              {!currentOrb.isAwakened ? (
+                <TouchableOpacity
+                  testID="garden-grow-button"
+                  activeOpacity={0.85}
+                  style={styles.gardenActionTouchable}
+                  onPress={() => {
+                    console.log("[GARDEN] Grow button pressed");
+                    setShowGrowthModal(true);
+                  }}
+                >
+                  <LinearGradient
+                    colors={["rgba(139,92,246,0.95)", "rgba(236,72,153,0.85)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gardenActionFab}
+                  >
+                    <Sprout size={22} color="#fff" />
+                    <Text style={styles.gardenActionLabel}>GROW</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  testID="garden-meditate-button"
+                  activeOpacity={0.85}
+                  style={styles.gardenActionTouchable}
+                  onPress={() => {
+                    console.log("[GARDEN] Meditate button pressed");
+                    setShowAwakenedModal(true);
+                  }}
+                >
+                  <LinearGradient
+                    colors={["rgba(34,211,238,0.9)", "rgba(139,92,246,0.92)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gardenActionFab}
+                  >
+                    <Sparkles size={22} color="#fff" />
+                    <Text style={styles.gardenActionLabel}>MEDITATE</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
 
         <Canvas camera={{ position: [0, 0, 4] }}>
           <ambientLight intensity={0.5} />
@@ -1410,56 +1470,6 @@ export default function GardenScreen() {
           duration={GATHER_DURATION} 
         />
 
-        {/* Grow / Meditate buttons (inside scene, next to the shape/morph button area) */}
-        {!isMeditating && interactionState.current.mode !== 'meditating' && (
-          <View
-            pointerEvents={isOrbDragging ? "none" : "box-none"}
-            style={[styles.gardenActions, { opacity: isOrbDragging ? 0.4 : 1 }]}
-            testID="garden-action-group"
-          >
-            {!currentOrb.isAwakened ? (
-              <TouchableOpacity
-                testID="garden-grow-button"
-                activeOpacity={0.85}
-                style={styles.gardenActionTouchable}
-                onPress={() => {
-                  console.log("[GARDEN] Grow button pressed");
-                  setShowGrowthModal(true);
-                }}
-              >
-                <LinearGradient
-                  colors={["rgba(139,92,246,0.95)", "rgba(236,72,153,0.85)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.gardenActionFab}
-                >
-                  <Sprout size={22} color="#fff" />
-                  <Text style={styles.gardenActionLabel}>GROW</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                testID="garden-meditate-button"
-                activeOpacity={0.85}
-                style={styles.gardenActionTouchable}
-                onPress={() => {
-                  console.log("[GARDEN] Meditate button pressed");
-                  setShowAwakenedModal(true);
-                }}
-              >
-                <LinearGradient
-                  colors={["rgba(34,211,238,0.9)", "rgba(139,92,246,0.92)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.gardenActionFab}
-                >
-                  <Sparkles size={22} color="#fff" />
-                  <Text style={styles.gardenActionLabel}>MEDITATE</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
         
         {!isMeditating && (
           <View style={styles.instructions}>
@@ -2168,13 +2178,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  gardenActions: {
-    position: 'absolute',
-    bottom: 18,
-    right: 92,
-    zIndex: 60,
-    elevation: 60,
-    alignItems: 'flex-end',
+  topLeftActionGroup: {
+    position: "absolute",
+    left: 14,
+    zIndex: 120,
+    elevation: 120,
+    alignItems: "flex-start",
+  },
+  topLeftMorphRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  topLeftMorphFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(139, 92, 246, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#8b5cf6",
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    elevation: 14,
+  },
+  topLeftMorphResetFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 12,
+  },
+  topLeftGrowStack: {
+    alignItems: "flex-start",
   },
   gardenActionTouchable: {
     borderRadius: 999,
