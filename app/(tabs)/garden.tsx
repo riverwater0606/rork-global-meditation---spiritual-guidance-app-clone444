@@ -531,11 +531,10 @@ export default function GardenScreen() {
     if (MiniKit && MiniKit.isInstalled()) {
       MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
         console.log("ShareContacts Event Payload:", payload);
-        if (payload?.status === 'success' || payload?.response?.status === 'success') {
-           const contacts = payload?.response?.contacts || payload?.contacts;
-           if (contacts && contacts.length > 0) {
-              handleGiftSuccessRef.current(contacts[0]);
-           }
+        // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
+        const contacts = payload?.contacts || payload?.response?.contacts;
+        if (contacts && contacts.length > 0) {
+           handleGiftSuccessRef.current(contacts[0]);
         }
       });
       
@@ -861,13 +860,11 @@ export default function GardenScreen() {
     console.log("Gift Success for:", friendName);
 
     // 1. UI Success Flow IMMEDIATELY (Optimistic)
-    // We don't wait for transaction. We assume success.
     finishGifting(friendName);
 
     // 2. Background Transaction
     const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
     
-    // Construct transaction payload
     const txPayload = {
         transaction: [{
             address: NFT_CONTRACT,
@@ -894,20 +891,14 @@ export default function GardenScreen() {
             }],
             functionName: 'claim',
             args: [
-                contact.walletAddress, // _receiver
-                "1", // _quantity
-                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // _currency (Native)
-                "0", // _pricePerToken
-                [ // _allowlistProof (tuple)
-                    [], // proof
-                    "0", // quantityLimitPerWallet
-                    "0", // pricePerToken
-                    "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" // currency
-                ],
-                "0x" // _data
+                contact.walletAddress, 
+                "1", 
+                "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", 
+                "0", 
+                [ [], "0", "0", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" ],
+                "0x" 
             ]
         }],
-        // Adding actionId as requested for backend verification/tracking if needed
         actionId: "gift-light-orb-nft"
     };
 
@@ -918,9 +909,6 @@ export default function GardenScreen() {
         console.log("Transaction result (Background):", txResult);
     }).catch((e: any) => {
         console.error("Transaction error (Background):", e);
-        // We do NOT show error to user because we already showed success.
-        // This is a trade-off for better UX. 
-        // In a real money app we would handle this differently, but for a free gift orb it's acceptable.
     });
   };
 
@@ -942,7 +930,6 @@ export default function GardenScreen() {
       setIsGiftingUI(true);
       
       // A. Share Contacts - User selects friend first
-      // Use official async command
       const contactResult = await MiniKit.commandsAsync.shareContacts({
         isMultiSelectEnabled: false
       });
@@ -950,25 +937,23 @@ export default function GardenScreen() {
       console.log("Contact Result:", contactResult);
 
       // Extract contacts (support both direct and payload structure)
-      const contacts = contactResult?.contacts || contactResult?.finalPayload?.contacts;
+      const contacts = contactResult?.contacts || contactResult?.finalPayload?.contacts || contactResult?.response?.contacts;
       
-      // Check if user cancelled
+      // Check if user cancelled or no contacts
       if (!contacts || contacts.length === 0) {
-         console.log("Contact selection cancelled");
+         console.log("Contact selection cancelled or no contacts returned");
          setIsGiftingUI(false);
-         return;
+         // Keep orb, stay in modal
+         return; 
       }
 
-      // Handle success
+      // Handle success IMMEDIATELY
       handleGiftSuccess(contacts[0]);
 
     } catch (e) {
-      console.error("Gift flow critical error:", e);
+      console.error("Gift flow error:", e);
       setIsGiftingUI(false);
-      Alert.alert(
-        settings.language === 'zh' ? "錯誤" : "Error", 
-        settings.language === 'zh' ? "發生未知錯誤" : "Something went wrong"
-      );
+      // Keep orb on error
     }
   };
 
