@@ -527,6 +527,11 @@ export default function GardenScreen() {
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
 
+  useEffect(() => {
+    console.log("[DEBUG_GIFT] GardenScreen MOUNTED - Checking for pending actions...");
+    return () => console.log("[DEBUG_GIFT] GardenScreen UNMOUNTED");
+  }, []);
+
   // Subscribe to MiniKit Events
   useEffect(() => {
     if (MiniKit && MiniKit.isInstalled()) {
@@ -535,7 +540,9 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
         
         // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
-        const contacts = payload?.contacts || payload?.response?.contacts;
+        const contacts = payload?.contacts || payload?.response?.contacts || payload?.finalPayload?.contacts;
+        console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+
         if (contacts && contacts.length > 0) {
            console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
            handleGiftSuccessRef.current(contacts[0]);
@@ -880,6 +887,8 @@ export default function GardenScreen() {
   });
 
   const handleGiftFlow = async () => {
+    console.log("[DEBUG_GIFT] handleGiftFlow START");
+    
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
       console.log("[DEBUG_GIFT] Device: Development/Expo Go - Mocking Gift Flow");
@@ -905,9 +914,9 @@ export default function GardenScreen() {
       // A. Share Contacts - User selects friend first
       console.log("[DEBUG_GIFT] Calling MiniKit.commandsAsync.shareContacts...");
       
-      // Race with timeout to prevent indefinite hanging
+      // Race with timeout to prevent indefinite hanging - INCREASED TO 60s
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("ShareContacts timeout")), 10000)
+        setTimeout(() => reject(new Error("ShareContacts timeout")), 60000)
       );
       
       const sharePromise = MiniKit.commandsAsync.shareContacts({
@@ -944,6 +953,12 @@ export default function GardenScreen() {
 
     } catch (e) {
       console.error("[DEBUG_GIFT] Gift flow error (Exception or Timeout):", e);
+      // Log the full error object structure if possible
+      if (typeof e === 'object') {
+          console.log("[DEBUG_GIFT] Error keys:", Object.keys(e as any));
+          console.log("[DEBUG_GIFT] Error stringified:", JSON.stringify(e));
+      }
+      
       setIsGiftingUI(false);
       // NOTE: We keep hasAttemptedGift.current = true here.
       // If it was a timeout or error, but user actually selected someone,
@@ -954,11 +969,13 @@ export default function GardenScreen() {
 
   const finishGifting = (friendName: string) => {
       console.log("[DEBUG_GIFT] finishGifting called for:", friendName);
+      console.log("[DEBUG_GIFT] Current Orb state before gifting:", JSON.stringify(currentOrbRef.current));
       
       // Reset attempt flag
       hasAttemptedGift.current = false;
 
       // 1. Close modal immediately
+      console.log("[DEBUG_GIFT] Closing Gift Modal");
       setShowGiftModal(false);
       
       // 2. Start Animation (Explode/Fly away)
@@ -968,7 +985,7 @@ export default function GardenScreen() {
       
       // 3. Wait for animation then complete the process
       setTimeout(async () => {
-           console.log("[DEBUG_GIFT] Animation finished, calling sendOrbRef.current");
+           console.log("[DEBUG_GIFT] Animation finished (1500ms), calling sendOrbRef.current");
            try {
              await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
              console.log("[DEBUG_GIFT] sendOrbRef.current completed");
@@ -978,6 +995,7 @@ export default function GardenScreen() {
              setIsGiftingUI(false);
              isGifting.current = false; // Release lock
              interactionState.current.mode = 'idle';
+             console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. Mode reset to idle.");
              
              Alert.alert(
                  settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
