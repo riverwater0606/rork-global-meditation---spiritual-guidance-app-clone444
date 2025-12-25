@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Play } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
@@ -510,6 +510,8 @@ export default function GardenScreen() {
   }, [currentOrb, storeOrb, sendOrb]);
   
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isOrbDragging, setIsOrbDragging] = useState<boolean>(false);
+  const isOrbDraggingRef = useRef<boolean>(false);
   // Initialize with the calculated collapsed height
   const panelHeight = useRef(new Animated.Value(collapsedHeight)).current;
 
@@ -707,11 +709,19 @@ export default function GardenScreen() {
       onShouldBlockNativeResponder: () => true,
       
       onPanResponderGrant: () => {
-        // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        // REMOVED: startGathering();
+        if (!isOrbDraggingRef.current) {
+          isOrbDraggingRef.current = true;
+          setIsOrbDragging(true);
+        }
       },
       
       onPanResponderMove: (evt, gestureState) => {
+        const movedEnough = Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 6;
+        if (movedEnough && !isOrbDraggingRef.current) {
+          isOrbDraggingRef.current = true;
+          setIsOrbDragging(true);
+        }
+
         // Spin interaction - Increased sensitivity and inverted for natural control
         // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
         const newVelocity = -gestureState.vx * 0.5;
@@ -738,6 +748,11 @@ export default function GardenScreen() {
       },
       
       onPanResponderRelease: (evt, gestureState) => {
+        if (isOrbDraggingRef.current) {
+          isOrbDraggingRef.current = false;
+          setIsOrbDragging(false);
+        }
+
         // Check for Tap
         const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10 && Math.abs(gestureState.vx) < 0.1 && Math.abs(gestureState.vy) < 0.1;
         if (isTap && !isMeditating) {
@@ -755,6 +770,10 @@ export default function GardenScreen() {
       },
       
       onPanResponderTerminate: () => {
+        if (isOrbDraggingRef.current) {
+          isOrbDraggingRef.current = false;
+          setIsOrbDragging(false);
+        }
         stopGathering();
       },
     })
@@ -1413,33 +1432,54 @@ export default function GardenScreen() {
         )}
       </View>
 
-      {/* Start Button Overlay - Moved outside sceneContainer */}
+      {/* Floating actions (Grow / Meditate) */}
       {!isMeditating && interactionState.current.mode !== 'meditating' && (
-          <View style={styles.startButtonContainer}>
-             <TouchableOpacity
-               style={[
-                 styles.startButton,
-                 // (!currentOrb.isAwakened && hasGrownOrbToday) && styles.startButtonDisabled // DISABLE DAILY LIMIT CHECK
-               ]}
-               onPress={() => {
-                  console.log("Start button pressed"); // Debug log
-                  if (currentOrb.isAwakened) {
-                     setShowAwakenedModal(true);
-                  } else {
-                     setShowGrowthModal(true);
-                  }
-               }}
-             >
-                <Play size={20} color="white" fill="white" />
-                <Text style={styles.startButtonText}>
-                   {!currentOrb.isAwakened 
-                      ? (settings.language === 'zh' ? "培育 (7分鐘)" : "Grow (7 min)") // Always show Grow option
-                      : (settings.language === 'zh' ? "開始冥想" : "Meditate")
-                   }
-                </Text>
-             </TouchableOpacity>
-          </View>
-        )}
+        <View
+          pointerEvents={isOrbDragging ? "none" : "box-none"}
+          style={[styles.fabStack, { opacity: isOrbDragging ? 0.3 : 1 }]}
+          testID="garden-fab-stack"
+        >
+          {!currentOrb.isAwakened ? (
+            <TouchableOpacity
+              testID="garden-grow-fab"
+              activeOpacity={0.85}
+              style={styles.fabTouchable}
+              onPress={() => {
+                console.log("[GARDEN] Grow FAB pressed");
+                setShowGrowthModal(true);
+              }}
+            >
+              <LinearGradient
+                colors={["rgba(139,92,246,0.95)", "rgba(236,72,153,0.85)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fab}
+              >
+                <Sprout size={22} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              testID="garden-meditate-fab"
+              activeOpacity={0.85}
+              style={styles.fabTouchable}
+              onPress={() => {
+                console.log("[GARDEN] Meditate FAB pressed");
+                setShowAwakenedModal(true);
+              }}
+            >
+              <LinearGradient
+                colors={["rgba(34,211,238,0.9)", "rgba(139,92,246,0.92)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fab}
+              >
+                <Sparkles size={22} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
 
 
@@ -2124,35 +2164,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  startButtonContainer: {
+  fabStack: {
     position: 'absolute',
-    bottom: 250,
-    alignSelf: 'center',
-    zIndex: 20000,
-    elevation: 90,
+    bottom: 20,
+    right: 20,
+    zIndex: 3,
+    elevation: 3,
+    gap: 12,
+    alignItems: 'flex-end',
   },
-  startButton: {
-    flexDirection: 'row',
+  fabTouchable: {
+    borderRadius: 999,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 30,
-    gap: 8,
-    shadowColor: "#8b5cf6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  startButtonDisabled: {
-    backgroundColor: '#666',
-    shadowOpacity: 0,
-  },
-  startButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 10,
   },
   giftHeart: {
     fontSize: 32,
