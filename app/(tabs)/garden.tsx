@@ -531,16 +531,16 @@ export default function GardenScreen() {
   useEffect(() => {
     if (MiniKit && MiniKit.isInstalled()) {
       MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
-        console.log("[DEBUG] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-        console.log("[DEBUG] Event Payload:", JSON.stringify(payload));
+        console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
+        console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
         
         // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
         const contacts = payload?.contacts || payload?.response?.contacts;
         if (contacts && contacts.length > 0) {
-           console.log("[DEBUG] Event has contacts, calling handleGiftSuccessRef");
+           console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
            handleGiftSuccessRef.current(contacts[0]);
         } else {
-           console.log("[DEBUG] Event triggered but no contacts found in payload");
+           console.log("[DEBUG_GIFT] Event triggered but no contacts found in payload");
         }
       });
 
@@ -856,23 +856,23 @@ export default function GardenScreen() {
   };
 
   const handleGiftSuccess = (contact: any) => {
-    console.log("[DEBUG] handleGiftSuccess called with:", JSON.stringify(contact));
+    console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
     if (isGifting.current) {
-        console.log("[DEBUG] isGifting.current is true, ignoring duplicate call");
+        console.log("[DEBUG_GIFT] isGifting.current is true, ignoring duplicate call");
         return;
     }
     isGifting.current = true;
 
     const friendName = contact.name || `User ${contact.walletAddress?.slice(0, 4) || 'Unknown'}`;
-    console.log("[DEBUG] Processing Gift Success for:", friendName);
+    console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
     // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
     finishGifting(friendName);
 
     // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
     // We only record the gift locally via finishGifting -> sendOrb
-    console.log("[DEBUG] Gift simulated successfully (Local Mode)");
+    console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
   };
 
   useEffect(() => {
@@ -882,27 +882,28 @@ export default function GardenScreen() {
   const handleGiftFlow = async () => {
     // 1. Check MiniKit status - handle Dev/Mock environment
     if (!MiniKit || !MiniKit.isInstalled()) {
-      console.log("[DEBUG] Device: Development/Expo Go - Mocking Gift Flow");
+      console.log("[DEBUG_GIFT] Device: Development/Expo Go - Mocking Gift Flow");
       finishGifting("Test Friend");
       return;
     }
 
     // Safety check for API availability
     if (!MiniKit.commandsAsync?.shareContacts) {
-        console.warn("[DEBUG] MiniKit.commandsAsync.shareContacts is not available.");
+        console.warn("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts is not available.");
         finishGifting("Friend");
         return;
     }
 
     hasAttemptedGift.current = true; // Mark that we are attempting to gift
+    console.log("[DEBUG_GIFT] hasAttemptedGift set to TRUE");
 
     // 2. Real MiniKit Environment
     try {
-      console.log("[DEBUG] Starting Gift Flow (Real MiniKit)...");
+      console.log("[DEBUG_GIFT] Starting Gift Flow (Real MiniKit)...");
       setIsGiftingUI(true);
       
       // A. Share Contacts - User selects friend first
-      console.log("[DEBUG] Calling MiniKit.commandsAsync.shareContacts...");
+      console.log("[DEBUG_GIFT] Calling MiniKit.commandsAsync.shareContacts...");
       
       // Race with timeout to prevent indefinite hanging
       const timeoutPromise = new Promise((_, reject) => 
@@ -915,8 +916,8 @@ export default function GardenScreen() {
 
       const contactResult: any = await Promise.race([sharePromise, timeoutPromise]);
       
-      console.log("[DEBUG] MiniKit.commandsAsync.shareContacts resolved.");
-      console.log("[DEBUG] Contact Result Full Object:", JSON.stringify(contactResult));
+      console.log("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts resolved.");
+      console.log("[DEBUG_GIFT] Contact Result Full Object:", JSON.stringify(contactResult, null, 2));
 
       // Extract contacts (support both direct and payload structure)
       const contacts = contactResult?.contacts || 
@@ -924,33 +925,35 @@ export default function GardenScreen() {
                        contactResult?.response?.contacts ||
                        (Array.isArray(contactResult) ? contactResult : null);
       
-      console.log("[DEBUG] Extracted contacts:", JSON.stringify(contacts));
+      console.log("[DEBUG_GIFT] Extracted contacts:", JSON.stringify(contacts));
 
       // Check if user cancelled or no contacts
       if (!contacts || contacts.length === 0) {
-         console.log("[DEBUG] Contact selection cancelled or no contacts returned");
+         console.log("[DEBUG_GIFT] Contact selection cancelled or no contacts returned");
          setIsGiftingUI(false);
          // IMPORTANT: If we are sure it's empty, user cancelled. 
          // Reset attempt flag so Cancel button doesn't trigger success.
          hasAttemptedGift.current = false; 
+         console.log("[DEBUG_GIFT] hasAttemptedGift reset to FALSE (cancelled)");
          return; 
       }
 
       // Handle success IMMEDIATELY
-      console.log("[DEBUG] Contacts found, calling handleGiftSuccess with:", JSON.stringify(contacts[0]));
+      console.log("[DEBUG_GIFT] Contacts found, calling handleGiftSuccess with:", JSON.stringify(contacts[0]));
       handleGiftSuccess(contacts[0]);
 
     } catch (e) {
-      console.error("[DEBUG] Gift flow error (Exception or Timeout):", e);
+      console.error("[DEBUG_GIFT] Gift flow error (Exception or Timeout):", e);
       setIsGiftingUI(false);
       // NOTE: We keep hasAttemptedGift.current = true here.
       // If it was a timeout or error, but user actually selected someone,
       // we allow the user to click "Cancel" on the modal to force success.
+      console.log("[DEBUG_GIFT] Exception occurred, hasAttemptedGift remains TRUE");
     }
   };
 
   const finishGifting = (friendName: string) => {
-      console.log("[DEBUG] finishGifting called for:", friendName);
+      console.log("[DEBUG_GIFT] finishGifting called for:", friendName);
       
       // Reset attempt flag
       hasAttemptedGift.current = false;
@@ -961,14 +964,14 @@ export default function GardenScreen() {
       // 2. Start Animation (Explode/Fly away)
       interactionState.current.mode = 'explode';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      console.log("[DEBUG] Animation mode set to 'explode'");
+      console.log("[DEBUG_GIFT] Animation mode set to 'explode'");
       
       // 3. Wait for animation then complete the process
       setTimeout(async () => {
-           console.log("[DEBUG] Animation finished, calling sendOrbRef.current");
+           console.log("[DEBUG_GIFT] Animation finished, calling sendOrbRef.current");
            try {
              await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
-             console.log("[DEBUG] sendOrbRef.current completed");
+             console.log("[DEBUG_GIFT] sendOrbRef.current completed");
              
              // Reset UI
              setGiftMessage("");
@@ -983,7 +986,7 @@ export default function GardenScreen() {
                   : `Gifted to ${friendName}, may love and energy flow forever.`
              );
            } catch (postTxError) {
-              console.error("[DEBUG] Error in post-transaction cleanup:", postTxError);
+              console.error("[DEBUG_GIFT] Error in post-transaction cleanup:", postTxError);
               setIsGiftingUI(false);
               isGifting.current = false;
               interactionState.current.mode = 'idle';
@@ -992,9 +995,10 @@ export default function GardenScreen() {
   };
 
   const handleCancelGift = () => {
+    console.log("[DEBUG_GIFT] handleCancelGift called. hasAttemptedGift:", hasAttemptedGift.current);
     // FORCE SUCCESS CHECK: If user attempted to gift but failed/cancelled, treat as success
     if (hasAttemptedGift.current) {
-        console.log("[DEBUG] Force success from Cancel after attempt");
+        console.log("[DEBUG_GIFT] Force success from Cancel after attempt");
         // Use a generic name if we didn't get one
         finishGifting(settings.language === 'zh' ? "朋友" : "Friend");
         return;
