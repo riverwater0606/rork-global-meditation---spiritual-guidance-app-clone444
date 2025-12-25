@@ -1369,21 +1369,25 @@ export default function GardenScreen() {
       <View style={styles.sceneContainer} {...panResponder.panHandlers}>
 
         <TouchableOpacity
-          style={styles.shapeButton}
+          style={[styles.shapeButton, { opacity: isOrbDragging ? 0.4 : 1 }]}
           onPress={() => setShowShapeSelector(true)}
           activeOpacity={0.7}
+          disabled={isOrbDragging}
+          testID="garden-shape-button"
         >
           <Sparkles size={18} color="white" />
         </TouchableOpacity>
 
         {orbShape !== 'default' && (
           <TouchableOpacity
-            style={[styles.shapeButton, { top: 70, backgroundColor: 'rgba(0,0,0,0.6)' }]}
+            style={[styles.shapeButton, { bottom: 96, backgroundColor: 'rgba(0,0,0,0.6)', opacity: isOrbDragging ? 0.4 : 1 }]}
             onPress={() => {
               setOrbShape('default');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }}
             activeOpacity={0.7}
+            disabled={isOrbDragging}
+            testID="garden-shape-reset-button"
           >
             <X size={18} color="white" />
           </TouchableOpacity>
@@ -1405,6 +1409,57 @@ export default function GardenScreen() {
           theme={currentTheme} 
           duration={GATHER_DURATION} 
         />
+
+        {/* Grow / Meditate buttons (inside scene, next to the shape/morph button area) */}
+        {!isMeditating && interactionState.current.mode !== 'meditating' && (
+          <View
+            pointerEvents={isOrbDragging ? "none" : "box-none"}
+            style={[styles.gardenActions, { opacity: isOrbDragging ? 0.4 : 1 }]}
+            testID="garden-action-group"
+          >
+            {!currentOrb.isAwakened ? (
+              <TouchableOpacity
+                testID="garden-grow-button"
+                activeOpacity={0.85}
+                style={styles.gardenActionTouchable}
+                onPress={() => {
+                  console.log("[GARDEN] Grow button pressed");
+                  setShowGrowthModal(true);
+                }}
+              >
+                <LinearGradient
+                  colors={["rgba(139,92,246,0.95)", "rgba(236,72,153,0.85)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gardenActionFab}
+                >
+                  <Sprout size={22} color="#fff" />
+                  <Text style={styles.gardenActionLabel}>GROW</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                testID="garden-meditate-button"
+                activeOpacity={0.85}
+                style={styles.gardenActionTouchable}
+                onPress={() => {
+                  console.log("[GARDEN] Meditate button pressed");
+                  setShowAwakenedModal(true);
+                }}
+              >
+                <LinearGradient
+                  colors={["rgba(34,211,238,0.9)", "rgba(139,92,246,0.92)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gardenActionFab}
+                >
+                  <Sparkles size={22} color="#fff" />
+                  <Text style={styles.gardenActionLabel}>MEDITATE</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         
         {!isMeditating && (
           <View style={styles.instructions}>
@@ -1431,57 +1486,6 @@ export default function GardenScreen() {
           </View>
         )}
       </View>
-
-      {/* Floating actions (Grow / Meditate) */}
-      {!isMeditating && interactionState.current.mode !== 'meditating' && (
-        <View
-          pointerEvents={isOrbDragging ? "none" : "box-none"}
-          style={[styles.fabStack, { opacity: isOrbDragging ? 0.3 : 1 }]}
-          testID="garden-fab-stack"
-        >
-          {!currentOrb.isAwakened ? (
-            <TouchableOpacity
-              testID="garden-grow-fab"
-              activeOpacity={0.85}
-              style={styles.fabTouchable}
-              onPress={() => {
-                console.log("[GARDEN] Grow FAB pressed");
-                setShowGrowthModal(true);
-              }}
-            >
-              <LinearGradient
-                colors={["rgba(139,92,246,0.95)", "rgba(236,72,153,0.85)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fab}
-              >
-                <Sprout size={22} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              testID="garden-meditate-fab"
-              activeOpacity={0.85}
-              style={styles.fabTouchable}
-              onPress={() => {
-                console.log("[GARDEN] Meditate FAB pressed");
-                setShowAwakenedModal(true);
-              }}
-            >
-              <LinearGradient
-                colors={["rgba(34,211,238,0.9)", "rgba(139,92,246,0.92)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fab}
-              >
-                <Sparkles size={22} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-
 
       {/* Info Cards */}
       <View style={styles.infoContainer}>
@@ -1768,21 +1772,21 @@ const styles = StyleSheet.create({
   },
   shapeButton: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    bottom: 18,
+    right: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(139, 92, 246, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
+    zIndex: 80,
     borderWidth: 1,
     borderColor: '#8b5cf6',
     shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
   },
   cornerProgressContainer: {
     position: 'absolute',
@@ -2164,31 +2168,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  fabStack: {
+  gardenActions: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    zIndex: 3,
-    elevation: 3,
-    gap: 12,
+    bottom: 18,
+    right: 92,
+    zIndex: 60,
+    elevation: 60,
     alignItems: 'flex-end',
   },
-  fabTouchable: {
+  gardenActionTouchable: {
     borderRadius: 999,
   },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  gardenActionFab: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.32,
+    shadowRadius: 16,
+    elevation: 14,
+  },
+  gardenActionLabel: {
+    marginTop: 6,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    fontWeight: '900' as const,
+    color: 'rgba(255,255,255,0.92)',
   },
   giftHeart: {
     fontSize: 32,
