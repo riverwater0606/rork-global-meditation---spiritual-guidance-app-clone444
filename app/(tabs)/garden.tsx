@@ -856,23 +856,49 @@ export default function GardenScreen() {
       setIsGifting(true);
 
       // B. Send Transaction in BACKGROUND (Don't await result for UI)
-      const NFT_CONTRACT = "0xc54d241764653835017e91459a933612d184457e"; 
-      const numericTokenId = currentOrb.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0).toString();
+      const NFT_CONTRACT = "0x3BB1C70C11eA06e89c6a7CfFD6c3E8A1B8d57eab"; // Thirdweb DropERC721
+      
+      // Prepare metadata for reference (though standard Drop claim doesn't set dynamic metadata per token)
+      // We claim to the friend's wallet
       
       MiniKit.commands.sendTransaction({
           transaction: [{
               address: NFT_CONTRACT,
               abi: [{
-                  name: 'safeTransferFrom',
+                  name: 'claim',
                   type: 'function',
                   inputs: [
-                      { name: 'from', type: 'address' },
-                      { name: 'to', type: 'address' },
-                      { name: 'tokenId', type: 'uint256' }
+                      { name: '_receiver', type: 'address' },
+                      { name: '_quantity', type: 'uint256' },
+                      { name: '_currency', type: 'address' },
+                      { name: '_pricePerToken', type: 'uint256' },
+                      {
+                          name: '_allowlistProof',
+                          type: 'tuple',
+                          components: [
+                              { name: 'proof', type: 'bytes32[]' },
+                              { name: 'quantityLimitPerWallet', type: 'uint256' },
+                              { name: 'pricePerToken', type: 'uint256' },
+                              { name: 'currency', type: 'address' }
+                          ]
+                      },
+                      { name: '_data', type: 'bytes' }
                   ]
               }],
-              functionName: 'safeTransferFrom',
-              args: [walletAddress, contact.walletAddress, numericTokenId]
+              functionName: 'claim',
+              args: [
+                  contact.walletAddress, // _receiver
+                  "1", // _quantity
+                  "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // _currency (Native)
+                  "0", // _pricePerToken
+                  [ // _allowlistProof (tuple)
+                      [], // proof
+                      "0", // quantityLimitPerWallet
+                      "0", // pricePerToken
+                      "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" // currency
+                  ],
+                  "0x" // _data
+              ]
           }]
       }).then((txResult: any) => {
           if (!txResult) {
