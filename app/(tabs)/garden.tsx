@@ -10,7 +10,7 @@ import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Play } from "lucide-react-native";
-import { MiniKit } from "@/constants/minikit";
+import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
 // Minimal Progress Component (Corner Ring)
@@ -524,6 +524,24 @@ export default function GardenScreen() {
   const [isGifting, setIsGifting] = useState(false); // minutes
   const meditationTimerRef = useRef<any>(null);
 
+  // Subscribe to MiniKit Events
+  useEffect(() => {
+    if (MiniKit && MiniKit.isInstalled()) {
+      MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
+        console.log("ShareContacts Event Payload:", payload);
+      });
+      
+      MiniKit.subscribe(ResponseEvent.MiniAppSendTransaction, (payload: any) => {
+        console.log("SendTransaction Event Payload:", payload);
+      });
+
+      return () => {
+        MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
+        MiniKit.unsubscribe(ResponseEvent.MiniAppSendTransaction);
+      };
+    }
+  }, []);
+
   // Update ref when insets change
   useEffect(() => {
     collapsedHeightRef.current = collapsedHeight;
@@ -837,19 +855,27 @@ export default function GardenScreen() {
     // 2. Real MiniKit Environment
     try {
       console.log("Starting Gift Flow...");
+      setIsGifting(true);
       
       // A. Share Contacts - User selects friend first
-      const contactResult = await MiniKit.commands.shareContacts({
+      // Use official async command
+      const contactResult = await MiniKit.commandsAsync.shareContacts({
         isMultiSelectEnabled: false
       });
       
+      console.log("Contact Result:", contactResult);
+
+      // Extract contacts (support both direct and payload structure)
+      const contacts = contactResult?.contacts || contactResult?.finalPayload?.contacts;
+      
       // Check if user cancelled
-      if (!contactResult || !contactResult.contacts || contactResult.contacts.length === 0) {
+      if (!contacts || contacts.length === 0) {
          console.log("Contact selection cancelled");
+         setIsGifting(false);
          return;
       }
 
-      const contact = contactResult.contacts[0];
+      const contact = contacts[0];
       const friendName = contact.name || `User ${contact.walletAddress.slice(0, 4)}`;
 
       // B. ALWAYS SUCCEED IMMEDIATELY IN UI (Optimistic Success)
