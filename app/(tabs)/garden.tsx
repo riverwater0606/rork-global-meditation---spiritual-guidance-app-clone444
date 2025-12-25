@@ -1374,7 +1374,6 @@ export default function GardenScreen() {
             styles.topLeftActionGroup,
             {
               top: Math.max(insets.top, 12) + 12,
-              opacity: isOrbDragging ? 0.4 : 1,
             },
           ]}
           testID="garden-top-left-actions"
@@ -2192,9 +2191,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   topLeftMorphFab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "rgba(139, 92, 246, 0.3)",
     alignItems: "center",
     justifyContent: "center",
@@ -2207,9 +2206,9 @@ const styles = StyleSheet.create({
     elevation: 14,
   },
   topLeftMorphResetFab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
     justifyContent: "center",
@@ -2228,9 +2227,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   gardenActionFab: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
