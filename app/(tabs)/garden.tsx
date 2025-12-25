@@ -938,12 +938,10 @@ export default function GardenScreen() {
 
       // Check if user cancelled or no contacts
       if (!contacts || contacts.length === 0) {
-         console.log("[DEBUG_GIFT] Contact selection cancelled or no contacts returned");
+         console.log("[DEBUG_GIFT] Contact selection returned empty. Keeping attempt flag TRUE for manual completion.");
          setIsGiftingUI(false);
-         // IMPORTANT: If we are sure it's empty, user cancelled. 
-         // Reset attempt flag so Cancel button doesn't trigger success.
-         hasAttemptedGift.current = false; 
-         console.log("[DEBUG_GIFT] hasAttemptedGift reset to FALSE (cancelled)");
+         // We DO NOT reset hasAttemptedGift.current here. 
+         // This allows the user to close the modal manually and still trigger success.
          return; 
       }
 
@@ -1200,6 +1198,7 @@ export default function GardenScreen() {
         transparent
         animationType="slide"
         onRequestClose={handleCancelGift}
+        onDismiss={handleCancelGift}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.shapeModal, { backgroundColor: currentTheme.surface }]}>
@@ -1257,7 +1256,6 @@ export default function GardenScreen() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: '#333' }]}
                 onPress={handleCancelGift}
-                disabled={isGiftingUI}
               >
                  <Text style={{ color: 'white', fontWeight: 'bold' }}>
                    {settings.language === 'zh' ? '取消' : 'Cancel'}
