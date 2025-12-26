@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateTreeOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -185,6 +185,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 6. Grid of Life (64 Tetrahedron)
+    const generateGridOfLife = () => {
+      const data = generateGridOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -232,6 +240,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'tree-of-life') generateTreeOfLife();
     else if (shape === 'earth') generateEarth();
+    else if (shape === 'grid-of-life') generateGridOfLife();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -349,6 +358,32 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const rz = tx * sin + tz * cos;
            tx = rx; tz = rz;
          }
+      } else if (shape === 'grid-of-life') {
+         const g = groups[i];
+         // Pulsing effect for the entire structure
+         const pulse = 1.0 + Math.sin(t * 1.5) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Vertex nodes (g=0) - bright pulsing glow
+         if (g === 0) {
+           const glow = 1.0 + Math.sin(t * 3 + i * 0.02) * 0.1;
+           tx *= glow; ty *= glow; tz *= glow;
+         }
+         // Edge lines (g=1) - flowing energy along edges
+         else if (g === 1) {
+           const flow = Math.sin(t * 2 + i * 0.005) * 0.015;
+           tx += flow; ty += flow; tz += flow;
+         }
+         // Inner grid (g=2) - subtle breathing
+         else if (g === 2) {
+           const breath = 1.0 + Math.sin(t * 2.5 + i * 0.01) * 0.06;
+           tx *= breath; ty *= breath; tz *= breath;
+         }
+         // Outer boundary (g=3) - wave effect
+         else if (g === 3) {
+           const wave = Math.sin(t * 1.2 + Math.atan2(ty, tx) * 4) * 0.03;
+           tx += wave; ty += wave;
+         }
       } else if (shape === 'earth') {
           // Earth Animation: 
           // 1. Slow rotation of the "texture" (points) relative to the frame?
@@ -457,6 +492,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '🌳' },
+  { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '🔮' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
 ];
 

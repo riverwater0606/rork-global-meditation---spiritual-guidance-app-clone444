@@ -428,6 +428,200 @@ const TREE_PATHS = [
   [8, 9],                           // Yesod to Malkuth
 ];
 
+// --- GRID OF LIFE (64 Tetrahedron) ---
+// The 64 Tetrahedron Grid is a fundamental structure of the vacuum geometry
+// It represents where space converges over time - the matrix of creation
+
+const generateGridVertices = () => {
+  const vertices: THREE.Vector3[] = [];
+  const scale = 0.35;
+  
+  // 64 Tetrahedron grid forms from overlapping star tetrahedra
+  // Create a 3D grid of vertices that define the tetrahedra
+  
+  // Core vertices - center structure
+  const h = Math.sqrt(2/3); // Height ratio for tetrahedron
+  const levels = 4;
+  
+  // Generate vertices in a layered structure
+  for (let layer = -levels; layer <= levels; layer++) {
+    const y = layer * h * 0.5 * scale;
+    const layerOffset = Math.abs(layer) % 2 === 0 ? 0 : 0.5;
+    const radius = (levels - Math.abs(layer) * 0.3) * scale;
+    
+    // Hexagonal arrangement at each layer
+    const pointsInLayer = Math.max(1, 6 * (levels - Math.abs(layer)));
+    for (let i = 0; i < pointsInLayer; i++) {
+      const angle = (i / pointsInLayer) * Math.PI * 2 + layerOffset;
+      const r = radius * (0.3 + (i % 3) * 0.3);
+      vertices.push(new THREE.Vector3(
+        r * Math.cos(angle),
+        y,
+        r * Math.sin(angle)
+      ));
+    }
+  }
+  
+  // Add central axis vertices
+  for (let i = -3; i <= 3; i++) {
+    vertices.push(new THREE.Vector3(0, i * 0.3 * scale, 0));
+  }
+  
+  // Add octahedral frame vertices
+  const octaScale = 1.2 * scale;
+  vertices.push(new THREE.Vector3(octaScale, 0, 0));
+  vertices.push(new THREE.Vector3(-octaScale, 0, 0));
+  vertices.push(new THREE.Vector3(0, octaScale, 0));
+  vertices.push(new THREE.Vector3(0, -octaScale, 0));
+  vertices.push(new THREE.Vector3(0, 0, octaScale));
+  vertices.push(new THREE.Vector3(0, 0, -octaScale));
+  
+  return vertices;
+};
+
+const generateTetrahedronEdges = (vertices: THREE.Vector3[]) => {
+  const edges: [THREE.Vector3, THREE.Vector3][] = [];
+  const threshold = 0.45; // Connect vertices within this distance
+  
+  for (let i = 0; i < vertices.length; i++) {
+    for (let j = i + 1; j < vertices.length; j++) {
+      const dist = vertices[i].distanceTo(vertices[j]);
+      if (dist < threshold && dist > 0.05) {
+        edges.push([vertices[i], vertices[j]]);
+      }
+    }
+  }
+  
+  return edges;
+};
+
+export function generateGridOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const vertices = generateGridVertices();
+  const edges = generateTetrahedronEdges(vertices);
+  
+  // Color palette - cosmic purples, cyans, golds
+  const deepPurple = new THREE.Color('#4C1D95');
+  const violet = new THREE.Color('#7C3AED');
+  const cyan = new THREE.Color('#22D3EE');
+  const gold = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const magenta = new THREE.Color('#EC4899');
+
+  const vertexCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.55);
+  const innerGridCount = Math.floor(PARTICLE_COUNT * 0.20);
+  
+  let idx = 0;
+
+  // 1. Vertex nodes (glowing intersection points)
+  const particlesPerVertex = Math.floor(vertexCount / vertices.length);
+  for (let v = 0; v < vertices.length && idx < vertexCount; v++) {
+    const vertex = vertices[v];
+    const nodeRadius = 0.04;
+    
+    for (let i = 0; i < particlesPerVertex && idx < vertexCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      
+      positions[idx * 3] = vertex.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = vertex.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = vertex.z + r * Math.cos(phi);
+      
+      // Distance from center affects color
+      const distFromCenter = vertex.length();
+      const c = white.clone().lerp(gold, distFromCenter * 1.5);
+      c.lerp(cyan, Math.random() * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
+    }
+  }
+
+  // 2. Edge lines (tetrahedron framework)
+  const particlesPerEdge = Math.floor(edgeCount / Math.max(edges.length, 1));
+  for (let e = 0; e < edges.length && idx < vertexCount + edgeCount; e++) {
+    const [start, end] = edges[e];
+    
+    for (let i = 0; i < particlesPerEdge && idx < vertexCount + edgeCount; i++, idx++) {
+      const t = Math.random();
+      const thickness = 0.008;
+      
+      const x = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * thickness;
+      const y = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * thickness;
+      const z = start.z + (end.z - start.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Gradient from start to end color based on position
+      const c = violet.clone().lerp(cyan, t);
+      c.lerp(magenta, Math.sin(t * Math.PI) * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 3. Inner tetrahedra structure (64 small tetrahedra visualization)
+  const innerScale = 0.25;
+  for (; idx < vertexCount + edgeCount + innerGridCount; idx++) {
+    // Create small tetrahedra distributed in the grid
+    const gridX = (Math.random() - 0.5) * 2 * innerScale;
+    const gridY = (Math.random() - 0.5) * 2 * innerScale;
+    const gridZ = (Math.random() - 0.5) * 2 * innerScale;
+    
+    // Snap to tetrahedron structure
+    const tetraSize = 0.08;
+    const tx = Math.round(gridX / tetraSize) * tetraSize;
+    const ty = Math.round(gridY / tetraSize) * tetraSize;
+    const tz = Math.round(gridZ / tetraSize) * tetraSize;
+    
+    positions[idx * 3] = tx + (Math.random() - 0.5) * 0.02;
+    positions[idx * 3 + 1] = ty + (Math.random() - 0.5) * 0.02;
+    positions[idx * 3 + 2] = tz + (Math.random() - 0.5) * 0.02;
+    
+    const c = deepPurple.clone().lerp(violet, Math.random());
+    c.lerp(white, 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Outer spherical boundary (vastness of space)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 0.9 + Math.random() * 0.15;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    // Faint cosmic dust
+    const c = deepPurple.clone().lerp(cyan, Math.random() * 0.4);
+    c.multiplyScalar(0.4 + Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  return { positions, colors, groups };
+}
+
 export function generateTreeOfLifeData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
