@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -108,50 +108,12 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       }
     };
 
-    // 1. Flower of Life (2D/3D extruded)
-    // 19 overlapping circles in hexagonal grid
+    // 1. Flower of Life (3D with sacred geometry points)
     const generateFlowerOfLife = () => {
-      const circleRadius = 0.5;
-      // Centers for 19 circles (Hexagonal packing)
-      // Layer 0: (0,0)
-      // Layer 1: 6 neighbors
-      // Layer 2: 12 neighbors
-      const centers: {x:number, y:number}[] = [{x:0,y:0}];
-      
-      // Ring 1
-      for(let i=0; i<6; i++) {
-        const angle = i * Math.PI / 3;
-        centers.push({ x: Math.cos(angle)*circleRadius, y: Math.sin(angle)*circleRadius });
-      }
-      // Ring 2
-      for(let i=0; i<6; i++) {
-        const angle = i * Math.PI / 3;
-        // Corner points
-        centers.push({ x: 2*Math.cos(angle)*circleRadius, y: 2*Math.sin(angle)*circleRadius });
-        // Mid points between corners
-        const angleMid = angle + Math.PI/6;
-        // distance for mid points in hex grid is sqrt(3)*R
-        centers.push({ x: Math.sqrt(3)*Math.cos(angleMid)*circleRadius, y: Math.sqrt(3)*Math.sin(angleMid)*circleRadius });
-      }
-
-      for (let i = 0; i < particleCount; i++) {
-        // Distribute particles among 19 circles
-        const circleIdx = i % centers.length;
-        const center = centers[circleIdx];
-        const theta = Math.random() * Math.PI * 2;
-        
-        // Exact circle outline with slight glow/width
-        const r = circleRadius * (0.98 + Math.random()*0.04); 
-        
-        targetPositions[i*3] = center.x + r * Math.cos(theta);
-        targetPositions[i*3+1] = center.y + r * Math.sin(theta);
-        targetPositions[i*3+2] = (Math.random() - 0.5) * 0.05; // Flat with slight depth
-        
-        // Color: Gold/Pink/Violet gradients
-        colors[i*3] = 1.0;
-        colors[i*3+1] = 0.5 + Math.random()*0.5;
-        colors[i*3+2] = 0.5 + Math.random()*0.5;
-      }
+      const data = generateFlowerOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
     };
 
     // 2. Star of David (Interlocking Triangles) with Light Beams
@@ -338,7 +300,23 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       let tz = targetPositions[iz];
       
       // SHAPE ANIMATIONS
-      if (shape === 'merkaba') {
+      if (shape === 'flower-of-life') {
+         const g = groups[i];
+         // Gentle pulse for all particles
+         const pulse = 1.0 + Math.sin(t * 2) * 0.03;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Key intersection points (g=0) glow brighter
+         if (g === 0) {
+           const glow = 1.0 + Math.sin(t * 4 + i * 0.01) * 0.08;
+           tx *= glow; ty *= glow; tz *= glow;
+         }
+         // Outer ring (g=2) subtle wave
+         if (g === 2) {
+           const wave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.02;
+           tx += wave; ty += wave;
+         }
+      } else if (shape === 'merkaba') {
          const g = groups[i];
          if (g === 2) {
            // Center pulse
