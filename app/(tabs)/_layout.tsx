@@ -57,20 +57,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="progress"
-        options={{
-          title: translations.progress[lang],
-          tabBarIcon: ({ color }) => <Activity size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: translations.profile[lang],
-          tabBarIcon: ({ color }) => <User size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="garden"
         options={{
           title: translations.garden[lang],
@@ -78,10 +64,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="progress"
+        options={{
+          title: translations.progress[lang],
+          tabBarIcon: ({ color }) => <Activity size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="assistant"
         options={{
           title: translations.assistant[lang],
           tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: translations.profile[lang],
+          tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
     </Tabs>
