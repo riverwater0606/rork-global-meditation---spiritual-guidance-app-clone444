@@ -268,23 +268,45 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     setOrbHistory(newHistory);
     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
 
-    let nextOrb: Orb;
-    if (currentOrb.isAwakened) {
-       nextOrb = {
-         ...INITIAL_ORB,
-         id: `orb-${Date.now()}`,
-         createdAt: new Date().toISOString(),
-       };
-    } else {
-       nextOrb = {
-         ...INITIAL_ORB,
-         id: `orb-${Date.now()}`,
-         createdAt: new Date().toISOString(),
-       };
-    }
-    
+    const nextOrb: Orb = {
+      ...INITIAL_ORB,
+      id: `orb-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
     setCurrentOrb(nextOrb);
     await AsyncStorage.setItem("currentOrb", JSON.stringify(nextOrb));
+  };
+
+  const receiveGiftOrb = async (gift: {
+    fromDisplayName?: string;
+    fromWalletAddress?: string;
+    blessing?: string;
+    orb: {
+      id: string;
+      level: number;
+      layers: string[];
+      isAwakened: boolean;
+      createdAt: string;
+      completedAt?: string;
+      shape?: OrbShape;
+    };
+  }) => {
+    const receivedOrb: Orb = {
+      id: gift.orb.id || `gift-${Date.now()}`,
+      level: gift.orb.level,
+      layers: gift.orb.layers,
+      isAwakened: gift.orb.isAwakened,
+      createdAt: gift.orb.createdAt,
+      completedAt: gift.orb.completedAt,
+      shape: gift.orb.shape,
+      sender: gift.fromDisplayName || gift.fromWalletAddress || "Friend",
+      message: gift.blessing,
+    };
+
+    const newHistory = [receivedOrb, ...orbHistory];
+    setOrbHistory(newHistory);
+    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
   };
 
   // Dev Tools
@@ -439,6 +461,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     deleteCustomMeditation,
     updateCustomMeditation,
     sendOrb,
+    receiveGiftOrb,
     devAddLayer,
     devInstantOrb,
     devResetOrb,

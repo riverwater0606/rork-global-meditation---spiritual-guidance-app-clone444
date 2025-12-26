@@ -7,6 +7,7 @@ import { Audio } from "expo-av";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
+import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
@@ -495,7 +496,8 @@ export default function GardenScreen() {
     devResetOrb, 
     devSendOrbToSelf,
     setOrbShape,
-    setSharedSpinVelocity 
+    setSharedSpinVelocity,
+    receiveGiftOrb 
   } = useMeditation();
 
   // Refs for stale closure fix in PanResponder
@@ -663,6 +665,68 @@ export default function GardenScreen() {
 
   
   const { walletAddress } = useUser();
+
+  const giftPollInFlightRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (!walletAddress) {
+      console.log("[DEBUG_GIFT_CLOUD] Polling disabled (no walletAddress)");
+      return;
+    }
+
+    console.log("[DEBUG_GIFT_CLOUD] Starting Firebase gift poll for:", walletAddress);
+
+    const interval = setInterval(() => {
+      const run = async () => {
+        if (giftPollInFlightRef.current) return;
+        giftPollInFlightRef.current = true;
+
+        try {
+          const gifts = await fetchAndConsumeGifts({ myWalletAddress: walletAddress, max: 5 });
+          if (gifts.length > 0) {
+            console.log("[DEBUG_GIFT_CLOUD] Received gifts:", gifts.length);
+          }
+
+          for (const g of gifts) {
+            console.log("[DEBUG_GIFT_CLOUD] Consuming gift:", JSON.stringify(g, null, 2));
+            await receiveGiftOrb({
+              fromDisplayName: g.fromDisplayName,
+              fromWalletAddress: g.from,
+              blessing: g.blessing,
+              orb: {
+                id: g.orb.id,
+                level: g.orb.level,
+                layers: g.orb.layers,
+                isAwakened: g.orb.isAwakened,
+                createdAt: g.orb.createdAt,
+                completedAt: g.orb.completedAt,
+                shape: (g.orb.shape as OrbShape | undefined) ?? undefined,
+              },
+            });
+
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            Alert.alert(
+              settings.language === "zh" ? "🎁 收到光球" : "🎁 Gift Received",
+              settings.language === "zh"
+                ? `你收到來自 ${g.fromDisplayName || "朋友"} 的光球`
+                : `You received an orb from ${g.fromDisplayName || "Friend"}`
+            );
+          }
+        } catch (e) {
+          console.warn("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
+        } finally {
+          giftPollInFlightRef.current = false;
+        }
+      };
+
+      void run();
+    }, 6000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [walletAddress, receiveGiftOrb, settings.language]);
   
   // Chakra Collection Logic
   const collectionProgress = useMemo(() => {
@@ -1000,34 +1064,75 @@ export default function GardenScreen() {
       return;
     }
 
+    const orbSnapshot = {
+      id: currentOrbRef.current.id || `orb-${Date.now()}`,
+      level: currentOrbRef.current.level,
+      layers: [...(currentOrbRef.current.layers ?? [])],
+      isAwakened: Boolean(currentOrbRef.current.isAwakened),
+      createdAt: currentOrbRef.current.createdAt || new Date().toISOString(),
+      completedAt: currentOrbRef.current.completedAt,
+      shape: currentOrbRef.current.shape,
+      rotationSpeed: interactionState.current.spinVelocity,
+    };
+
     isGifting.current = true;
     setIsGiftingUI(true);
 
-    const genericFriendName = settings.language === 'zh' ? "朋友" : "Friend";
+    const genericFriendName = settings.language === "zh" ? "朋友" : "Friend";
 
-    console.log("[DEBUG_GIFT] IMMEDIATE SUCCESS (no dependency on shareContacts)");
+    console.log("[DEBUG_GIFT] IMMEDIATE SUCCESS UI (no dependency on shareContacts)");
     finishGifting(genericFriendName);
 
     setTimeout(() => {
       const run = async () => {
         try {
           if (!MiniKit || !MiniKit.isInstalled()) {
-            console.log("[DEBUG_GIFT] MiniKit not installed - skipping shareContacts");
+            console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
             return;
           }
 
           if (!MiniKit.commandsAsync?.shareContacts) {
-            console.log("[DEBUG_GIFT] MiniKit.commandsAsync.shareContacts missing - skipping");
+            console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
             return;
           }
 
-          console.log("[DEBUG_GIFT] (Optional) Calling shareContacts AFTER optimistic success...");
+          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts in background...");
           const result: any = await MiniKit.commandsAsync.shareContacts({
             isMultiSelectEnabled: false,
           });
-          console.log("[DEBUG_GIFT] (Optional) shareContacts resolved:", JSON.stringify(result, null, 2));
+          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+
+          const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
+          const toWalletAddress: string | undefined = contact?.walletAddress;
+
+          if (!toWalletAddress) {
+            console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
+            return;
+          }
+
+          const fromWalletAddress = walletAddress ?? "unknown";
+
+          console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...");
+          const uploaded = await uploadGiftOrb({
+            toWalletAddress,
+            fromWalletAddress,
+            fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
+            blessing: giftMessage || (settings.language === "zh" ? "願愛與能量永流" : "May love and energy flow forever."),
+            orb: {
+              id: orbSnapshot.id,
+              level: orbSnapshot.level,
+              layers: orbSnapshot.layers,
+              isAwakened: orbSnapshot.isAwakened,
+              createdAt: orbSnapshot.createdAt,
+              completedAt: orbSnapshot.completedAt,
+              shape: orbSnapshot.shape,
+              rotationSpeed: orbSnapshot.rotationSpeed,
+            },
+          });
+
+          console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
         } catch (e) {
-          console.warn("[DEBUG_GIFT] (Optional) shareContacts failed (ignored):", e);
+          console.warn("[DEBUG_GIFT_CLOUD] shareContacts/upload failed (ignored):", e);
         }
       };
 
