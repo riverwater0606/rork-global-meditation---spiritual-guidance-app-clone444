@@ -158,10 +158,10 @@ export default function HomeScreen() {
             {lang === "zh" ? "今日肯定語" : "Today's Affirmation"}
           </Text>
           <Text style={[styles.affirmationText, { color: currentTheme.text }]}>
-            {affirmation.text}
+            {lang === "zh" ? affirmation.zh : affirmation.en}
           </Text>
           <Text style={[styles.affirmationAuthor, { color: currentTheme.textSecondary }]}>
-            - {affirmation.author}
+            - {lang === "zh" ? affirmation.authorZh : affirmation.author}
           </Text>
         </View>
 
