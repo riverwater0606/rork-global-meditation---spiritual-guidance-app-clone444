@@ -529,6 +529,7 @@ export default function GardenScreen() {
   const isGifting = useRef(false); // Ref for lock to prevent double execution
   const hasAttemptedGift = useRef(false); // Ref to track if user tried to gift
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
+  const modeResetTimeoutRef = useRef<any>(null); // Safety timeout for mode reset
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
   const giftSoundRef = useRef<Audio.Sound | null>(null);
@@ -582,6 +583,7 @@ export default function GardenScreen() {
   useEffect(() => {
     return () => {
       if (meditationTimerRef.current) clearInterval(meditationTimerRef.current);
+      if (modeResetTimeoutRef.current) clearTimeout(modeResetTimeoutRef.current);
     };
   }, []);
 
@@ -788,27 +790,43 @@ export default function GardenScreen() {
         }
 
         // Spin interaction - Increased sensitivity and inverted for natural control
-        // Dragging RIGHT (positive dx) should rotate Earth to show LEFT contents (Negative Y rotation)
         const newVelocity = -gestureState.vx * 0.5;
         interactionState.current.spinVelocity = newVelocity;
         setSharedSpinVelocity(newVelocity);
         
         // Swipe Detection
-        // Use gestureState.dy (accumulated distance) and velocity
         const { dy, vy, dx } = gestureState;
         
         // Lower thresholds for better responsiveness
-        const SWIPE_DISTANCE = 100; // Reduced from 150
-        const VELOCITY_THRESHOLD = 0.5; // Reduced from 0.8
+        const SWIPE_DISTANCE = 80; // Further reduced for easier triggering
+        const VELOCITY_THRESHOLD = 0.3; // Further reduced for easier triggering
         
-        if (interactionState.current.mode === 'gather' || interactionState.current.mode === 'idle' || interactionState.current.mode === 'diffused') {
-           if (Math.abs(dy) > Math.abs(dx) * 1.5) { // Prioritize vertical movement
+        const currentMode = interactionState.current.mode;
+        const canSwipe = currentMode === 'gather' || currentMode === 'idle' || currentMode === 'diffused';
+        
+        // Debug log for swipe detection
+        if (Math.abs(dy) > 50) {
+          console.log("[DEBUG_SWIPE] Move detected - dy:", dy.toFixed(0), "vy:", vy.toFixed(2), "mode:", currentMode, "canSwipe:", canSwipe);
+        }
+        
+        if (canSwipe) {
+           if (Math.abs(dy) > Math.abs(dx) * 1.2) { // Slightly relaxed ratio
              if (dy < -SWIPE_DISTANCE && vy < -VELOCITY_THRESHOLD) { // Swipe UP
+               console.log("[DEBUG_SWIPE] SWIPE UP DETECTED! Triggering heart animation");
                triggerHeartAnimation();
              } else if (dy > SWIPE_DISTANCE && vy > VELOCITY_THRESHOLD) { // Swipe DOWN
+               console.log("[DEBUG_SWIPE] SWIPE DOWN DETECTED! Triggering store animation");
                triggerStoreAnimation();
              }
            }
+        } else {
+          // If mode is stuck, try to reset it after a certain threshold
+          if (Math.abs(dy) > 150 && (currentMode === 'heart' || currentMode === 'explode')) {
+            console.log("[DEBUG_SWIPE] Mode stuck in", currentMode, "- attempting reset");
+            if (!isGifting.current) {
+              interactionState.current.mode = 'idle';
+            }
+          }
         }
       },
       
@@ -925,6 +943,8 @@ export default function GardenScreen() {
   };
 
   const triggerHeartAnimation = () => {
+    console.log("[DEBUG_SWIPE] triggerHeartAnimation called, current mode:", interactionState.current.mode);
+    
     // Check if orb is giftable (not empty white ball)
     const isEmptyWhiteBall = currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default');
     
@@ -936,6 +956,11 @@ export default function GardenScreen() {
       return;
     }
     
+    // Clear any previous mode reset timeout
+    if (modeResetTimeoutRef.current) {
+      clearTimeout(modeResetTimeoutRef.current);
+    }
+    
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (progressOverlayRef.current) progressOverlayRef.current.reset();
     
@@ -944,9 +969,20 @@ export default function GardenScreen() {
     
     // Open gift modal after animation starts
     setTimeout(() => {
-       isGifting.current = false; // Reset lock
+       isGifting.current = false; // Reset lock before modal opens
+       hasAttemptedGift.current = false;
        setShowGiftModal(true);
+       console.log("[DEBUG_SWIPE] Gift modal opened, isGifting reset to false");
     }, 800);
+    
+    // Safety timeout: if modal doesn't open or something goes wrong, reset mode
+    modeResetTimeoutRef.current = setTimeout(() => {
+      if (interactionState.current.mode === 'heart' && !showGiftModal) {
+        console.log("[DEBUG_SWIPE] Safety reset: heart mode stuck, resetting to idle");
+        interactionState.current.mode = 'idle';
+        isGifting.current = false;
+      }
+    }, 3000);
   };
 
   const animateStore = () => {
@@ -1015,6 +1051,11 @@ export default function GardenScreen() {
       console.log("[DEBUG_GIFT] finishGifting called for:", friendName);
       console.log("[DEBUG_GIFT] Current Orb state before gifting:", JSON.stringify(currentOrbRef.current));
       
+      // Clear any mode reset timeout
+      if (modeResetTimeoutRef.current) {
+        clearTimeout(modeResetTimeoutRef.current);
+      }
+      
       // Reset attempt flag
       hasAttemptedGift.current = false;
 
@@ -1035,12 +1076,13 @@ export default function GardenScreen() {
              await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
              console.log("[DEBUG_GIFT] sendOrbRef.current completed");
              
-             // Reset UI
+             // Reset ALL states
              setGiftMessage("");
              setIsGiftingUI(false);
-             isGifting.current = false; // Release lock
+             isGifting.current = false;
+             hasAttemptedGift.current = false;
              interactionState.current.mode = 'idle';
-             console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. Mode reset to idle.");
+             console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. All states reset.");
              
              Alert.alert(
                  settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
@@ -1050,18 +1092,38 @@ export default function GardenScreen() {
              );
            } catch (postTxError) {
               console.error("[DEBUG_GIFT] Error in post-transaction cleanup:", postTxError);
+              // CRITICAL: Reset ALL states even on error
               setIsGiftingUI(false);
+              setGiftMessage("");
               isGifting.current = false;
+              hasAttemptedGift.current = false;
               interactionState.current.mode = 'idle';
+              console.log("[DEBUG_GIFT] Error recovery: All states reset.");
            }
       }, 1500);
+      
+      // Safety timeout: ensure mode resets even if something goes wrong
+      modeResetTimeoutRef.current = setTimeout(() => {
+        if (interactionState.current.mode === 'explode') {
+          console.log("[DEBUG_GIFT] Safety reset: explode mode stuck, resetting to idle");
+          interactionState.current.mode = 'idle';
+          isGifting.current = false;
+          setIsGiftingUI(false);
+        }
+      }, 5000);
   };
 
   const handleStartGiftingOptimistic = () => {
     console.log("[DEBUG_GIFT] handleStartGiftingOptimistic PRESS");
+    console.log("[DEBUG_GIFT] Current state - isGifting:", isGifting.current, "mode:", interactionState.current.mode);
 
     if (isGifting.current) {
       console.log("[DEBUG_GIFT] isGifting.current is true, ignoring optimistic gift start");
+      // Safety: if button was pressed but state is stuck, force reset after alert
+      Alert.alert(
+        settings.language === 'zh' ? "請稍候" : "Please wait",
+        settings.language === 'zh' ? "正在處理中..." : "Processing..."
+      );
       return;
     }
 
@@ -1144,19 +1206,32 @@ export default function GardenScreen() {
 
   const handleCancelGift = () => {
     console.log("[DEBUG_GIFT] handleCancelGift called. hasAttemptedGift:", hasAttemptedGift.current);
+    console.log("[DEBUG_GIFT] Current mode:", interactionState.current.mode, "isGifting:", isGifting.current);
+    
     // FORCE SUCCESS CHECK: If user attempted to gift but failed/cancelled, treat as success
     if (hasAttemptedGift.current) {
         console.log("[DEBUG_GIFT] Force success from Cancel after attempt");
-        // Use a generic name if we didn't get one
         finishGifting(settings.language === 'zh' ? "朋友" : "Friend");
         return;
     }
 
     setShowGiftModal(false);
     setGiftMessage("");
-    // Reset animation
+    setIsGiftingUI(false);
+    
+    // CRITICAL: Always reset isGifting when modal closes
+    isGifting.current = false;
+    hasAttemptedGift.current = false;
+    
+    // Reset animation mode immediately and after delay for safety
+    console.log("[DEBUG_GIFT] Resetting mode to idle from cancel");
+    interactionState.current.mode = 'idle';
+    
     setTimeout(() => {
-      interactionState.current.mode = 'idle';
+      if (interactionState.current.mode !== 'meditating') {
+        interactionState.current.mode = 'idle';
+        console.log("[DEBUG_GIFT] Safety reset mode to idle (500ms)");
+      }
     }, 500);
   };
 
