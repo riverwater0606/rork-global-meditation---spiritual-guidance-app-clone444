@@ -1580,13 +1580,27 @@ export default function GardenScreen() {
         >
           <View style={styles.topLeftMorphRow}>
             <TouchableOpacity
-              style={styles.topLeftMorphFab}
-              onPress={() => setShowShapeSelector(true)}
+              style={[
+                styles.topLeftMorphFab,
+                !currentOrb.isAwakened && styles.topLeftMorphFabDisabled
+              ]}
+              onPress={() => {
+                if (!currentOrb.isAwakened) {
+                  Alert.alert(
+                    settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
+                    settings.language === 'zh' 
+                      ? '光球需要覺醒後才能選擇形態' 
+                      : 'Orb must be awakened to change shape'
+                  );
+                  return;
+                }
+                setShowShapeSelector(true);
+              }}
               activeOpacity={0.7}
               disabled={isOrbDragging}
               testID="garden-shape-button"
             >
-              <Sparkles size={18} color="white" />
+              <Sparkles size={18} color={currentOrb.isAwakened ? "white" : "rgba(255,255,255,0.4)"} />
             </TouchableOpacity>
 
             {orbShape !== "default" && (
@@ -2404,6 +2418,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.32,
     shadowRadius: 14,
     elevation: 14,
+  },
+  topLeftMorphFabDisabled: {
+    backgroundColor: "rgba(100, 100, 100, 0.2)",
+    borderColor: "rgba(255,255,255,0.2)",
+    shadowOpacity: 0.1,
   },
   topLeftMorphResetFab: {
     width: 60,
