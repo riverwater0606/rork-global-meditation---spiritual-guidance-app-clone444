@@ -397,3 +397,146 @@ export function generateEarthData() {
 
   return { positions, colors, groups };
 }
+
+// --- TREE OF LIFE (Kabbalah) ---
+// 10 Sephiroth spheres connected by 22 paths
+// Represents the cosmic blueprint and spiritual evolution
+
+const SEPHIROTH_POSITIONS = [
+  { name: 'Kether', x: 0, y: 1.6, pillar: 'middle', color: '#FFFFFF' },      // Crown - Top
+  { name: 'Chokmah', x: 0.6, y: 1.1, pillar: 'right', color: '#87CEEB' },   // Wisdom
+  { name: 'Binah', x: -0.6, y: 1.1, pillar: 'left', color: '#4B0082' },     // Understanding
+  { name: 'Chesed', x: 0.6, y: 0.5, pillar: 'right', color: '#4169E1' },    // Mercy
+  { name: 'Geburah', x: -0.6, y: 0.5, pillar: 'left', color: '#DC143C' },   // Severity
+  { name: 'Tiphereth', x: 0, y: 0.3, pillar: 'middle', color: '#FFD700' },  // Beauty - Center
+  { name: 'Netzach', x: 0.6, y: -0.3, pillar: 'right', color: '#00FF7F' },  // Victory
+  { name: 'Hod', x: -0.6, y: -0.3, pillar: 'left', color: '#FF8C00' },      // Glory
+  { name: 'Yesod', x: 0, y: -0.9, pillar: 'middle', color: '#9370DB' },     // Foundation
+  { name: 'Malkuth', x: 0, y: -1.6, pillar: 'middle', color: '#228B22' },   // Kingdom - Bottom
+];
+
+// 22 Paths connecting the Sephiroth (traditional Kabbalistic paths)
+const TREE_PATHS = [
+  [0, 1], [0, 2], [0, 5],           // Kether connections
+  [1, 2], [1, 3], [1, 5],           // Chokmah connections
+  [2, 4], [2, 5],                   // Binah connections
+  [3, 4], [3, 5], [3, 6],           // Chesed connections
+  [4, 5], [4, 7],                   // Geburah connections
+  [5, 6], [5, 7], [5, 8],           // Tiphereth connections (center hub)
+  [6, 7], [6, 8],                   // Netzach connections
+  [7, 8],                           // Hod to Yesod
+  [8, 9],                           // Yesod to Malkuth
+];
+
+export function generateTreeOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.7;
+  
+  // Scale sephiroth positions
+  const sephiroth = SEPHIROTH_POSITIONS.map(s => ({
+    ...s,
+    x: s.x * scale,
+    y: s.y * scale,
+    color: new THREE.Color(s.color)
+  }));
+
+  // Color palette
+  const white = new THREE.Color('#FFFFFF');
+  const gold = new THREE.Color('#FFD700');
+  const pathColor = new THREE.Color('#ADD8E6');
+
+  const sphereCount = Math.floor(PARTICLE_COUNT * 0.30);
+  const pathCount = Math.floor(PARTICLE_COUNT * 0.60);
+
+  let idx = 0;
+
+  // 1. Sephiroth Spheres (10 spheres)
+  const particlesPerSphere = Math.floor(sphereCount / sephiroth.length);
+  
+  for (let s = 0; s < sephiroth.length; s++) {
+    const seph = sephiroth[s];
+    const sphereRadius = 0.12;
+    
+    for (let i = 0; i < particlesPerSphere && idx < sphereCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 1/3) * sphereRadius;
+      
+      const x = seph.x + r * Math.sin(phi) * Math.cos(theta);
+      const y = seph.y + r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const distFromCenter = Math.sqrt((x - seph.x) ** 2 + (y - seph.y) ** 2 + z ** 2);
+      const brightness = 1.0 - (distFromCenter / (sphereRadius * sphereRadius)) * 0.5;
+      
+      const c = seph.color.clone();
+      c.lerp(white, brightness * 0.4);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      
+      groups[idx] = s;
+    }
+  }
+
+  // 2. Paths (22 connecting lines)
+  const particlesPerPath = Math.floor(pathCount / TREE_PATHS.length);
+  
+  for (let p = 0; p < TREE_PATHS.length; p++) {
+    const [idx1, idx2] = TREE_PATHS[p];
+    const start = sephiroth[idx1];
+    const end = sephiroth[idx2];
+    
+    for (let i = 0; i < particlesPerPath && idx < sphereCount + pathCount; i++, idx++) {
+      const t = Math.random();
+      const thickness = 0.015;
+      
+      const x = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * thickness;
+      const y = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * thickness;
+      const z = (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = start.color.clone().lerp(end.color, t);
+      c.lerp(pathColor, 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      
+      groups[idx] = 10 + p;
+    }
+  }
+
+  // 3. Ambient glow around entire tree
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.random() * 0.5;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const c = white.clone().lerp(gold, Math.random() * 0.3);
+    c.multiplyScalar(0.3 + Math.random() * 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    
+    groups[idx] = 32;
+  }
+
+  return { positions, colors, groups };
+}

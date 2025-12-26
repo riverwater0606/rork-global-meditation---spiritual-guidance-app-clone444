@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateTreeOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -177,7 +177,13 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
-    // 4. Mudra (Prayer Hands) - REMOVED
+    // 4. Tree of Life
+    const generateTreeOfLife = () => {
+      const data = generateTreeOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
 
     // 5. Earth
     const generateEarth = () => {
@@ -224,6 +230,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     if (shape === 'flower-of-life') generateFlowerOfLife();
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
+    else if (shape === 'tree-of-life') generateTreeOfLife();
     else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
@@ -449,6 +456,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
   { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
+  { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '🌳' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
 ];
 
