@@ -107,82 +107,91 @@ export function generateMerkabaData() {
 
 // --- EARTH ---
 // --- FLOWER OF LIFE (3D) ---
-// 25 key intersection points from the sacred geometry pattern
-const FLOWER_OF_LIFE_POINTS = [
-  [-2.0, 0.0, 0],
-  [-1.7321, -1.0, 0],
-  [-1.7321, 1.0, 0],
-  [-1.5, -0.866, 0],
-  [-1.5, 0.866, 0],
-  [-1.0, -1.7321, 0],
-  [-1.0, 0.0, 0],
-  [-1.0, 1.7321, 0],
-  [-0.5, -0.866, 0],
-  [-0.5, 0.866, 0],
-  [0.0, -2.0, 0],
-  [0.0, -1.7321, 0],
-  [0.0, 0.0, 0],
-  [0.0, 1.7321, 0],
-  [0.0, 2.0, 0],
-  [0.5, -0.866, 0],
-  [0.5, 0.866, 0],
-  [1.0, -1.7321, 0],
-  [1.0, 0.0, 0],
-  [1.0, 1.7321, 0],
-  [1.5, -0.866, 0],
-  [1.5, 0.866, 0],
-  [1.7321, -1.0, 0],
-  [1.7321, 1.0, 0],
-  [2.0, 0.0, 0],
-];
+// True sacred geometry: 19 interlocking circles forming the cosmic pattern
+// Each circle has radius 1, centers are at distance 1 from neighbors
 
-// Circle centers for the 19 interlocking circles
-const FLOWER_CIRCLE_CENTERS = [
-  [0, 0],           // Center
-  [1, 0],           // Ring 1
-  [0.5, 0.866],
-  [-0.5, 0.866],
-  [-1, 0],
-  [-0.5, -0.866],
-  [0.5, -0.866],
-  [2, 0],           // Ring 2 - corners
-  [1.5, 0.866],
-  [1, 1.7321],
-  [0, 1.7321],
-  [-1, 1.7321],
-  [-1.5, 0.866],
-  [-2, 0],
-  [-1.5, -0.866],
-  [-1, -1.7321],
-  [0, -1.7321],
-  [1, -1.7321],
-  [1.5, -0.866],
-];
+// Generate circle centers for perfect Flower of Life
+const generateFlowerCenters = () => {
+  const centers: [number, number][] = [];
+  const r = 1; // Circle radius = distance between centers
+  
+  // Center circle
+  centers.push([0, 0]);
+  
+  // First ring: 6 circles around center
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    centers.push([r * Math.cos(angle), r * Math.sin(angle)]);
+  }
+  
+  // Second ring: 12 circles (6 at corners, 6 in between)
+  // Corner circles at distance 2r
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    centers.push([2 * r * Math.cos(angle), 2 * r * Math.sin(angle)]);
+  }
+  // Intermediate circles at distance sqrt(3)*r
+  const sqrt3 = Math.sqrt(3);
+  for (let i = 0; i < 6; i++) {
+    const angle = (30 + i * 60) * Math.PI / 180;
+    centers.push([sqrt3 * r * Math.cos(angle), sqrt3 * r * Math.sin(angle)]);
+  }
+  
+  return centers;
+};
+
+const FLOWER_CIRCLE_CENTERS = generateFlowerCenters();
 
 export function generateFlowerOfLifeData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.5; // Scale down to fit in view
+  const scale = 0.45;
   const circleRadius = 1.0 * scale;
   
-  // Colors: Blue to Cyan gradient
-  const blue = new THREE.Color("#0066FF");
-  const cyan = new THREE.Color("#00FFFF");
-  const violet = new THREE.Color("#8B5CF6");
+  // Sacred blue-gold palette
+  const deepBlue = new THREE.Color("#1E40AF");
+  const royalBlue = new THREE.Color("#3B82F6");
+  const cyan = new THREE.Color("#22D3EE");
+  const gold = new THREE.Color("#F59E0B");
   const white = new THREE.Color("#FFFFFF");
 
-  // Convert points to Vector3
-  const keyPoints = FLOWER_OF_LIFE_POINTS.map(p => 
-    new THREE.Vector3(p[0] * scale, p[1] * scale, p[2] * scale)
-  );
-
-  // Circle centers as Vector2 for circle generation
+  // Scaled circle centers
   const circleCenters = FLOWER_CIRCLE_CENTERS.map(c => ({
     x: c[0] * scale,
     y: c[1] * scale
   }));
+
+  // Calculate all intersection points (vesica pisces centers)
+  const intersectionPoints: THREE.Vector3[] = [];
+  
+  // Center point
+  intersectionPoints.push(new THREE.Vector3(0, 0, 0));
+  
+  // Generate intersection points between overlapping circles
+  for (let i = 0; i < circleCenters.length; i++) {
+    for (let j = i + 1; j < circleCenters.length; j++) {
+      const c1 = circleCenters[i];
+      const c2 = circleCenters[j];
+      const dx = c2.x - c1.x;
+      const dy = c2.y - c1.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      
+      // Circles intersect if distance < 2 * radius
+      if (d < 2 * circleRadius && d > 0.01) {
+        const a = d / 2;
+        const h = Math.sqrt(circleRadius * circleRadius - a * a);
+        const mx = (c1.x + c2.x) / 2;
+        const my = (c1.y + c2.y) / 2;
+        const perpX = -dy / d;
+        const perpY = dx / d;
+        
+        intersectionPoints.push(new THREE.Vector3(mx + h * perpX, my + h * perpY, 0));
+        intersectionPoints.push(new THREE.Vector3(mx - h * perpX, my - h * perpY, 0));
+      }
+    }
+  }
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     let p = new THREE.Vector3();
@@ -191,58 +200,62 @@ export function generateFlowerOfLifeData() {
 
     const r = Math.random();
 
-    if (r < 0.15) {
-      // 15% - Key intersection points (bright nodes)
+    if (r < 0.12) {
+      // 12% - Intersection points (sacred nodes - bright glowing)
       g = 0;
-      const pointIdx = Math.floor(Math.random() * keyPoints.length);
-      const basePoint = keyPoints[pointIdx];
+      const pointIdx = Math.floor(Math.random() * intersectionPoints.length);
+      const basePoint = intersectionPoints[pointIdx];
       
-      // Add glow around key points
-      const spread = 0.03;
+      const spread = 0.025;
       p.set(
         basePoint.x + (Math.random() - 0.5) * spread,
         basePoint.y + (Math.random() - 0.5) * spread,
-        basePoint.z + (Math.random() - 0.5) * spread * 2
+        (Math.random() - 0.5) * 0.03
       );
       
-      // Bright white/cyan for nodes
-      c.copy(white).lerp(cyan, Math.random() * 0.3);
+      // Bright gold/white glow at intersections
+      c.copy(white).lerp(gold, Math.random() * 0.4);
     } 
-    else if (r < 0.85) {
-      // 70% - Circle outlines (the 19 interlocking circles)
+    else if (r < 0.88) {
+      // 76% - Circle outlines (19 interlocking circles)
       g = 1;
       const circleIdx = Math.floor(Math.random() * circleCenters.length);
       const center = circleCenters[circleIdx];
       
-      // Point on circle circumference
       const theta = Math.random() * Math.PI * 2;
-      const radiusVariation = 0.98 + Math.random() * 0.04; // Slight thickness
+      // Thin, crisp circle lines
+      const radiusVariation = 0.995 + Math.random() * 0.01;
       
       p.set(
         center.x + circleRadius * radiusVariation * Math.cos(theta),
         center.y + circleRadius * radiusVariation * Math.sin(theta),
-        (Math.random() - 0.5) * 0.08 // Slight Z depth for 3D effect
+        (Math.random() - 0.5) * 0.04
       );
       
-      // Blue to cyan gradient based on position
-      const gradientFactor = (p.y + 1) / 2; // Normalize Y to 0-1
-      c.copy(blue).lerp(cyan, gradientFactor * 0.7 + Math.random() * 0.3);
+      // Distance from center determines color
+      const distFromCenter = Math.sqrt(p.x * p.x + p.y * p.y);
+      const maxDist = 2.5 * scale;
+      const t = distFromCenter / maxDist;
+      
+      // Inner = royal blue, outer = cyan
+      c.copy(royalBlue).lerp(cyan, t * 0.8);
+      c.lerp(white, Math.random() * 0.15); // Subtle shimmer
     }
     else {
-      // 15% - Outer boundary circle (the enclosing circle)
+      // 12% - Outer enclosing circle (the boundary)
       g = 2;
-      const outerRadius = 2.2 * scale;
+      const outerRadius = 3.0 * scale;
       const theta = Math.random() * Math.PI * 2;
-      const radiusVariation = 0.97 + Math.random() * 0.06;
+      const radiusVariation = 0.995 + Math.random() * 0.01;
       
       p.set(
         outerRadius * radiusVariation * Math.cos(theta),
         outerRadius * radiusVariation * Math.sin(theta),
-        (Math.random() - 0.5) * 0.05
+        (Math.random() - 0.5) * 0.02
       );
       
-      // Violet/blue for outer ring
-      c.copy(violet).lerp(blue, Math.random() * 0.5);
+      // Deep blue outer ring with subtle glow
+      c.copy(deepBlue).lerp(royalBlue, Math.random() * 0.3);
     }
 
     positions[i * 3] = p.x;
