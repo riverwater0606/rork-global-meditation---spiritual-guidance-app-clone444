@@ -6,14 +6,32 @@ export type FirebaseRuntime = {
   db: Database;
 };
 
+function requireEnv(name: string, value: string | undefined): string {
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  console.error(`[Firebase] Missing env: ${name}`);
+  throw new Error(`Missing Firebase env: ${name}`);
+}
+
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: requireEnv("EXPO_PUBLIC_FIREBASE_API_KEY", process.env.EXPO_PUBLIC_FIREBASE_API_KEY),
+  authDomain: requireEnv(
+    "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+  ),
+  databaseURL: requireEnv(
+    "EXPO_PUBLIC_FIREBASE_DATABASE_URL",
+    process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL
+  ),
+  projectId: requireEnv("EXPO_PUBLIC_FIREBASE_PROJECT_ID", process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID),
+  storageBucket: requireEnv(
+    "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+  ),
+  messagingSenderId: requireEnv(
+    "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+  ),
+  appId: requireEnv("EXPO_PUBLIC_FIREBASE_APP_ID", process.env.EXPO_PUBLIC_FIREBASE_APP_ID),
 };
 
 let cached: FirebaseRuntime | null = null;

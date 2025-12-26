@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchAndConsumeGifts } from "@/lib/firebaseGifts";
+import { useUser } from "@/providers/UserProvider";
 
 interface MeditationStats {
   totalSessions: number;
@@ -102,6 +104,8 @@ const ACHIEVEMENTS: Achievement[] = [
 ];
 
 export const [MeditationProvider, useMeditation] = createContextHook(() => {
+  const { walletAddress } = useUser();
+
   const [stats, setStats] = useState<MeditationStats>(INITIAL_STATS);
   const [achievements, setAchievements] = useState<Achievement[]>(ACHIEVEMENTS);
   const [customMeditations, setCustomMeditations] = useState<CustomMeditation[]>([]);
@@ -304,10 +308,65 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       message: gift.blessing,
     };
 
-    const newHistory = [receivedOrb, ...orbHistory];
-    setOrbHistory(newHistory);
-    await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+    setOrbHistory((prev) => {
+      const next = [receivedOrb, ...prev];
+      void AsyncStorage.setItem("orbHistory", JSON.stringify(next));
+      return next;
+    });
   };
+
+  const giftPollInFlightRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (!walletAddress) {
+      console.log("[MeditationProvider][Gifts] Poll disabled (no walletAddress)");
+      return;
+    }
+
+    console.log("[MeditationProvider][Gifts] Starting 30s gift poll for:", walletAddress);
+
+    const id = setInterval(() => {
+      const run = async () => {
+        if (giftPollInFlightRef.current) return;
+        giftPollInFlightRef.current = true;
+
+        try {
+          const gifts = await fetchAndConsumeGifts({ myWalletAddress: walletAddress, max: 10 });
+          if (gifts.length > 0) {
+            console.log("[MeditationProvider][Gifts] Incoming gifts:", gifts.length);
+          }
+
+          for (const g of gifts) {
+            console.log("[MeditationProvider][Gifts] Consuming gift:", JSON.stringify(g, null, 2));
+            await receiveGiftOrb({
+              fromDisplayName: g.fromDisplayName,
+              fromWalletAddress: g.from,
+              blessing: g.blessing,
+              orb: {
+                id: g.orb.id,
+                level: g.orb.level,
+                layers: g.orb.layers,
+                isAwakened: g.orb.isAwakened,
+                createdAt: g.orb.createdAt,
+                completedAt: g.orb.completedAt,
+                shape: (g.orb.shape as OrbShape | undefined) ?? undefined,
+              },
+            });
+          }
+        } catch (e) {
+          console.error("[MeditationProvider][Gifts] Poll failed:", e);
+        } finally {
+          giftPollInFlightRef.current = false;
+        }
+      };
+
+      void run();
+    }, 30000);
+
+    return () => {
+      clearInterval(id);
+    };
+  }, [walletAddress]);
 
   // Dev Tools
   const devAddLayer = async () => {

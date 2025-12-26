@@ -32,7 +32,6 @@ export default function BreathingScreen() {
   useEffect(() => {
     if (isActive) {
       const currentPattern = BREATHING_PATTERNS[pattern];
-      let currentPhase: "inhale" | "hold" | "exhale" = "inhale";
       
       const runBreathingCycle = () => {
         // Inhale
@@ -110,7 +109,7 @@ export default function BreathingScreen() {
       scaleAnimation.stopAnimation();
       opacityAnimation.stopAnimation();
     };
-  }, [isActive, pattern]);
+  }, [isActive, pattern, opacityAnimation, scaleAnimation]);
 
   const handleReset = () => {
     setIsActive(false);

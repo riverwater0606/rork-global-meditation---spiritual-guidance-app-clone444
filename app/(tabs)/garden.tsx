@@ -714,7 +714,8 @@ export default function GardenScreen() {
             );
           }
         } catch (e) {
-          console.warn("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
+          console.error("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
+          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
         } finally {
           giftPollInFlightRef.current = false;
         }
@@ -1132,7 +1133,8 @@ export default function GardenScreen() {
 
           console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
         } catch (e) {
-          console.warn("[DEBUG_GIFT_CLOUD] shareContacts/upload failed (ignored):", e);
+          console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
         }
       };
 

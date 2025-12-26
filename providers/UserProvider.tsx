@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -53,7 +53,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
       if (savedVerification) {
         try {
           setVerification(JSON.parse(savedVerification));
-        } catch (e) {
+        } catch {
           console.log('[UserProvider] Failed to parse verification payload');
         }
       }

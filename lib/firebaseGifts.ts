@@ -1,3 +1,4 @@
+import { Alert } from "react-native";
 import { child, get, push, ref, remove, set } from "firebase/database";
 import { getFirebase } from "@/constants/firebase";
 
@@ -33,55 +34,87 @@ export async function uploadGiftOrb(params: {
   fromDisplayName?: string;
   blessing?: string;
   orb: GiftOrbPayloadV1["orb"];
-}): Promise<{ giftId: string }>
-{
-  const { db } = getFirebase();
-  const toId = sanitizeWalletId(params.toWalletAddress);
+}): Promise<{ giftId: string }> {
+  console.log("[firebaseGifts] uploadGiftOrb:start", {
+    toWalletAddress: params.toWalletAddress,
+    fromWalletAddress: params.fromWalletAddress,
+    orbId: params.orb?.id,
+  });
 
-  const giftRef = push(ref(db, `gifts/${toId}`));
-  const giftId = giftRef.key;
-  if (!giftId) throw new Error("Failed to allocate giftId");
+  try {
+    const { db } = getFirebase();
+    const toId = sanitizeWalletId(params.toWalletAddress);
 
-  const payload: GiftOrbPayloadV1 = {
-    v: 1,
-    createdAt: new Date().toISOString(),
-    giftId,
-    to: params.toWalletAddress,
-    from: params.fromWalletAddress,
-    fromDisplayName: params.fromDisplayName,
-    blessing: params.blessing,
-    orb: params.orb,
-  };
+    const giftRef = push(ref(db, `gifts/${toId}`));
+    const giftId = giftRef.key;
+    if (!giftId) throw new Error("Failed to allocate giftId");
 
-  await set(giftRef, payload);
-  return { giftId };
+    const payload: GiftOrbPayloadV1 = {
+      v: 1,
+      createdAt: new Date().toISOString(),
+      giftId,
+      to: params.toWalletAddress,
+      from: params.fromWalletAddress,
+      fromDisplayName: params.fromDisplayName,
+      blessing: params.blessing,
+      orb: params.orb,
+    };
+
+    await set(giftRef, payload);
+
+    console.log("[firebaseGifts] uploadGiftOrb:success", { giftId, toId });
+    return { giftId };
+  } catch (e) {
+    console.error("[firebaseGifts] uploadGiftOrb:error", e);
+    Alert.alert("傳送失敗，請重試");
+    throw e;
+  }
 }
 
 export async function fetchAndConsumeGifts(params: {
   myWalletAddress: string;
   max?: number;
 }): Promise<GiftOrbPayloadV1[]> {
-  const { db } = getFirebase();
-  const myId = sanitizeWalletId(params.myWalletAddress);
-  const giftsRoot = ref(db, `gifts/${myId}`);
+  console.log("[firebaseGifts] fetchAndConsumeGifts:start", {
+    myWalletAddress: params.myWalletAddress,
+    max: params.max,
+  });
 
-  const snap = await get(giftsRoot);
-  if (!snap.exists()) return [];
+  try {
+    const { db } = getFirebase();
+    const myId = sanitizeWalletId(params.myWalletAddress);
+    const giftsRoot = ref(db, `gifts/${myId}`);
 
-  const val = snap.val() as Record<string, GiftOrbPayloadV1>;
-  const list = Object.entries(val)
-    .map(([giftId, payload]) => ({ ...payload, giftId }))
-    .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+    const snap = await get(giftsRoot);
+    if (!snap.exists()) {
+      console.log("[firebaseGifts] fetchAndConsumeGifts:empty", { myId });
+      return [];
+    }
 
-  const max = params.max ?? 5;
-  const selected = list.slice(0, max);
+    const val = snap.val() as Record<string, GiftOrbPayloadV1>;
+    const list = Object.entries(val)
+      .map(([giftId, payload]) => ({ ...payload, giftId }))
+      .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
 
-  await Promise.all(
-    selected
-      .map((g) => g.giftId)
-      .filter((id): id is string => Boolean(id))
-      .map((giftId) => remove(child(giftsRoot, giftId)))
-  );
+    const max = params.max ?? 5;
+    const selected = list.slice(0, max);
 
-  return selected;
+    await Promise.all(
+      selected
+        .map((g) => g.giftId)
+        .filter((id): id is string => Boolean(id))
+        .map((giftId) => remove(child(giftsRoot, giftId)))
+    );
+
+    console.log("[firebaseGifts] fetchAndConsumeGifts:success", {
+      myId,
+      selected: selected.length,
+    });
+
+    return selected;
+  } catch (e) {
+    console.error("[firebaseGifts] fetchAndConsumeGifts:error", e);
+    Alert.alert("傳送失敗，請重試");
+    throw e;
+  }
 }

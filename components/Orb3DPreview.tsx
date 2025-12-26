@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unknown-property */
 import React, { useRef, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';

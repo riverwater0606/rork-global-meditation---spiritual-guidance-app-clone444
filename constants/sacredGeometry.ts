@@ -3,9 +3,6 @@ import { LAND_CAPS, CITY_CAPS, CONTINENT_COLORS } from './earthData';
 
 export const PARTICLE_COUNT = 20000;
 
-// Helper: Random float in range
-const random = (min: number, max: number) => Math.random() * (max - min) + min;
-
 // Helper: Random point in unit sphere
 const randomInSphere = () => {
     const theta = Math.random() * Math.PI * 2;

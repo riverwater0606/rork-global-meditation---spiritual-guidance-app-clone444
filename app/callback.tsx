@@ -8,7 +8,6 @@ import { CheckCircle } from 'lucide-react-native';
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
   const { currentTheme, settings } = useSettings();
-  const [parsed, setParsed] = useState<any>(null);
   const { setVerified } = useUser();
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +25,7 @@ export default function CallbackScreen() {
           try {
             const decoded = decodeURIComponent(params.result);
             obj = JSON.parse(decoded);
-          } catch (err) {
+          } catch {
             console.log('[Callback] query parse failed, trying sessionStorage');
           }
         }
@@ -41,10 +40,9 @@ export default function CallbackScreen() {
         }
 
         if (obj) {
-          setParsed(obj);
           try {
             await setVerified(obj as any);
-          } catch (e) {
+          } catch {
             console.log('[Callback] setVerified failed');
           }
           console.log('[Callback] Parsed result', obj);
@@ -64,7 +62,7 @@ export default function CallbackScreen() {
     };
 
     void run();
-  }, [params.result]);
+  }, [params.result, setVerified]);
 
   const lang = settings.language;
 

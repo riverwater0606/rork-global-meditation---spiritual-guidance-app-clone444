@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 // --- EARTH DATA ---
 // Detailed spherical caps to approximate continents
 export const LAND_CAPS = [

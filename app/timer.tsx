@@ -67,7 +67,7 @@ export default function TimerScreen() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeRemaining, duration]);
+  }, [completeMeditation, duration, isActive, pulseAnimation, timeRemaining]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

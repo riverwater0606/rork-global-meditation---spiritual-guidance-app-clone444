@@ -138,7 +138,7 @@ export default function MeditationPlayerScreen() {
         Speech.stop();
       }
     };
-  }, []);
+  }, [fadeAnimation, isSpeaking]);
 
   useEffect(() => {
     if (isCustom && customSession?.breathingMethod) {
@@ -181,7 +181,7 @@ export default function MeditationPlayerScreen() {
     };
 
     loadSound();
-  }, [selectedSound]);
+  }, [isPlaying, selectedSound, volume]);
 
   useEffect(() => {
     const updateSound = async () => {
@@ -416,7 +416,7 @@ export default function MeditationPlayerScreen() {
       breathAnimation.setValue(1.0);
       setBreathingPhase('inhale');
     }
-  }, [isPlaying, breathingMethod]);
+  }, [breathAnimation, breathingMethod, completeMeditation, isCustom, isPlaying, session?.duration, session?.id]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

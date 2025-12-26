@@ -160,8 +160,8 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
             try { window.location.assign(universal); } catch {}
           }, 800);
           return;
-        } catch (e) {
-          console.log('[WorldIDVerifyButton] Deep link failed', e);
+        } catch {
+          console.log('[WorldIDVerifyButton] Deep link failed');
         }
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
@@ -183,8 +183,8 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
             try { window.location.assign(universal); } catch {}
           }, 800);
           return;
-        } catch (e) {
-          console.log('[WorldIDVerifyButton] Deep link (not installed) failed', e);
+        } catch {
+          console.log('[WorldIDVerifyButton] Deep link (not installed) failed');
         }
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
@@ -235,7 +235,7 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       setBusy(false);
       setError(e?.message ?? 'Failed to verify');
     }
-  }, [action, callbackUrl, isWorldAppUA]);
+  }, [action, appId, callbackUrl, isWorldAppUA]);
 
   return (
     <View>
@@ -272,7 +272,7 @@ export async function runWorldVerify({ mk, action, signal }: { mk: any; action: 
   try {
     const res: any = await fn(payload);
     return res?.finalPayload ?? res;
-  } catch (e) {
+  } catch {
     await new Promise((r) => setTimeout(r, 500));
     const res2: any = await fn(payload);
     return res2?.finalPayload ?? res2;
@@ -291,7 +291,7 @@ export async function runWalletAuth({ mk, nonce, statement }: { mk: any; nonce: 
   try {
     const res: any = await fn(args);
     return res?.finalPayload ?? res;
-  } catch (e) {
+  } catch {
     await new Promise((r) => setTimeout(r, 400));
     const res2: any = await fn(args);
     return res2?.finalPayload ?? res2;

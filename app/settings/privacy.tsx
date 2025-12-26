@@ -43,7 +43,7 @@ export default function PrivacyScreen() {
       });
       setModalVisible(true);
       console.log("Exported data:", data);
-    } catch (error) {
+    } catch {
       setModalConfig({
         title: "Error",
         message: "Failed to export data. Please try again.",
@@ -69,7 +69,7 @@ export default function PrivacyScreen() {
             destructive: false,
           });
           setModalVisible(true);
-        } catch (error) {
+        } catch {
           setModalVisible(false);
           setModalConfig({
             title: "Error",
