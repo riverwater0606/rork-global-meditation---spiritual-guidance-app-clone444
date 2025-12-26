@@ -798,19 +798,22 @@ export default function GardenScreen() {
         const { dy, vy, dx } = gestureState;
         
         // Lower thresholds for better responsiveness
-        const SWIPE_DISTANCE = 80; // Further reduced for easier triggering
-        const VELOCITY_THRESHOLD = 0.3; // Further reduced for easier triggering
+        const SWIPE_DISTANCE = 60; // Reduced for easier triggering
+        const VELOCITY_THRESHOLD = 0.2; // Reduced for easier triggering
         
         const currentMode = interactionState.current.mode;
         const canSwipe = currentMode === 'gather' || currentMode === 'idle' || currentMode === 'diffused';
         
         // Debug log for swipe detection
-        if (Math.abs(dy) > 50) {
+        if (Math.abs(dy) > 30) {
           console.log("[DEBUG_SWIPE] Move detected - dy:", dy.toFixed(0), "vy:", vy.toFixed(2), "mode:", currentMode, "canSwipe:", canSwipe);
         }
         
         if (canSwipe) {
-           if (Math.abs(dy) > Math.abs(dx) * 1.2) { // Slightly relaxed ratio
+           // Check if it's primarily a vertical swipe
+           const isVerticalSwipe = Math.abs(dy) > Math.abs(dx) * 1.0;
+           
+           if (isVerticalSwipe) {
              if (dy < -SWIPE_DISTANCE && vy < -VELOCITY_THRESHOLD) { // Swipe UP
                console.log("[DEBUG_SWIPE] SWIPE UP DETECTED! Triggering heart animation");
                triggerHeartAnimation();
@@ -819,14 +822,6 @@ export default function GardenScreen() {
                triggerStoreAnimation();
              }
            }
-        } else {
-          // If mode is stuck, try to reset it after a certain threshold
-          if (Math.abs(dy) > 150 && (currentMode === 'heart' || currentMode === 'explode')) {
-            console.log("[DEBUG_SWIPE] Mode stuck in", currentMode, "- attempting reset");
-            if (!isGifting.current) {
-              interactionState.current.mode = 'idle';
-            }
-          }
         }
       },
       
@@ -945,6 +940,12 @@ export default function GardenScreen() {
   const triggerHeartAnimation = () => {
     console.log("[DEBUG_SWIPE] triggerHeartAnimation called, current mode:", interactionState.current.mode);
     
+    // Prevent duplicate triggers
+    if (interactionState.current.mode === 'heart' || interactionState.current.mode === 'explode') {
+      console.log("[DEBUG_SWIPE] Already in heart/explode mode, ignoring");
+      return;
+    }
+    
     // Check if orb is giftable (not empty white ball)
     const isEmptyWhiteBall = currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default');
     
@@ -964,16 +965,28 @@ export default function GardenScreen() {
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (progressOverlayRef.current) progressOverlayRef.current.reset();
     
+    // Start heart transformation
     interactionState.current.mode = 'heart';
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    console.log("[DEBUG_SWIPE] Heart mode started, waiting for transformation...");
     
-    // Open gift modal after animation starts
+    // Haptic feedback when heart shape is forming
     setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }, 1000);
+    
+    // Open gift modal AFTER heart transformation completes (2.5 seconds)
+    setTimeout(() => {
+       if (interactionState.current.mode !== 'heart') {
+         console.log("[DEBUG_SWIPE] Mode changed during heart animation, aborting modal open");
+         return;
+       }
        isGifting.current = false; // Reset lock before modal opens
        hasAttemptedGift.current = false;
        setShowGiftModal(true);
-       console.log("[DEBUG_SWIPE] Gift modal opened, isGifting reset to false");
-    }, 800);
+       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+       console.log("[DEBUG_SWIPE] Heart transformation complete, gift modal opened");
+    }, 2500);
     
     // Safety timeout: if modal doesn't open or something goes wrong, reset mode
     modeResetTimeoutRef.current = setTimeout(() => {
@@ -982,7 +995,7 @@ export default function GardenScreen() {
         interactionState.current.mode = 'idle';
         isGifting.current = false;
       }
-    }, 3000);
+    }, 5000);
   };
 
   const animateStore = () => {
@@ -1069,38 +1082,43 @@ export default function GardenScreen() {
       void playHolyGiftSound();
       console.log("[DEBUG_GIFT] Animation mode set to 'explode'");
       
-      // 3. Wait for animation then complete the process
+      // Save the gift message before clearing
+      const savedGiftMessage = giftMessage || (settings.language === 'zh' ? "願愛與能量永流" : "May love and energy flow forever.");
+      
+      // 3. Wait for fly-away animation then complete the process
       setTimeout(async () => {
-           console.log("[DEBUG_GIFT] Animation finished (1500ms), calling sendOrbRef.current");
+           console.log("[DEBUG_GIFT] Fly-away animation phase 1 (2000ms)");
            try {
-             await sendOrbRef.current(friendName, giftMessage || "May love and energy flow forever.");
-             console.log("[DEBUG_GIFT] sendOrbRef.current completed");
+             // Call sendOrb to archive and reset the orb
+             await sendOrbRef.current(friendName, savedGiftMessage);
+             console.log("[DEBUG_GIFT] sendOrbRef.current completed - orb should be reset now");
              
-             // Reset ALL states
-             setGiftMessage("");
-             setIsGiftingUI(false);
-             isGifting.current = false;
-             hasAttemptedGift.current = false;
-             interactionState.current.mode = 'idle';
-             console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. All states reset.");
-             
-             Alert.alert(
-                 settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
-                 settings.language === 'zh' 
-                  ? `已贈送給 ${friendName}，願愛與能量永流` 
-                  : `Gifted to ${friendName}, may love and energy flow forever.`
-             );
-           } catch (postTxError) {
-              console.error("[DEBUG_GIFT] Error in post-transaction cleanup:", postTxError);
-              // CRITICAL: Reset ALL states even on error
-              setIsGiftingUI(false);
-              setGiftMessage("");
-              isGifting.current = false;
-              hasAttemptedGift.current = false;
-              interactionState.current.mode = 'idle';
-              console.log("[DEBUG_GIFT] Error recovery: All states reset.");
+             // Additional haptic to confirm send
+             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+           } catch (sendError) {
+              console.error("[DEBUG_GIFT] sendOrb error:", sendError);
            }
-      }, 1500);
+      }, 2000);
+      
+      // 4. Reset all states after animation completes
+      setTimeout(() => {
+           console.log("[DEBUG_GIFT] Animation complete (3000ms), resetting all states");
+           
+           // Reset ALL states
+           setGiftMessage("");
+           setIsGiftingUI(false);
+           isGifting.current = false;
+           hasAttemptedGift.current = false;
+           interactionState.current.mode = 'idle';
+           console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. All states reset.");
+           
+           Alert.alert(
+               settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+               settings.language === 'zh' 
+                ? `已贈送給 ${friendName}，願愛與能量永流` 
+                : `Gifted to ${friendName}, may love and energy flow forever.`
+           );
+      }, 3000);
       
       // Safety timeout: ensure mode resets even if something goes wrong
       modeResetTimeoutRef.current = setTimeout(() => {
@@ -1110,7 +1128,7 @@ export default function GardenScreen() {
           isGifting.current = false;
           setIsGiftingUI(false);
         }
-      }, 5000);
+      }, 6000);
   };
 
   const handleStartGiftingOptimistic = () => {
