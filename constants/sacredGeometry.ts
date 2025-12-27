@@ -105,71 +105,67 @@ export function generateMerkabaData() {
   return { positions, colors, groups };
 }
 
-// --- EARTH ---
 // --- FLOWER OF LIFE (3D) ---
 // True sacred geometry: 19 interlocking circles forming the cosmic pattern
 // Each circle has radius 1, centers are at distance 1 from neighbors
-
-// Generate circle centers for perfect Flower of Life
-const generateFlowerCenters = () => {
-  const centers: [number, number][] = [];
-  const r = 1; // Circle radius = distance between centers
-  
-  // Center circle
-  centers.push([0, 0]);
-  
-  // First ring: 6 circles around center
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * 60) * Math.PI / 180;
-    centers.push([r * Math.cos(angle), r * Math.sin(angle)]);
-  }
-  
-  // Second ring: 12 circles (6 at corners, 6 in between)
-  // Corner circles at distance 2r
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * 60) * Math.PI / 180;
-    centers.push([2 * r * Math.cos(angle), 2 * r * Math.sin(angle)]);
-  }
-  // Intermediate circles at distance sqrt(3)*r
-  const sqrt3 = Math.sqrt(3);
-  for (let i = 0; i < 6; i++) {
-    const angle = (30 + i * 60) * Math.PI / 180;
-    centers.push([sqrt3 * r * Math.cos(angle), sqrt3 * r * Math.sin(angle)]);
-  }
-  
-  return centers;
-};
-
-const FLOWER_CIRCLE_CENTERS = generateFlowerCenters();
 
 export function generateFlowerOfLifeData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.45;
+  const scale = 0.42;
   const circleRadius = 1.0 * scale;
   
-  // Sacred blue-gold palette
-  const deepBlue = new THREE.Color("#1E40AF");
+  // Sacred blue-cyan palette
+  const deepBlue = new THREE.Color("#0EA5E9");
   const royalBlue = new THREE.Color("#3B82F6");
   const cyan = new THREE.Color("#22D3EE");
-  const gold = new THREE.Color("#F59E0B");
+  const lightCyan = new THREE.Color("#67E8F9");
   const white = new THREE.Color("#FFFFFF");
 
-  // Scaled circle centers
-  const circleCenters = FLOWER_CIRCLE_CENTERS.map(c => ({
-    x: c[0] * scale,
-    y: c[1] * scale
-  }));
-
-  // Calculate all intersection points (vesica pisces centers)
-  const intersectionPoints: THREE.Vector3[] = [];
+  // Generate all 19 circle centers for perfect Flower of Life
+  const circleCenters: { x: number; y: number; ring: number }[] = [];
+  const r = circleRadius;
   
-  // Center point
+  // Center circle (ring 0)
+  circleCenters.push({ x: 0, y: 0, ring: 0 });
+  
+  // First ring: 6 circles (ring 1)
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: r * Math.cos(angle), 
+      y: r * Math.sin(angle),
+      ring: 1
+    });
+  }
+  
+  // Second ring: 6 circles at corners (ring 2)
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: 2 * r * Math.cos(angle), 
+      y: 2 * r * Math.sin(angle),
+      ring: 2
+    });
+  }
+  
+  // Second ring: 6 circles in between (ring 2)
+  const sqrt3 = Math.sqrt(3);
+  for (let i = 0; i < 6; i++) {
+    const angle = (30 + i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: sqrt3 * r * Math.cos(angle), 
+      y: sqrt3 * r * Math.sin(angle),
+      ring: 2
+    });
+  }
+
+  // Calculate intersection points for glow nodes
+  const intersectionPoints: THREE.Vector3[] = [];
   intersectionPoints.push(new THREE.Vector3(0, 0, 0));
   
-  // Generate intersection points between overlapping circles
   for (let i = 0; i < circleCenters.length; i++) {
     for (let j = i + 1; j < circleCenters.length; j++) {
       const c1 = circleCenters[i];
@@ -178,93 +174,156 @@ export function generateFlowerOfLifeData() {
       const dy = c2.y - c1.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       
-      // Circles intersect if distance < 2 * radius
-      if (d < 2 * circleRadius && d > 0.01) {
+      if (d < 2 * circleRadius * 1.01 && d > 0.01) {
         const a = d / 2;
-        const h = Math.sqrt(circleRadius * circleRadius - a * a);
-        const mx = (c1.x + c2.x) / 2;
-        const my = (c1.y + c2.y) / 2;
-        const perpX = -dy / d;
-        const perpY = dx / d;
-        
-        intersectionPoints.push(new THREE.Vector3(mx + h * perpX, my + h * perpY, 0));
-        intersectionPoints.push(new THREE.Vector3(mx - h * perpX, my - h * perpY, 0));
+        const hSq = circleRadius * circleRadius - a * a;
+        if (hSq > 0) {
+          const h = Math.sqrt(hSq);
+          const mx = (c1.x + c2.x) / 2;
+          const my = (c1.y + c2.y) / 2;
+          const perpX = -dy / d;
+          const perpY = dx / d;
+          intersectionPoints.push(new THREE.Vector3(mx + h * perpX, my + h * perpY, 0));
+          intersectionPoints.push(new THREE.Vector3(mx - h * perpX, my - h * perpY, 0));
+        }
       }
     }
   }
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    let p = new THREE.Vector3();
-    let c = new THREE.Color();
-    let g = 0;
+  // Particle distribution
+  const circleParticles = Math.floor(PARTICLE_COUNT * 0.70); // 70% for circle outlines
+  const intersectionParticles = Math.floor(PARTICLE_COUNT * 0.12); // 12% for intersections
+  const outerCircleParticles = Math.floor(PARTICLE_COUNT * 0.10); // 10% for outer circle
+  
+  const particlesPerCircle = Math.floor(circleParticles / circleCenters.length);
+  const outerRadius = 2.15 * circleRadius;
+  
+  let idx = 0;
 
-    const r = Math.random();
+  // 1. Draw each of the 19 circles with many particles on circumference
+  for (let c = 0; c < circleCenters.length; c++) {
+    const center = circleCenters[c];
+    const zOffset = (center.ring === 0 ? 0.02 : center.ring === 1 ? 0.01 : 0) * (Math.random() > 0.5 ? 1 : -1);
+    
+    for (let i = 0; i < particlesPerCircle && idx < circleParticles; i++, idx++) {
+      // Distribute evenly around circle with slight randomness
+      const baseAngle = (i / particlesPerCircle) * Math.PI * 2;
+      const angleJitter = (Math.random() - 0.5) * 0.05;
+      const theta = baseAngle + angleJitter;
+      
+      // Very tight line with minimal thickness
+      const radiusJitter = (Math.random() - 0.5) * 0.008;
+      const finalRadius = circleRadius + radiusJitter;
+      
+      const x = center.x + finalRadius * Math.cos(theta);
+      const y = center.y + finalRadius * Math.sin(theta);
+      const z = zOffset + (Math.random() - 0.5) * 0.015;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Color gradient: center = royal blue, outer = cyan/light cyan
+      const distFromOrigin = Math.sqrt(x * x + y * y);
+      const t = Math.min(distFromOrigin / (outerRadius * 0.9), 1);
+      
+      const color = new THREE.Color();
+      color.copy(royalBlue).lerp(cyan, t * 0.7);
+      color.lerp(lightCyan, t * 0.3);
+      color.lerp(white, Math.random() * 0.1); // Subtle sparkle
+      
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = 1;
+    }
+  }
 
-    if (r < 0.12) {
-      // 12% - Intersection points (sacred nodes - bright glowing)
-      g = 0;
-      const pointIdx = Math.floor(Math.random() * intersectionPoints.length);
-      const basePoint = intersectionPoints[pointIdx];
+  // 2. Intersection glow points (sacred nodes)
+  const particlesPerIntersection = Math.max(1, Math.floor(intersectionParticles / intersectionPoints.length));
+  for (let p = 0; p < intersectionPoints.length && idx < circleParticles + intersectionParticles; p++) {
+    const point = intersectionPoints[p];
+    
+    for (let i = 0; i < particlesPerIntersection && idx < circleParticles + intersectionParticles; i++, idx++) {
+      const spread = 0.018;
+      const x = point.x + (Math.random() - 0.5) * spread;
+      const y = point.y + (Math.random() - 0.5) * spread;
+      const z = point.z + (Math.random() - 0.5) * 0.02;
       
-      const spread = 0.025;
-      p.set(
-        basePoint.x + (Math.random() - 0.5) * spread,
-        basePoint.y + (Math.random() - 0.5) * spread,
-        (Math.random() - 0.5) * 0.03
-      );
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
       
-      // Bright gold/white glow at intersections
-      c.copy(white).lerp(gold, Math.random() * 0.4);
-    } 
-    else if (r < 0.88) {
-      // 76% - Circle outlines (19 interlocking circles)
-      g = 1;
+      // Bright white/cyan glow
+      const color = new THREE.Color();
+      color.copy(white).lerp(lightCyan, Math.random() * 0.3);
+      
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = 0;
+    }
+  }
+
+  // 3. Outer enclosing circle
+  for (let i = 0; i < outerCircleParticles && idx < circleParticles + intersectionParticles + outerCircleParticles; i++, idx++) {
+    const baseAngle = (i / outerCircleParticles) * Math.PI * 2;
+    const angleJitter = (Math.random() - 0.5) * 0.03;
+    const theta = baseAngle + angleJitter;
+    
+    const radiusJitter = (Math.random() - 0.5) * 0.006;
+    const finalRadius = outerRadius + radiusJitter;
+    
+    positions[idx * 3] = finalRadius * Math.cos(theta);
+    positions[idx * 3 + 1] = finalRadius * Math.sin(theta);
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.01;
+    
+    const color = new THREE.Color();
+    color.copy(deepBlue).lerp(royalBlue, 0.4);
+    color.lerp(cyan, Math.random() * 0.2);
+    
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Faint connection lines between nearby intersections
+  for (; idx < PARTICLE_COUNT; idx++) {
+    // Pick two random intersection points that are close
+    const p1Idx = Math.floor(Math.random() * intersectionPoints.length);
+    let p2Idx = Math.floor(Math.random() * intersectionPoints.length);
+    if (p2Idx === p1Idx) p2Idx = (p1Idx + 1) % intersectionPoints.length;
+    
+    const p1 = intersectionPoints[p1Idx];
+    const p2 = intersectionPoints[p2Idx];
+    
+    const dist = p1.distanceTo(p2);
+    if (dist > circleRadius * 1.5) {
+      // Too far, just place randomly on a circle
       const circleIdx = Math.floor(Math.random() * circleCenters.length);
       const center = circleCenters[circleIdx];
-      
       const theta = Math.random() * Math.PI * 2;
-      // Thin, crisp circle lines
-      const radiusVariation = 0.995 + Math.random() * 0.01;
-      
-      p.set(
-        center.x + circleRadius * radiusVariation * Math.cos(theta),
-        center.y + circleRadius * radiusVariation * Math.sin(theta),
-        (Math.random() - 0.5) * 0.04
-      );
-      
-      // Distance from center determines color
-      const distFromCenter = Math.sqrt(p.x * p.x + p.y * p.y);
-      const maxDist = 2.5 * scale;
-      const t = distFromCenter / maxDist;
-      
-      // Inner = royal blue, outer = cyan
-      c.copy(royalBlue).lerp(cyan, t * 0.8);
-      c.lerp(white, Math.random() * 0.15); // Subtle shimmer
+      positions[idx * 3] = center.x + circleRadius * Math.cos(theta);
+      positions[idx * 3 + 1] = center.y + circleRadius * Math.sin(theta);
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.02;
+    } else {
+      // Draw along connection line
+      const t = Math.random();
+      positions[idx * 3] = p1.x + (p2.x - p1.x) * t + (Math.random() - 0.5) * 0.01;
+      positions[idx * 3 + 1] = p1.y + (p2.y - p1.y) * t + (Math.random() - 0.5) * 0.01;
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.015;
     }
-    else {
-      // 12% - Outer enclosing circle (the boundary)
-      g = 2;
-      const outerRadius = 3.0 * scale;
-      const theta = Math.random() * Math.PI * 2;
-      const radiusVariation = 0.995 + Math.random() * 0.01;
-      
-      p.set(
-        outerRadius * radiusVariation * Math.cos(theta),
-        outerRadius * radiusVariation * Math.sin(theta),
-        (Math.random() - 0.5) * 0.02
-      );
-      
-      // Deep blue outer ring with subtle glow
-      c.copy(deepBlue).lerp(royalBlue, Math.random() * 0.3);
-    }
-
-    positions[i * 3] = p.x;
-    positions[i * 3 + 1] = p.y;
-    positions[i * 3 + 2] = p.z;
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-    groups[i] = g;
+    
+    // Faint cyan connection color
+    const color = new THREE.Color();
+    color.copy(cyan).lerp(white, 0.2);
+    color.multiplyScalar(0.5); // Faint
+    
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 3;
   }
 
   return { positions, colors, groups };
