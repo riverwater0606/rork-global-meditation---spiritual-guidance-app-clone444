@@ -330,7 +330,8 @@ export function generateFlowerOfLifeData() {
 }
 
 // --- FLOWER OF LIFE COMPLETE (3D) ---
-// 19 interlocking circles + 1 outer circle. All fully drawn.
+// 19 interlocking circles + outer ring.
+// Explicitly draws 19 full circles to ensure complete petals at the edge.
 export function generateFlowerOfLifeCompleteData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
@@ -338,7 +339,7 @@ export function generateFlowerOfLifeCompleteData() {
 
   const scale = 0.35; 
   const R = 1.0 * scale; // Radius of each small circle
-  const outerR = 3.0 * R; // Enclosing circle radius
+  const boundaryR = 3.0 * R; // Enclosing circle radius
 
   // Colors
   const deepBlue = new THREE.Color("#0EA5E9");
@@ -346,43 +347,47 @@ export function generateFlowerOfLifeCompleteData() {
   const lightCyan = new THREE.Color("#A5F3FC");
   const white = new THREE.Color("#FFFFFF");
 
-  // Centers
-  const centers: {x: number, y: number, z: number}[] = [];
-  // Ring 0
-  centers.push({x:0, y:0, z:0});
-  // Ring 1 (6 circles)
-  for(let i=0; i<6; i++){
-    const ang = i * Math.PI/3;
-    centers.push({x: R*Math.cos(ang), y: R*Math.sin(ang), z: 0.02});
+  // Explicit 19 centers for the Flower of Life
+  const centers: {x: number, y: number}[] = [];
+  
+  // 1. Center
+  centers.push({x: 0, y: 0});
+  
+  // 2. Ring 1 (6 circles at distance R)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3;
+     centers.push({ x: R * Math.cos(theta), y: R * Math.sin(theta) });
   }
-  // Ring 2 (12 circles)
-  // 6 at 2R
-  for(let i=0; i<6; i++){
-    const ang = i * Math.PI/3;
-    centers.push({x: 2*R*Math.cos(ang), y: 2*R*Math.sin(ang), z: 0.04});
+
+  // 3. Ring 2 (12 circles)
+  // 6 at distance 2R (on axes)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3;
+     centers.push({ x: 2 * R * Math.cos(theta), y: 2 * R * Math.sin(theta) });
   }
-  // 6 at sqrt(3)R
-  for(let i=0; i<6; i++){
-    const ang = i * Math.PI/3 + Math.PI/6;
-    const r2 = Math.sqrt(3)*R;
-    centers.push({x: r2*Math.cos(ang), y: r2*Math.sin(ang), z: 0.03});
+  // 6 at distance sqrt(3)R (in between)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3 + Math.PI / 6;
+     const rGrid = Math.sqrt(3) * R;
+     centers.push({ x: rGrid * Math.cos(theta), y: rGrid * Math.sin(theta) });
   }
 
   let idx = 0;
 
   // 1. Draw 19 Circles (Full complete petals)
-  // High density for smoothness
-  const particlesPerInnerCircle = 750;
+  // 75% of particles for the circles
+  const circleParticlesTotal = Math.floor(PARTICLE_COUNT * 0.75);
+  const particlesPerCircle = Math.floor(circleParticlesTotal / centers.length);
   
   for(let c=0; c<centers.length; c++) {
     const center = centers[c];
-    for(let i=0; i<particlesPerInnerCircle && idx < PARTICLE_COUNT; i++) {
-        const theta = (i/particlesPerInnerCircle) * Math.PI * 2;
+    for(let i=0; i<particlesPerCircle && idx < PARTICLE_COUNT; i++) {
+        const theta = (i/particlesPerCircle) * Math.PI * 2;
         // Add slight jitter for "particle" look
         const rJitter = (Math.random()-0.5) * 0.015;
         const x = center.x + (R + rJitter) * Math.cos(theta);
         const y = center.y + (R + rJitter) * Math.sin(theta);
-        const z = center.z + (Math.random()-0.5) * 0.04; // Thickness
+        const z = (Math.random()-0.5) * 0.04; // Thickness
 
         positions[idx*3] = x;
         positions[idx*3+1] = y;
@@ -402,12 +407,13 @@ export function generateFlowerOfLifeCompleteData() {
   }
 
   // 2. Draw Outer Circle (Enclosing)
-  const particlesOuter = 2000;
-  for(let i=0; i<particlesOuter && idx < PARTICLE_COUNT; i++) {
-     const theta = (i/particlesOuter) * Math.PI * 2;
+  // 15% of particles
+  const outerParticles = Math.floor(PARTICLE_COUNT * 0.15);
+  for(let i=0; i<outerParticles && idx < PARTICLE_COUNT; i++) {
+     const angle = Math.random() * Math.PI * 2;
      const rJitter = (Math.random()-0.5) * 0.01;
-     const x = (outerR + rJitter) * Math.cos(theta);
-     const y = (outerR + rJitter) * Math.sin(theta);
+     const x = (boundaryR + rJitter) * Math.cos(angle);
+     const y = (boundaryR + rJitter) * Math.sin(angle);
      const z = (Math.random()-0.5) * 0.04;
 
      positions[idx*3] = x;
@@ -422,62 +428,20 @@ export function generateFlowerOfLifeCompleteData() {
      idx++;
   }
 
-  // 3. Faint connections (Triangular grid lines between centers)
-  const connections: [number, number][] = [];
-  for(let i=0; i<centers.length; i++){
-      for(let j=i+1; j<centers.length; j++){
-          const dx = centers[i].x - centers[j].x;
-          const dy = centers[i].y - centers[j].y;
-          const d = Math.sqrt(dx*dx + dy*dy);
-          // Connect if distance is close to R (approx 1.0 * scale)
-          // R = scale.
-          if(Math.abs(d - R) < 0.01) {
-              connections.push([i, j]);
-          }
-      }
-  }
-  
-  // Fill remaining particles in connections
-  const particlesLeft = PARTICLE_COUNT - idx;
-  if(particlesLeft > 0 && connections.length > 0) {
-      const particlesPerConn = Math.floor(particlesLeft / connections.length);
-      for(const [i1, i2] of connections) {
-          const p1 = centers[i1];
-          const p2 = centers[i2];
-          for(let k=0; k<particlesPerConn && idx < PARTICLE_COUNT; k++) {
-             const t = Math.random();
-             const x = p1.x + (p2.x - p1.x) * t;
-             const y = p1.y + (p2.y - p1.y) * t;
-             const z = (p1.z + p2.z) / 2 + (Math.random()-0.5)*0.02;
-             
-             positions[idx*3] = x + (Math.random()-0.5)*0.01;
-             positions[idx*3+1] = y + (Math.random()-0.5)*0.01;
-             positions[idx*3+2] = z;
-             
-             // Faint blue lines
-             const color = new THREE.Color().copy(deepBlue).multiplyScalar(0.4); 
-             colors[idx*3] = color.r;
-             colors[idx*3+1] = color.g;
-             colors[idx*3+2] = color.b;
-             groups[idx] = 3; // Connection group
-             idx++;
-          }
-      }
-  }
-  
-  // Fill remainder
+  // 3. Fill remaining with ambient sparkles inside
   while(idx < PARTICLE_COUNT) {
       const theta = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * outerR;
+      const r = Math.sqrt(Math.random()) * boundaryR;
+      
       positions[idx*3] = r * Math.cos(theta);
       positions[idx*3+1] = r * Math.sin(theta);
       positions[idx*3+2] = (Math.random()-0.5) * 0.2;
       
-      const color = new THREE.Color().copy(deepBlue).multiplyScalar(0.2);
+      const color = new THREE.Color().copy(deepBlue).multiplyScalar(0.3);
       colors[idx*3] = color.r;
       colors[idx*3+1] = color.g;
       colors[idx*3+2] = color.b;
-      groups[idx] = 4;
+      groups[idx] = 3;
       idx++;
   }
 
