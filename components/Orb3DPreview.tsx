@@ -4,7 +4,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Orb, OrbShape, useMeditation } from '@/providers/MeditationProvider';
-import { generateMerkabaData, generateEarthData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeCompleteData, PARTICLE_COUNT } from '@/constants/sacredGeometry';
 
 interface Orb3DPreviewProps {
   orb: Orb;
@@ -51,6 +51,23 @@ const OrbParticlesPreview = ({ layers, size, shape }: { layers: string[]; size: 
         colors[i * 3] = data.colors[srcIdx * 3];
         colors[i * 3 + 1] = data.colors[srcIdx * 3 + 1];
         colors[i * 3 + 2] = data.colors[srcIdx * 3 + 2];
+      }
+    } else if (shape === 'flower-of-life-complete') {
+      const data = generateFlowerOfLifeCompleteData();
+      // Scale down to match particleCount if needed, but generateFlowerOfLifeCompleteData returns fixed PARTICLE_COUNT
+      // We might need to downsample if preview has fewer particles
+      const srcPositions = data.positions;
+      const srcColors = data.colors;
+      const ratio = PARTICLE_COUNT / particleCount;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const srcIdx = Math.floor(i * ratio);
+        positions[i * 3] = srcPositions[srcIdx * 3];
+        positions[i * 3 + 1] = srcPositions[srcIdx * 3 + 1];
+        positions[i * 3 + 2] = srcPositions[srcIdx * 3 + 2];
+        colors[i * 3] = srcColors[srcIdx * 3];
+        colors[i * 3 + 1] = srcColors[srcIdx * 3 + 1];
+        colors[i * 3 + 2] = srcColors[srcIdx * 3 + 2];
       }
     } else if (shape === 'flower-of-life') {
       const circleRadius = 0.5;

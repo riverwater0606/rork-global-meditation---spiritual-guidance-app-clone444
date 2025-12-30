@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -111,6 +111,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     // 1. Flower of Life (3D with sacred geometry points)
     const generateFlowerOfLife = () => {
       const data = generateFlowerOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 1.5 Flower of Life Complete
+    const generateFlowerOfLifeComplete = () => {
+      const data = generateFlowerOfLifeCompleteData();
       targetPositions.set(data.positions);
       colors.set(data.colors);
       groups.set(data.groups);
@@ -236,6 +244,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     
     // Generate Target Shape based on prop
     if (shape === 'flower-of-life') generateFlowerOfLife();
+    else if (shape === 'flower-of-life-complete') generateFlowerOfLifeComplete();
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'tree-of-life') generateTreeOfLife();
@@ -316,21 +325,37 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       let tz = targetPositions[iz];
       
       // SHAPE ANIMATIONS
-      if (shape === 'flower-of-life') {
+      if (shape === 'flower-of-life' || shape === 'flower-of-life-complete') {
          const g = groups[i];
          // Gentle pulse for all particles
          const pulse = 1.0 + Math.sin(t * 2) * 0.03;
          tx *= pulse; ty *= pulse; tz *= pulse;
          
-         // Key intersection points (g=0) glow brighter
-         if (g === 0) {
-           const glow = 1.0 + Math.sin(t * 4 + i * 0.01) * 0.08;
-           tx *= glow; ty *= glow; tz *= glow;
-         }
-         // Outer ring (g=2) subtle wave
-         if (g === 2) {
-           const wave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.02;
-           tx += wave; ty += wave;
+         if (shape === 'flower-of-life-complete') {
+            // For complete version:
+            // Group 1: Circles -> Subtle breathing
+            if (g === 1) {
+              const breath = 1.0 + Math.sin(t * 1.5 + ix * 0.0001) * 0.01;
+              tx *= breath; ty *= breath;
+            }
+            // Group 2: Outer Circle -> Slow rotation or shine?
+            if (g === 2) {
+               // Make outer ring shimmer
+               const shimmer = 1.0 + Math.sin(t * 3 + Math.atan2(ty, tx)*5) * 0.02;
+               tx *= shimmer; ty *= shimmer;
+            }
+         } else {
+             // Old logic
+             // Key intersection points (g=0) glow brighter
+             if (g === 0) {
+               const glow = 1.0 + Math.sin(t * 4 + i * 0.01) * 0.08;
+               tx *= glow; ty *= glow; tz *= glow;
+             }
+             // Outer ring (g=2) subtle wave
+             if (g === 2) {
+               const wave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.02;
+               tx += wave; ty += wave;
+             }
          }
       } else if (shape === 'merkaba') {
          const g = groups[i];
@@ -489,6 +514,7 @@ const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 
 const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
+  { id: 'flower-of-life-complete', name: 'Flower of Life (Complete)', nameZh: '完整生命之花', icon: '💮' },
   { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '🌳' },
