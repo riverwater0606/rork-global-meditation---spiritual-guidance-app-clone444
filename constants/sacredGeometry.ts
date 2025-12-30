@@ -914,153 +914,172 @@ export function generateTreeOfLifeData() {
 }
 
 // --- SRI YANTRA ---
-// 9 Interlocking triangles with Bindu, Petals, and Bhupura
+// True 3D Sacred Geometry Particle System
+// 9 Interlocking triangles forming a pyramid structure + Bindu + Lotus + Bhupura
 export function generateSriYantraData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.8;
-  const white = new THREE.Color('#FFFFFF');
   const gold = new THREE.Color('#FFD700');
-  const red = new THREE.Color('#DC143C');
-
+  const cyan = new THREE.Color('#22D3EE');
+  const white = new THREE.Color('#FFFFFF');
+  
   let idx = 0;
 
-  // 1. Bindu (Center Point)
-  const binduCount = Math.floor(PARTICLE_COUNT * 0.05);
-  for (let i = 0; i < binduCount; i++, idx++) {
-    const r = Math.pow(Math.random(), 1/3) * 0.05;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    
-    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[idx * 3 + 2] = r * Math.cos(phi);
-    
-    colors[idx * 3] = 1;
-    colors[idx * 3 + 1] = 1;
-    colors[idx * 3 + 2] = 1;
-    groups[idx] = 0;
+  // 1. Bindu (Singularity) - Dense, Bright, Top of Pyramid
+  // High concentration of energy
+  const binduCount = 1000;
+  for(let i=0; i<binduCount; i++) {
+     // Concentrated sphere
+     const r = Math.pow(Math.random(), 4) * 0.15; // Very dense center
+     const theta = Math.random() * Math.PI * 2;
+     const phi = Math.acos(2 * Math.random() - 1);
+     
+     // Positioned at the peak of the Z-axis structure
+     positions[idx*3] = r * Math.sin(phi) * Math.cos(theta);
+     positions[idx*3+1] = r * Math.sin(phi) * Math.sin(theta);
+     positions[idx*3+2] = r * Math.cos(phi) + 0.55; 
+
+     // Pure white light
+     colors[idx*3] = 1.0; 
+     colors[idx*3+1] = 1.0; 
+     colors[idx*3+2] = 1.0; 
+     groups[idx] = 0; // Group 0: Bindu
+     idx++;
   }
 
-  // 2. Triangles (9 interlocking)
-  // Simplified representation: 9 triangles with varying sizes and offsets
-  // 5 pointing down (Shakti), 4 pointing up (Shiva)
+  // 2. The 9 Interlocking Triangles
+  // Constructed as a 3D pyramid (Meru)
+  // 5 Downward (Shakti), 4 Upward (Shiva)
+  // Inner triangles are higher in Z (closer to Bindu), Outer are lower
   
   const triangles = [
-     { dir: -1, y: 0.1, s: 0.8, c: red },    // T1 Down
-     { dir: 1, y: -0.1, s: 0.8, c: gold },   // T2 Up
-     { dir: -1, y: 0.25, s: 0.6, c: red },   // T3 Down
-     { dir: 1, y: -0.25, s: 0.6, c: gold },  // T4 Up
-     { dir: -1, y: 0.35, s: 0.45, c: red },  // T5 Down
-     { dir: 1, y: -0.35, s: 0.45, c: gold }, // T6 Up
-     { dir: -1, y: 0.42, s: 0.3, c: red },   // T7 Down
-     { dir: 1, y: -0.42, s: 0.3, c: gold },  // T8 Up
-     { dir: -1, y: 0.48, s: 0.15, c: red }   // T9 Down
+     // Innermost -> Outermost
+     // dir: -1 (Down/Shakti), 1 (Up/Shiva)
+     { dir: -1, y: 0.48, s: 0.15, z: 0.50, c: gold },   // T1 Inner Shakti
+     { dir: 1,  y: -0.42, s: 0.30, z: 0.45, c: white }, // T2 Inner Shiva
+     { dir: -1, y: 0.42, s: 0.30, z: 0.40, c: gold },   // T3
+     { dir: 1,  y: -0.35, s: 0.45, z: 0.35, c: white }, // T4
+     { dir: -1, y: 0.35, s: 0.45, z: 0.30, c: gold },   // T5
+     { dir: 1,  y: -0.25, s: 0.60, z: 0.25, c: white }, // T6
+     { dir: -1, y: 0.25, s: 0.60, z: 0.20, c: gold },   // T7
+     { dir: 1,  y: -0.10, s: 0.80, z: 0.15, c: white }, // T8
+     { dir: -1, y: 0.10, s: 0.80, z: 0.10, c: cyan },   // T9 Outer Shakti
   ];
 
-  const triangleParticles = Math.floor(PARTICLE_COUNT * 0.6);
+  const triangleParticles = 12000;
   const particlesPerTri = Math.floor(triangleParticles / triangles.length);
 
   for (let t = 0; t < triangles.length; t++) {
-     const tri = triangles[t];
-     const s = tri.s * scale;
-     
-     const yTip = tri.dir * s;
-     const yBase = -tri.dir * s * 0.5;
-     const xBase = s * 0.866; // cos(30) * s
-     
-     const v1 = { x: 0, y: yTip + tri.y * scale };
-     const v2 = { x: -xBase, y: yBase + tri.y * scale };
-     const v3 = { x: xBase, y: yBase + tri.y * scale };
-     
-     const edges = [[v1, v2], [v2, v3], [v3, v1]];
-     
-     for (let i = 0; i < particlesPerTri && idx < PARTICLE_COUNT; i++, idx++) {
-        // Pick random edge
-        const e = edges[Math.floor(Math.random() * 3)];
-        const p = Math.random();
-        
-        const x = e[0].x + (e[1].x - e[0].x) * p;
-        const y = e[0].y + (e[1].y - e[0].y) * p;
-        
-        // Add thickness
-        positions[idx * 3] = x + (Math.random() - 0.5) * 0.02;
-        positions[idx * 3 + 1] = y + (Math.random() - 0.5) * 0.02;
-        positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.02;
-        
-        const c = tri.c.clone().lerp(white, Math.random() * 0.3);
-        colors[idx * 3] = c.r;
-        colors[idx * 3 + 1] = c.g;
-        colors[idx * 3 + 2] = c.b;
-        groups[idx] = tri.dir === 1 ? 2 : 1; // 1=Shakti (Down/Red), 2=Shiva (Up/Gold)
-     }
+      const tri = triangles[t];
+      const s = tri.s; // Scale factor
+      
+      // Calculate vertices for equilateral triangle
+      const dir = tri.dir;
+      // yTip is the point of the triangle
+      // yBase is the flat side
+      
+      const v1 = new THREE.Vector3(0, tri.y + dir * s, tri.z);
+      const v2 = new THREE.Vector3(-s * 0.866, tri.y - dir * s * 0.5, tri.z);
+      const v3 = new THREE.Vector3(s * 0.866, tri.y - dir * s * 0.5, tri.z);
+      
+      const edges = [[v1, v2], [v2, v3], [v3, v1]];
+
+      for(let i=0; i<particlesPerTri && idx < PARTICLE_COUNT; i++) {
+          const edgeIdx = Math.floor(Math.random() * 3);
+          const [start, end] = edges[edgeIdx];
+          const alpha = Math.random(); 
+          
+          // Particle position on the edge
+          positions[idx*3] = start.x + (end.x - start.x) * alpha;
+          positions[idx*3+1] = start.y + (end.y - start.y) * alpha;
+          positions[idx*3+2] = start.z + (end.z - start.z) * alpha;
+          
+          // Add "energy field" scatter
+          // Inner triangles are tighter, outer are more diffuse
+          const scatter = 0.005 + (0.01 * (1 - tri.z)); 
+          positions[idx*3] += (Math.random()-0.5) * scatter;
+          positions[idx*3+1] += (Math.random()-0.5) * scatter;
+          positions[idx*3+2] += (Math.random()-0.5) * scatter;
+          
+          // Color Gradient: Tips are brighter
+          const distToTip = Math.sqrt(
+             Math.pow(positions[idx*3] - v1.x, 2) + 
+             Math.pow(positions[idx*3+1] - v1.y, 2)
+          );
+          
+          const c = tri.c.clone();
+          if (distToTip < s * 0.3) c.lerp(white, 0.5); // Brighter at tips
+          if (Math.random() > 0.85) c.lerp(cyan, 0.6); // Sparkles
+          
+          colors[idx*3] = c.r;
+          colors[idx*3+1] = c.g;
+          colors[idx*3+2] = c.b;
+          
+          groups[idx] = t + 1; // Groups 1-9
+          idx++;
+      }
   }
 
-  // 3. Circles (Lotus Petals)
-  const circleParticles = Math.floor(PARTICLE_COUNT * 0.2);
-  const r1 = 1.0 * scale; // Inner petals
-  const r2 = 1.2 * scale; // Outer petals
-  
-  for (let i = 0; i < circleParticles && idx < PARTICLE_COUNT; i++, idx++) {
-      const isOuter = Math.random() > 0.4;
-      const r = isOuter ? r2 : r1;
-      const theta = Math.random() * Math.PI * 2;
-      
-      // Petal effect: Modulate radius with sine
-      // 8 petals inner, 16 petals outer
-      const petals = isOuter ? 16 : 8;
-      const rMod = r + Math.sin(theta * petals) * 0.05 * scale;
-      
-      const x = rMod * Math.cos(theta);
-      const y = rMod * Math.sin(theta);
-      
-      positions[idx * 3] = x;
-      positions[idx * 3 + 1] = y;
-      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.02;
-      
-      const c = white.clone().lerp(gold, 0.5);
-      colors[idx * 3] = c.r;
-      colors[idx * 3 + 1] = c.g;
-      colors[idx * 3 + 2] = c.b;
-      groups[idx] = 3;
+  // 3. Lotus Petals (Chakras)
+  // Inner ring (8 petals), Outer ring (16 petals)
+  const petalParticles = 4000;
+  for(let i=0; i<petalParticles && idx < PARTICLE_COUNT; i++) {
+     const isOuter = Math.random() > 0.35; // More outer petals
+     const rBase = isOuter ? 1.2 : 0.95;
+     const zBase = isOuter ? -0.05 : 0.05;
+     const petals = isOuter ? 16 : 8;
+     
+     const angle = Math.random() * Math.PI * 2;
+     
+     // Create petal shapes using sine wave modulation
+     const wave = Math.abs(Math.sin(angle * petals / 2));
+     const r = rBase + wave * 0.15;
+     
+     // 3D Tilt for petals to cup the Yantra
+     const tilt = wave * 0.1; 
+     
+     positions[idx*3] = r * Math.cos(angle);
+     positions[idx*3+1] = r * Math.sin(angle);
+     positions[idx*3+2] = zBase + tilt + (Math.random()-0.5)*0.02;
+     
+     const c = isOuter ? cyan : gold;
+     c.lerp(white, wave); // Tips are white
+     
+     colors[idx*3] = c.r;
+     colors[idx*3+1] = c.g;
+     colors[idx*3+2] = c.b;
+     groups[idx] = 10;
+     idx++;
   }
+
+  // 4. Bhupura (Gate of Limits) - The Square Container
+  const bhupuraParticles = PARTICLE_COUNT - idx;
+  const sqSize = 1.5;
   
-  // 4. Bhupura (Square)
-  // Remaining particles
-  const squareSize = 1.5 * scale;
-  while(idx < PARTICLE_COUNT) {
-      // Square perimeter
+  for(let i=0; i<bhupuraParticles && idx < PARTICLE_COUNT; i++) {
+      // Points on square perimeter
       let x, y;
-      if (Math.random() > 0.5) {
-         // Top/Bottom
-         x = (Math.random() - 0.5) * 2 * squareSize;
-         y = Math.random() > 0.5 ? squareSize : -squareSize;
-      } else {
-         // Left/Right
-         y = (Math.random() - 0.5) * 2 * squareSize;
-         x = Math.random() > 0.5 ? squareSize : -squareSize;
-      }
+      const side = Math.floor(Math.random() * 4);
+      const offset = (Math.random() - 0.5) * 2 * sqSize;
       
-      // Gates (T-shape openings) - Simplified: just gaps
-      const isGap = (Math.abs(x) < 0.2 * squareSize && Math.abs(Math.abs(y) - squareSize) < 0.1) ||
-                    (Math.abs(y) < 0.2 * squareSize && Math.abs(Math.abs(x) - squareSize) < 0.1);
+      if (side === 0) { x = offset; y = sqSize; }      // Top
+      else if (side === 1) { x = offset; y = -sqSize; } // Bottom
+      else if (side === 2) { x = sqSize; y = offset; }  // Right
+      else { x = -sqSize; y = offset; }                 // Left
       
-      if (isGap) {
-          // Move outward to form gate
-          if (Math.abs(x) > Math.abs(y)) x *= 1.1;
-          else y *= 1.1;
-      }
-
-      positions[idx * 3] = x;
-      positions[idx * 3 + 1] = y;
-      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.02;
+      positions[idx*3] = x;
+      positions[idx*3+1] = y;
+      positions[idx*3+2] = -0.15; // Lowest layer
       
-      colors[idx * 3] = 1;
-      colors[idx * 3 + 1] = 1;
-      colors[idx * 3 + 2] = 1;
-      groups[idx] = 4;
+      // Dim container color
+      const c = new THREE.Color(0.2, 0.3, 0.4).lerp(cyan, Math.random()*0.2);
+      
+      colors[idx*3] = c.r;
+      colors[idx*3+1] = c.g;
+      colors[idx*3+2] = c.b;
+      groups[idx] = 11;
       idx++;
   }
 

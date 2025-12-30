@@ -420,35 +420,69 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          }
       } else if (shape === 'sri-yantra') {
           const g = groups[i];
-          // g=0: Bindu (Center)
-          // g=1: Shakti Triangles (Red/Gold)
-          // g=2: Shiva Triangles (White/Gold)
-          // g=3: Circles
-          // g=4: Square (Bhupura)
-          // g=5: Ambient
+          
+          // g=0: Bindu (Singularity)
+          // g=1-9: Triangles (Pyramid)
+          // g=10: Lotus Petals
+          // g=11: Bhupura (Square)
 
           if (g === 0) {
-             // Bindu Pulse
-             const pulse = 1.0 + Math.sin(t * 4) * 0.1;
+             // Bindu: Radiant high-energy singularity
+             // High frequency vibration + breathing
+             const pulse = 1.0 + Math.sin(t * 3) * 0.05 + Math.sin(t * 10) * 0.02;
              tx *= pulse; ty *= pulse; tz *= pulse;
-          } else if (g === 1 || g === 2) {
-             // Triangles subtle float
-             const float = Math.sin(t * 2 + ix * 0.01) * 0.01;
-             tz += float;
              
-             // Energy flow along lines
-             const flow = Math.sin(t * 3 + tx * 2) * 0.01;
-             tx += flow; ty += flow;
-          } else if (g === 3) {
-             // Rotating circles
-             // Rotate around Z axis (which is actually Y in our standard rotation, but here points are laid flat on XY)
-             // We applied rotation.y to the whole group, so here we can do local rotation if we want independent rings
-             // But let's just make them pulse/breathe
-             const breath = 1.0 + Math.sin(t * 1.5) * 0.02;
+             // Gravitational pull / Jitter
+             tx += (Math.random() - 0.5) * 0.01;
+             ty += (Math.random() - 0.5) * 0.01;
+             tz += (Math.random() - 0.5) * 0.01;
+          } 
+          else if (g >= 1 && g <= 9) {
+             // Triangles: Breathing pyramid
+             // Different layers breathe at different rates/phases to create "living" organic feel
+             const phase = g * 0.2;
+             const breath = 1.0 + Math.sin(t * 0.8 + phase) * 0.02;
+             
+             // Expand/Contract horizontally
+             tx *= breath; 
+             ty *= breath;
+             
+             // Slight Z-float (vertical breathing) to emphasize 3D depth
+             const zFloat = Math.sin(t * 0.5 + phase) * 0.015;
+             tz += zFloat;
+
+             // Energy flow along the lines
+             // Add a subtle wave that moves along the geometry
+             if (Math.random() > 0.95) {
+                // Occasional sparkles traveling
+                 const flow = Math.sin(t * 5 + tx * 2 + ty * 2) * 0.005;
+                 tx += flow; ty += flow;
+             }
+          } 
+          else if (g === 10) {
+             // Lotus Petals: "Opening" and "Closing" gently
+             // They tilt slightly based on radial distance
+             const dist = Math.sqrt(tx*tx + ty*ty);
+             
+             // Z-movement to simulate petal cupping motion
+             const cup = Math.sin(t * 0.4 + dist) * 0.02;
+             tz += cup;
+             
+             // Gentle rotation of the lotus ring itself (if we wanted independent rotation)
+             // But simpler to just breathe
+             const breath = 1.0 + Math.sin(t * 0.4) * 0.03;
              tx *= breath; ty *= breath;
-          } else if (g === 4) {
-             // Square stable, maybe corner shine
-             // Nothing special
+          } 
+          else if (g === 11) {
+             // Bhupura: Grounding, stable container
+             // Very slow, deep pulse
+             const deepPulse = 1.0 + Math.sin(t * 0.2) * 0.01;
+             tx *= deepPulse; ty *= deepPulse;
+             
+             // Horizon shimmer
+             if (Math.random() > 0.98) {
+                 tz += (Math.random() - 0.5) * 0.02;
+             }
           }
       } else if (shape === 'earth') {
           // Earth Animation: 
