@@ -513,13 +513,12 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 
 const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
-  { id: 'flower-of-life', name: 'Flower of Life', nameZh: '生命之花', icon: '🌸' },
-  { id: 'flower-of-life-complete', name: 'Flower of Life (Complete)', nameZh: '完整生命之花', icon: '💮' },
-  { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '✡️' },
-  { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '⬡' },
-  { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '🌳' },
-  { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '🔮' },
-  { id: 'earth', name: 'Earth', nameZh: '地球', icon: '🌍' },
+  { id: 'flower-of-life-complete', name: 'Flower of Life', nameZh: '生命之花', icon: '' },
+  { id: 'star-of-david', name: 'Star of David', nameZh: '六芒星', icon: '' },
+  { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '' },
+  { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '' },
+  { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
+  { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
 export default function GardenScreen() {
@@ -1394,7 +1393,7 @@ export default function GardenScreen() {
                     setTimeout(() => setShowShapeSelector(false), 300);
                   }}
                 >
-                  <Text style={styles.shapeIcon}>{s.icon}</Text>
+                  {!!s.icon && <Text style={styles.shapeIcon}>{s.icon}</Text>}
                   <Text style={[styles.shapeName, { color: currentTheme.text }]}>
                     {settings.language === 'zh' ? s.nameZh : s.name}
                   </Text>
