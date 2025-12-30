@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -201,6 +201,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 7. Sri Yantra
+    const generateSriYantra = () => {
+      const data = generateSriYantraData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -248,8 +256,9 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'tree-of-life') generateTreeOfLife();
-    else if (shape === 'earth') generateEarth();
     else if (shape === 'grid-of-life') generateGridOfLife();
+    else if (shape === 'sri-yantra') generateSriYantra();
+    else if (shape === 'earth') generateEarth();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -409,6 +418,38 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const wave = Math.sin(t * 1.2 + Math.atan2(ty, tx) * 4) * 0.03;
            tx += wave; ty += wave;
          }
+      } else if (shape === 'sri-yantra') {
+          const g = groups[i];
+          // g=0: Bindu (Center)
+          // g=1: Shakti Triangles (Red/Gold)
+          // g=2: Shiva Triangles (White/Gold)
+          // g=3: Circles
+          // g=4: Square (Bhupura)
+          // g=5: Ambient
+
+          if (g === 0) {
+             // Bindu Pulse
+             const pulse = 1.0 + Math.sin(t * 4) * 0.1;
+             tx *= pulse; ty *= pulse; tz *= pulse;
+          } else if (g === 1 || g === 2) {
+             // Triangles subtle float
+             const float = Math.sin(t * 2 + ix * 0.01) * 0.01;
+             tz += float;
+             
+             // Energy flow along lines
+             const flow = Math.sin(t * 3 + tx * 2) * 0.01;
+             tx += flow; ty += flow;
+          } else if (g === 3) {
+             // Rotating circles
+             // Rotate around Z axis (which is actually Y in our standard rotation, but here points are laid flat on XY)
+             // We applied rotation.y to the whole group, so here we can do local rotation if we want independent rings
+             // But let's just make them pulse/breathe
+             const breath = 1.0 + Math.sin(t * 1.5) * 0.02;
+             tx *= breath; ty *= breath;
+          } else if (g === 4) {
+             // Square stable, maybe corner shine
+             // Nothing special
+          }
       } else if (shape === 'earth') {
           // Earth Animation: 
           // 1. Slow rotation of the "texture" (points) relative to the frame?
@@ -518,6 +559,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '' },
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '' },
   { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
+  { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '斯里·揚特拉', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
