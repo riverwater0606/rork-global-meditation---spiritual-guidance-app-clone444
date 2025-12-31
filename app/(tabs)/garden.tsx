@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -164,6 +164,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 8. Triquetra
+    const generateTriquetra = () => {
+      const data = generateTriquetraData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -214,6 +222,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'earth') generateEarth();
     else if (shape === 'grid-of-life') generateGridOfLife();
     else if (shape === 'sri-yantra') generateSriYantra();
+    else if (shape === 'triquetra') generateTriquetra();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -452,6 +461,49 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const outerWave = Math.sin(t * 2 + Math.atan2(ty, tx) * 3) * 0.04;
            tx += outerWave; ty += outerWave;
          }
+      } else if (shape === 'triquetra') {
+         const g = groups[i];
+         // Celtic mystical pulsing for entire triquetra
+         const pulse = 1.0 + Math.sin(t * 2) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Arc 0 (g=0) - emerald flowing energy
+         if (g === 0) {
+           const flow = Math.sin(t * 2.5 + i * 0.01) * 0.025;
+           tx += flow; ty += flow;
+         }
+         // Arc 1 (g=1) - jade flowing energy
+         else if (g === 1) {
+           const flow = Math.sin(t * 2.3 + i * 0.01) * 0.025;
+           tx += flow; ty += flow;
+         }
+         // Arc 2 (g=2) - gold flowing energy
+         else if (g === 2) {
+           const flow = Math.sin(t * 2.7 + i * 0.01) * 0.025;
+           tx += flow; ty += flow;
+         }
+         // Intersection nodes (g=3) - bright trinity glow
+         else if (g === 3) {
+           const nodeGlow = 1.0 + Math.sin(t * 4 + i * 0.04) * 0.15;
+           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
+         }
+         // Center trinity point (g=4) - sacred center pulse
+         else if (g === 4) {
+           const centerGlow = 1.0 + Math.sin(t * 3) * 0.20;
+           tx *= centerGlow; ty *= centerGlow; tz *= centerGlow;
+         }
+         // Outer eternity ring (g=5) - rotating wave
+         else if (g === 5) {
+           const ringWave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.035;
+           tx += ringWave; ty += ringWave;
+         }
+         // Ambient aura (g=6) - mystical breathing
+         else if (g === 6) {
+           const auraBreath = Math.sin(t * 1.2 + Math.sqrt(tx*tx + ty*ty) * 2) * 0.03;
+           const angle = Math.atan2(ty, tx);
+           tx += auraBreath * Math.cos(angle);
+           ty += auraBreath * Math.sin(angle);
+         }
       } 
 
       // Modifiers based on mode
@@ -551,6 +603,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '' },
   { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
   { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '吉祥之輪', icon: '' },
+  { id: 'triquetra', name: 'Triquetra', nameZh: '三位一體結', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
