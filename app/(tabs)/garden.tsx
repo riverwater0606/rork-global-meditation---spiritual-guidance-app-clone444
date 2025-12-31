@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -126,55 +126,10 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
 
     // 2. Star of David (Interlocking Triangles) with Light Beams
     const generateStarOfDavid = () => {
-       // Two large triangles
-       // T1: Pointing Up. T2: Pointing Down.
-       const size = 1.2;
-       
-       for(let i=0; i<particleCount; i++) {
-         const isUp = i % 2 === 0;
-         // Triangle parametric eq
-         // 3 edges.
-         const edge = Math.floor(Math.random() * 3);
-         const t = Math.random(); // Position on edge
-         
-         let p1, p2, p3;
-         if (isUp) {
-            // Angles: 90, 210, 330
-            p1 = {x:0, y:size};
-            p2 = {x:size*Math.cos(210*Math.PI/180), y:size*Math.sin(210*Math.PI/180)};
-            p3 = {x:size*Math.cos(330*Math.PI/180), y:size*Math.sin(330*Math.PI/180)};
-         } else {
-            // Angles: 30, 150, 270
-            p1 = {x:0, y:-size};
-            p2 = {x:size*Math.cos(30*Math.PI/180), y:size*Math.sin(30*Math.PI/180)};
-            p3 = {x:size*Math.cos(150*Math.PI/180), y:size*Math.sin(150*Math.PI/180)};
-         }
-         
-         let A, B;
-         if (edge === 0) { A=p1; B=p2; }
-         else if (edge === 1) { A=p2; B=p3; }
-         else { A=p3; B=p1; }
-         
-         // Point on edge
-         let px = A.x + (B.x - A.x) * t;
-         let py = A.y + (B.y - A.y) * t;
-         
-         // Add "Beams" effect (particles radiating out or concentrating on lines)
-         // We make the lines thick and glowing
-         const scatter = (Math.random() - 0.5) * 0.05;
-         
-         // Z depth to interlock
-         const z = isUp ? 0.05 : -0.05;
-         
-         targetPositions[i*3] = px + scatter;
-         targetPositions[i*3+1] = py + scatter;
-         targetPositions[i*3+2] = z + (Math.random()-0.5)*0.02;
-
-         // Cyan/Blue colors
-         colors[i*3] = 0.0;
-         colors[i*3+1] = 0.8 + Math.random()*0.2;
-         colors[i*3+2] = 1.0;
-       }
+      const data = generateStarOfDavidData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
     };
 
     // 3. Merkaba (Star Tetrahedron)
@@ -417,6 +372,48 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          else if (g === 3) {
            const wave = Math.sin(t * 1.2 + Math.atan2(ty, tx) * 4) * 0.03;
            tx += wave; ty += wave;
+         }
+      } else if (shape === 'star-of-david') {
+         const g = groups[i];
+         // Sacred pulsing for entire star
+         const pulse = 1.0 + Math.sin(t * 2) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Triangle 1 edges (g=0) - blue waves flowing
+         if (g === 0) {
+           const wave = Math.sin(t * 2.5 + i * 0.008) * 0.025;
+           tx += wave; ty += wave;
+         }
+         // Triangle 2 edges (g=1) - gold waves flowing
+         else if (g === 1) {
+           const wave = Math.sin(t * 2.3 + i * 0.008) * 0.025;
+           tx += wave; ty += wave;
+         }
+         // Vertex nodes (g=2) - bright pulsing star points
+         else if (g === 2) {
+           const pointGlow = 1.0 + Math.sin(t * 4 + i * 0.05) * 0.15;
+           tx *= pointGlow; ty *= pointGlow; tz *= pointGlow;
+         }
+         // Center core (g=3) - sacred center bright pulse
+         else if (g === 3) {
+           const coreGlow = 1.0 + Math.sin(t * 3.5) * 0.18;
+           tx *= coreGlow; ty *= coreGlow; tz *= coreGlow;
+         }
+         // Center hexagon (g=4) - rotating energy ring
+         else if (g === 4) {
+           const hexRotation = Math.sin(t * 2 + Math.atan2(ty, tx) * 6) * 0.04;
+           tx += hexRotation * Math.cos(Math.atan2(ty, tx));
+           ty += hexRotation * Math.sin(Math.atan2(ty, tx));
+           
+           const hexGlow = 1.0 + Math.sin(t * 3.2 + Math.atan2(ty, tx) * 6) * 0.08;
+           tx *= hexGlow; ty *= hexGlow;
+         }
+         // Outer ambient glow (g=5) - radiating energy
+         else if (g === 5) {
+           const radialPulse = Math.sin(t * 1.8 + Math.sqrt(tx*tx + ty*ty) * 3) * 0.035;
+           const angle = Math.atan2(ty, tx);
+           tx += radialPulse * Math.cos(angle);
+           ty += radialPulse * Math.sin(angle);
          }
       } else if (shape === 'earth') {
           // Earth Animation: 

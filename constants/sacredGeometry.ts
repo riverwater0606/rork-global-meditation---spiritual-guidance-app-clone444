@@ -967,6 +967,229 @@ const SRI_YANTRA_TRIANGLES = [
   ],
 ];
 
+// --- STAR OF DAVID (Magen David) ---
+// Two interlocking equilateral triangles forming a hexagram
+// Represents harmony between divine and human, masculine and feminine
+// The six points symbolize the six days of creation
+
+export function generateStarOfDavidData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 1.0;
+  const R = 1.2 * scale;
+  
+  // Sacred color palette - blues, cyans, golds, whites
+  const deepBlue = new THREE.Color('#1E3A8A');
+  const royalBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#06B6D4');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const gold = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const silverBlue = new THREE.Color('#60A5FA');
+
+  // Triangle 1: Pointing UP (Masculine, Divine)
+  const t1_vertices = [
+    { x: 0, y: R },                                          // Top
+    { x: R * Math.cos(210 * Math.PI / 180), y: R * Math.sin(210 * Math.PI / 180) },  // Bottom left
+    { x: R * Math.cos(330 * Math.PI / 180), y: R * Math.sin(330 * Math.PI / 180) }   // Bottom right
+  ];
+
+  // Triangle 2: Pointing DOWN (Feminine, Earthly)
+  const t2_vertices = [
+    { x: 0, y: -R },                                         // Bottom
+    { x: R * Math.cos(30 * Math.PI / 180), y: R * Math.sin(30 * Math.PI / 180) },   // Top right
+    { x: R * Math.cos(150 * Math.PI / 180), y: R * Math.sin(150 * Math.PI / 180) }  // Top left
+  ];
+
+  // Calculate center hexagon vertices (intersection points)
+  const hexagonVertices: THREE.Vector3[] = [];
+  const hexRadius = R * Math.sqrt(3) / 3;
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    hexagonVertices.push(new THREE.Vector3(
+      hexRadius * Math.cos(angle),
+      hexRadius * Math.sin(angle),
+      0
+    ));
+  }
+
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.50);
+  const vertexCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.10);
+  const hexagonCount = Math.floor(PARTICLE_COUNT * 0.15);
+  
+  let idx = 0;
+
+  // 1. Triangle Edges (50% of particles)
+  const particlesPerEdge = Math.floor(edgeCount / 6);
+  
+  // Draw Triangle 1 edges (Upward - Blue/Cyan)
+  for (let e = 0; e < 3; e++) {
+    const v1 = t1_vertices[e];
+    const v2 = t1_vertices[(e + 1) % 3];
+    
+    for (let i = 0; i < particlesPerEdge && idx < edgeCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.015;
+      const edgeDepth = 0.08;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = edgeDepth + (Math.random() - 0.5) * 0.02;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Gradient from blue to cyan along edge
+      const c = royalBlue.clone().lerp(cyan, t);
+      c.lerp(lightCyan, Math.sin(t * Math.PI) * 0.3);
+      c.lerp(white, Math.random() * 0.15);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
+    }
+  }
+  
+  // Draw Triangle 2 edges (Downward - Silver/Gold)
+  for (let e = 0; e < 3; e++) {
+    const v1 = t2_vertices[e];
+    const v2 = t2_vertices[(e + 1) % 3];
+    
+    for (let i = 0; i < particlesPerEdge && idx < edgeCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.015;
+      const edgeDepth = -0.08;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = edgeDepth + (Math.random() - 0.5) * 0.02;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Gradient from silver-blue to gold along edge
+      const c = silverBlue.clone().lerp(gold, t * 0.6);
+      c.lerp(white, Math.random() * 0.15);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 2. Vertex nodes (15% - glowing points at the 6 star points)
+  const particlesPerVertex = Math.floor(vertexCount / 6);
+  const allVertices = [...t1_vertices, ...t2_vertices];
+  
+  for (let v = 0; v < 6 && idx < edgeCount + vertexCount; v++) {
+    const vertex = allVertices[v];
+    const nodeRadius = 0.08;
+    const isUpwardTriangle = v < 3;
+    
+    for (let i = 0; i < particlesPerVertex && idx < edgeCount + vertexCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      
+      const x = vertex.x + r * Math.sin(phi) * Math.cos(theta);
+      const y = vertex.y + r * Math.sin(phi) * Math.sin(theta);
+      const z = (isUpwardTriangle ? 0.08 : -0.08) + r * Math.cos(phi);
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Bright glowing vertices
+      const c = white.clone();
+      if (isUpwardTriangle) {
+        c.lerp(cyan, 0.3);
+      } else {
+        c.lerp(gold, 0.4);
+      }
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+    }
+  }
+
+  // 3. Center core (10% - sacred center point)
+  const coreRadius = 0.12;
+  for (let i = 0; i < centerCount && idx < edgeCount + vertexCount + centerCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.5) * coreRadius;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    // Bright white-gold core
+    const c = white.clone().lerp(gold, Math.random() * 0.3);
+    c.lerp(cyan, Math.random() * 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  // 4. Center hexagon edges (15% - inner sacred hexagon)
+  const particlesPerHexEdge = Math.floor(hexagonCount / 6);
+  for (let e = 0; e < 6 && idx < edgeCount + vertexCount + centerCount + hexagonCount; e++) {
+    const v1 = hexagonVertices[e];
+    const v2 = hexagonVertices[(e + 1) % 6];
+    
+    for (let i = 0; i < particlesPerHexEdge && idx < edgeCount + vertexCount + centerCount + hexagonCount; i++, idx++) {
+      const t = i / particlesPerHexEdge;
+      const thickness = 0.012;
+      
+      positions[idx * 3] = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 1] = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.03;
+      
+      // Golden hexagon
+      const c = gold.clone().lerp(white, 0.4 + Math.random() * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 4;
+    }
+  }
+
+  // 5. Ambient outer glow and energy lines
+  for (; idx < PARTICLE_COUNT; idx++) {
+    // Create radiating energy lines from center
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 0.8 + Math.random() * 0.7;
+    const lineThickness = 0.01;
+    
+    positions[idx * 3] = distance * Math.cos(angle) + (Math.random() - 0.5) * lineThickness;
+    positions[idx * 3 + 1] = distance * Math.sin(angle) + (Math.random() - 0.5) * lineThickness;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.15;
+    
+    // Faint blue-white energy
+    const c = deepBlue.clone().lerp(cyan, Math.random());
+    c.multiplyScalar(0.3 + Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 5;
+  }
+
+  return { positions, colors, groups };
+}
+
 export function generateSriYantraData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
