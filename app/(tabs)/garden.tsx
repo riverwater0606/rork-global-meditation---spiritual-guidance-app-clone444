@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -201,14 +201,6 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
-    // 7. Sri Yantra
-    const generateSriYantra = () => {
-      const data = generateSriYantraData();
-      targetPositions.set(data.positions);
-      colors.set(data.colors);
-      groups.set(data.groups);
-    };
-
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -256,9 +248,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'star-of-david') generateStarOfDavid();
     else if (shape === 'merkaba') generateMerkaba();
     else if (shape === 'tree-of-life') generateTreeOfLife();
-    else if (shape === 'grid-of-life') generateGridOfLife();
-    else if (shape === 'sri-yantra') generateSriYantra();
     else if (shape === 'earth') generateEarth();
+    else if (shape === 'grid-of-life') generateGridOfLife();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -418,72 +409,6 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            const wave = Math.sin(t * 1.2 + Math.atan2(ty, tx) * 4) * 0.03;
            tx += wave; ty += wave;
          }
-      } else if (shape === 'sri-yantra') {
-          const g = groups[i];
-          
-          // g=0: Bindu (Singularity)
-          // g=1-9: Triangles (Pyramid)
-          // g=10: Lotus Petals
-          // g=11: Bhupura (Square)
-
-          if (g === 0) {
-             // Bindu: Radiant high-energy singularity
-             // High frequency vibration + breathing
-             const pulse = 1.0 + Math.sin(t * 3) * 0.05 + Math.sin(t * 10) * 0.02;
-             tx *= pulse; ty *= pulse; tz *= pulse;
-             
-             // Gravitational pull / Jitter
-             tx += (Math.random() - 0.5) * 0.01;
-             ty += (Math.random() - 0.5) * 0.01;
-             tz += (Math.random() - 0.5) * 0.01;
-          } 
-          else if (g >= 1 && g <= 9) {
-             // Triangles: Breathing pyramid
-             // Different layers breathe at different rates/phases to create "living" organic feel
-             const phase = g * 0.2;
-             const breath = 1.0 + Math.sin(t * 0.8 + phase) * 0.02;
-             
-             // Expand/Contract horizontally
-             tx *= breath; 
-             ty *= breath;
-             
-             // Slight Z-float (vertical breathing) to emphasize 3D depth
-             const zFloat = Math.sin(t * 0.5 + phase) * 0.015;
-             tz += zFloat;
-
-             // Energy flow along the lines
-             // Add a subtle wave that moves along the geometry
-             if (Math.random() > 0.95) {
-                // Occasional sparkles traveling
-                 const flow = Math.sin(t * 5 + tx * 2 + ty * 2) * 0.005;
-                 tx += flow; ty += flow;
-             }
-          } 
-          else if (g === 10) {
-             // Lotus Petals: "Opening" and "Closing" gently
-             // They tilt slightly based on radial distance
-             const dist = Math.sqrt(tx*tx + ty*ty);
-             
-             // Z-movement to simulate petal cupping motion
-             const cup = Math.sin(t * 0.4 + dist) * 0.02;
-             tz += cup;
-             
-             // Gentle rotation of the lotus ring itself (if we wanted independent rotation)
-             // But simpler to just breathe
-             const breath = 1.0 + Math.sin(t * 0.4) * 0.03;
-             tx *= breath; ty *= breath;
-          } 
-          else if (g === 11) {
-             // Bhupura: Grounding, stable container
-             // Very slow, deep pulse
-             const deepPulse = 1.0 + Math.sin(t * 0.2) * 0.01;
-             tx *= deepPulse; ty *= deepPulse;
-             
-             // Horizon shimmer
-             if (Math.random() > 0.98) {
-                 tz += (Math.random() - 0.5) * 0.02;
-             }
-          }
       } else if (shape === 'earth') {
           // Earth Animation: 
           // 1. Slow rotation of the "texture" (points) relative to the frame?
@@ -593,7 +518,6 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '' },
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '' },
   { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
-  { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '斯里·揚特拉', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
