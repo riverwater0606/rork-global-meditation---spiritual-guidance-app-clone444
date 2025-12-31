@@ -1529,3 +1529,237 @@ export function generateSriYantraData() {
 
   return { positions, colors, groups };
 }
+
+// --- GOLDEN RECTANGLES ---
+// Three interconnected golden rectangles representing the cosmos and union of forces
+// Each rectangle has sides in the golden ratio φ ≈ 1.618
+// The three rectangles are mutually perpendicular (XY, YZ, ZX planes)
+// Represents the underlying structure of creation and harmony in the universe
+
+export function generateGoldenRectanglesData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.65;
+  const phi = 1.618; // Golden ratio
+  
+  // Dimensions of golden rectangle
+  const width = 1.0 * scale;
+  const height = phi * scale;
+  
+  // Golden color palette - amber, gold, bronze representing wealth and divine proportion
+  const deepGold = new THREE.Color('#B8860B');
+  const gold = new THREE.Color('#FFD700');
+  const amber = new THREE.Color('#FFBF00');
+  const bronze = new THREE.Color('#CD7F32');
+  const white = new THREE.Color('#FFFFFF');
+  const orange = new THREE.Color('#FF8C00');
+  const lightGold = new THREE.Color('#FFF4D6');
+
+  // Three rectangles in perpendicular planes
+  // Rectangle 1: XY plane (width along X, height along Y)
+  // Rectangle 2: YZ plane (width along Y, height along Z)
+  // Rectangle 3: ZX plane (width along Z, height along X)
+  
+  const rectangleCount = Math.floor(PARTICLE_COUNT * 0.65);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+  
+  // 1. Three Golden Rectangles (edges)
+  const particlesPerRectangle = Math.floor(rectangleCount / 3);
+  const particlesPerEdge = Math.floor(particlesPerRectangle / 4); // 4 edges per rectangle
+  
+  // Rectangle 1: XY plane (vertical orientation)
+  const rect1Color = gold;
+  const rect1Accent = amber;
+  const rect1Edges = [
+    [{ x: -width/2, y: -height/2, z: 0 }, { x: width/2, y: -height/2, z: 0 }],  // Bottom
+    [{ x: width/2, y: -height/2, z: 0 }, { x: width/2, y: height/2, z: 0 }],    // Right
+    [{ x: width/2, y: height/2, z: 0 }, { x: -width/2, y: height/2, z: 0 }],    // Top
+    [{ x: -width/2, y: height/2, z: 0 }, { x: -width/2, y: -height/2, z: 0 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect1Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect1Color.clone().lerp(rect1Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
+    }
+  }
+  
+  // Rectangle 2: YZ plane (frontal orientation)
+  const rect2Color = bronze;
+  const rect2Accent = orange;
+  const rect2Edges = [
+    [{ x: 0, y: -width/2, z: -height/2 }, { x: 0, y: width/2, z: -height/2 }],  // Bottom
+    [{ x: 0, y: width/2, z: -height/2 }, { x: 0, y: width/2, z: height/2 }],    // Right
+    [{ x: 0, y: width/2, z: height/2 }, { x: 0, y: -width/2, z: height/2 }],    // Top
+    [{ x: 0, y: -width/2, z: height/2 }, { x: 0, y: -width/2, z: -height/2 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect2Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount * 2; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (v2.z - v1.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect2Color.clone().lerp(rect2Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+  
+  // Rectangle 3: ZX plane (horizontal orientation)
+  const rect3Color = deepGold;
+  const rect3Accent = lightGold;
+  const rect3Edges = [
+    [{ x: -height/2, y: 0, z: -width/2 }, { x: height/2, y: 0, z: -width/2 }],  // Bottom
+    [{ x: height/2, y: 0, z: -width/2 }, { x: height/2, y: 0, z: width/2 }],    // Right
+    [{ x: height/2, y: 0, z: width/2 }, { x: -height/2, y: 0, z: width/2 }],    // Top
+    [{ x: -height/2, y: 0, z: width/2 }, { x: -height/2, y: 0, z: -width/2 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect3Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount * 3; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (v2.z - v1.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect3Color.clone().lerp(rect3Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+    }
+  }
+  
+  // 2. Intersection nodes (12 edge intersections where rectangles cross)
+  const intersectionNodes: THREE.Vector3[] = [
+    // Rectangle 1 & 2 intersections (4 points on Y axis)
+    new THREE.Vector3(0, height/2, 0),
+    new THREE.Vector3(0, -height/2, 0),
+    new THREE.Vector3(0, width/2, 0),
+    new THREE.Vector3(0, -width/2, 0),
+    // Rectangle 2 & 3 intersections (4 points on Z axis)
+    new THREE.Vector3(0, 0, height/2),
+    new THREE.Vector3(0, 0, -height/2),
+    new THREE.Vector3(0, 0, width/2),
+    new THREE.Vector3(0, 0, -width/2),
+    // Rectangle 3 & 1 intersections (4 points on X axis)
+    new THREE.Vector3(height/2, 0, 0),
+    new THREE.Vector3(-height/2, 0, 0),
+    new THREE.Vector3(width/2, 0, 0),
+    new THREE.Vector3(-width/2, 0, 0),
+  ];
+  
+  const particlesPerNode = Math.max(1, Math.floor(intersectionCount / intersectionNodes.length));
+  for (let n = 0; n < intersectionNodes.length && idx < rectangleCount + intersectionCount; n++) {
+    const node = intersectionNodes[n];
+    const nodeRadius = 0.06;
+    
+    for (let i = 0; i < particlesPerNode && idx < rectangleCount + intersectionCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
+      
+      positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      
+      // Bright glowing intersections
+      const brightness = 1.0 - (r / nodeRadius) * 0.5;
+      const c = white.clone().lerp(gold, 0.3);
+      c.multiplyScalar(0.7 + brightness * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 3;
+    }
+  }
+  
+  // 3. Sacred center point (cosmic origin)
+  for (let i = 0; i < centerCount && idx < rectangleCount + intersectionCount + centerCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.3) * 0.08;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    // Pure white-gold radiant center
+    const brightness = 1.0 - (r / 0.08) * 0.3;
+    const c = white.clone().lerp(gold, 0.2);
+    c.multiplyScalar(0.85 + brightness * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 4;
+  }
+  
+  // 4. Outer spherical aura (divine proportion radiating outward)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.4;
+    
+    // Soft golden ambient glow
+    const c = deepGold.clone().lerp(amber, Math.random());
+    c.lerp(white, Math.random() * 0.15);
+    c.multiplyScalar(0.2 + Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 5;
+  }
+
+  return { positions, colors, groups };
+}

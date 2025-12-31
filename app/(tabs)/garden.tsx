@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -172,6 +172,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 9. Golden Rectangles
+    const generateGoldenRectangles = () => {
+      const data = generateGoldenRectanglesData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -223,6 +231,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'grid-of-life') generateGridOfLife();
     else if (shape === 'sri-yantra') generateSriYantra();
     else if (shape === 'triquetra') generateTriquetra();
+    else if (shape === 'golden-rectangles') generateGoldenRectangles();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -504,6 +513,48 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            tx += auraBreath * Math.cos(angle);
            ty += auraBreath * Math.sin(angle);
          }
+      } else if (shape === 'golden-rectangles') {
+         const g = groups[i];
+         // Divine proportion breathing for entire structure
+         const pulse = 1.0 + Math.sin(t * 1.8) * 0.035;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Rectangle edges (g=0,1,2) - flowing golden energy
+         if (g === 0) {
+           // XY plane rectangle - horizontal wave
+           const wave = Math.sin(t * 2.2 + tx * 3) * 0.02;
+           tx += wave; ty += wave * 0.5;
+         }
+         else if (g === 1) {
+           // YZ plane rectangle - vertical wave
+           const wave = Math.sin(t * 2.0 + ty * 3) * 0.02;
+           ty += wave; tz += wave * 0.5;
+         }
+         else if (g === 2) {
+           // ZX plane rectangle - depth wave
+           const wave = Math.sin(t * 2.4 + tz * 3) * 0.02;
+           tz += wave; tx += wave * 0.5;
+         }
+         // Intersection nodes (g=3) - bright golden glow
+         else if (g === 3) {
+           const nodeGlow = 1.0 + Math.sin(t * 3.5 + i * 0.03) * 0.12;
+           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
+         }
+         // Sacred center (g=4) - phi ratio pulse
+         else if (g === 4) {
+           const phiPulse = 1.0 + Math.sin(t * 2.618) * 0.15; // 2.618 ≈ φ + 1
+           tx *= phiPulse; ty *= phiPulse; tz *= phiPulse;
+         }
+         // Outer aura (g=5) - radiating divine proportion
+         else if (g === 5) {
+           const radialPulse = Math.sin(t * 1.618 + Math.sqrt(tx*tx + ty*ty + tz*tz) * 2) * 0.025;
+           const dist = Math.sqrt(tx*tx + ty*ty + tz*tz);
+           if (dist > 0.001) {
+             tx += radialPulse * (tx / dist);
+             ty += radialPulse * (ty / dist);
+             tz += radialPulse * (tz / dist);
+           }
+         }
       } 
 
       // Modifiers based on mode
@@ -604,6 +655,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
   { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '吉祥之輪', icon: '' },
   { id: 'triquetra', name: 'Triquetra', nameZh: '三位一體結', icon: '' },
+  { id: 'golden-rectangles', name: 'Golden Rectangles', nameZh: '黃金矩形', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
