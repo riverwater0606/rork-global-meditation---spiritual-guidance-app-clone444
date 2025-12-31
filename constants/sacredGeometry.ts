@@ -1003,22 +1003,11 @@ export function generateStarOfDavidData() {
     { x: R * Math.cos(150 * Math.PI / 180), y: R * Math.sin(150 * Math.PI / 180) }
   ];
 
-  // Center hexagon vertices
-  const hexagonVertices: THREE.Vector3[] = [];
-  const hexRadius = R * Math.sqrt(3) / 3;
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * 60) * Math.PI / 180;
-    hexagonVertices.push(new THREE.Vector3(
-      hexRadius * Math.cos(angle),
-      hexRadius * Math.sin(angle),
-      0
-    ));
-  }
+
 
   const edgeCount = Math.floor(PARTICLE_COUNT * 0.55);
-  const vertexCount = Math.floor(PARTICLE_COUNT * 0.20);
-  const hexagonCount = Math.floor(PARTICLE_COUNT * 0.15);
-  const centerCount = Math.floor(PARTICLE_COUNT * 0.05);
+  const vertexCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
   
   let idx = 0;
 
@@ -1120,33 +1109,9 @@ export function generateStarOfDavidData() {
     }
   }
 
-  // 3. Center hexagon - Sacred inner geometry
-  const particlesPerHexEdge = Math.floor(hexagonCount / 6);
-  for (let e = 0; e < 6 && idx < edgeCount + vertexCount + hexagonCount; e++) {
-    const v1 = hexagonVertices[e];
-    const v2 = hexagonVertices[(e + 1) % 6];
-    
-    for (let i = 0; i < particlesPerHexEdge && idx < edgeCount + vertexCount + hexagonCount; i++, idx++) {
-      const t = i / particlesPerHexEdge;
-      const thickness = 0.010;
-      
-      positions[idx * 3] = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
-      positions[idx * 3 + 1] = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
-      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.025;
-      
-      // Glowing golden hexagon
-      const c = gold.clone().lerp(white, 0.5 + Math.sin(t * Math.PI) * 0.2);
-      
-      colors[idx * 3] = c.r;
-      colors[idx * 3 + 1] = c.g;
-      colors[idx * 3 + 2] = c.b;
-      groups[idx] = 3;
-    }
-  }
-
-  // 4. Sacred center point - The bindu
+  // 3. Sacred center point - The bindu
   const binduRadius = 0.05;
-  for (let i = 0; i < centerCount && idx < edgeCount + vertexCount + hexagonCount + centerCount; i++, idx++) {
+  for (let i = 0; i < centerCount && idx < edgeCount + vertexCount + centerCount; i++, idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
     const r = Math.pow(Math.random(), 0.3) * binduRadius;
@@ -1163,10 +1128,10 @@ export function generateStarOfDavidData() {
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;
     colors[idx * 3 + 2] = c.b;
-    groups[idx] = 4;
+    groups[idx] = 3;
   }
 
-  // 5. Subtle ambient halo - Soft, ethereal
+  // 4. Subtle ambient halo - Soft, ethereal
   for (; idx < PARTICLE_COUNT; idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
@@ -1186,7 +1151,7 @@ export function generateStarOfDavidData() {
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;
     colors[idx * 3 + 2] = c.b;
-    groups[idx] = 5;
+    groups[idx] = 4;
   }
 
   return { positions, colors, groups };
