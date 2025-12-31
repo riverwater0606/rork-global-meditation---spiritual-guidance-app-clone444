@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -201,6 +201,14 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 7. Sri Yantra
+    const generateSriYantra = () => {
+      const data = generateSriYantraData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -250,6 +258,7 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'tree-of-life') generateTreeOfLife();
     else if (shape === 'earth') generateEarth();
     else if (shape === 'grid-of-life') generateGridOfLife();
+    else if (shape === 'sri-yantra') generateSriYantra();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -420,6 +429,32 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
           // No, usually we rotate the sphere container.
           
           // Let's handle Earth rotation in the main rotation logic (outside loop)
+      } else if (shape === 'sri-yantra') {
+         const g = groups[i];
+         // Sacred pulsing for entire yantra
+         const pulse = 1.0 + Math.sin(t * 2.5) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Bindu (g=0) - central point bright pulsing
+         if (g === 0) {
+           const binduGlow = 1.0 + Math.sin(t * 4) * 0.15;
+           tx *= binduGlow; ty *= binduGlow; tz *= binduGlow;
+         }
+         // Triangles (g=1-9) - alternating wave based on group
+         else if (g >= 1 && g <= 9) {
+           const triangleWave = Math.sin(t * 3 + g * 0.5) * 0.03;
+           tx += triangleWave; ty += triangleWave;
+         }
+         // Intersection nodes (g=10) - bright glow
+         else if (g === 10) {
+           const nodeGlow = 1.0 + Math.sin(t * 5 + i * 0.03) * 0.12;
+           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
+         }
+         // Outer circles (g=11) - rotating wave
+         else if (g === 11) {
+           const outerWave = Math.sin(t * 2 + Math.atan2(ty, tx) * 3) * 0.04;
+           tx += outerWave; ty += outerWave;
+         }
       } 
 
       // Modifiers based on mode
@@ -518,6 +553,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'merkaba', name: 'Merkaba', nameZh: '梅爾卡巴', icon: '' },
   { id: 'tree-of-life', name: 'Tree of Life', nameZh: '生命之樹', icon: '' },
   { id: 'grid-of-life', name: 'Grid of Life', nameZh: '生命之格', icon: '' },
+  { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '吉祥之輪', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 

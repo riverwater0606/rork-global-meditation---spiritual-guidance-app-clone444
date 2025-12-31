@@ -912,3 +912,207 @@ export function generateTreeOfLifeData() {
 
   return { positions, colors, groups };
 }
+
+// --- SRI YANTRA ---
+// 9 interlocking triangles (4 upward, 5 downward) surrounding the bindu
+// Represents union of masculine and feminine energies, cosmic creation
+
+const SRI_YANTRA_TRIANGLES = [
+  // 4 Upward triangles (Shiva - masculine)
+  [
+    { x: 0, y: 0.95 },
+    { x: -0.85, y: -0.55 },
+    { x: 0.85, y: -0.55 }
+  ],
+  [
+    { x: 0, y: 0.7 },
+    { x: -0.65, y: -0.35 },
+    { x: 0.65, y: -0.35 }
+  ],
+  [
+    { x: 0, y: 0.45 },
+    { x: -0.45, y: -0.2 },
+    { x: 0.45, y: -0.2 }
+  ],
+  [
+    { x: 0, y: 0.25 },
+    { x: -0.25, y: -0.1 },
+    { x: 0.25, y: -0.1 }
+  ],
+  // 5 Downward triangles (Shakti - feminine)
+  [
+    { x: 0, y: -0.95 },
+    { x: -0.8, y: 0.5 },
+    { x: 0.8, y: 0.5 }
+  ],
+  [
+    { x: 0, y: -0.65 },
+    { x: -0.6, y: 0.3 },
+    { x: 0.6, y: 0.3 }
+  ],
+  [
+    { x: 0, y: -0.4 },
+    { x: -0.42, y: 0.15 },
+    { x: 0.42, y: 0.15 }
+  ],
+  [
+    { x: 0, y: -0.2 },
+    { x: -0.28, y: 0.08 },
+    { x: 0.28, y: 0.08 }
+  ],
+  [
+    { x: 0, y: -0.08 },
+    { x: -0.15, y: 0.03 },
+    { x: 0.15, y: 0.03 }
+  ],
+];
+
+export function generateSriYantraData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.8;
+  
+  // Sacred color palette - gold, magenta, orange (wealth and prosperity)
+  const gold = new THREE.Color('#FFD700');
+  const deepGold = new THREE.Color('#FFA500');
+  const magenta = new THREE.Color('#FF1493');
+  const orange = new THREE.Color('#FF6B35');
+  const white = new THREE.Color('#FFFFFF');
+  const crimson = new THREE.Color('#DC143C');
+
+  const binduCount = Math.floor(PARTICLE_COUNT * 0.08);
+  const triangleCount = Math.floor(PARTICLE_COUNT * 0.70);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.12);
+  
+  let idx = 0;
+
+  // 1. Bindu - Central point (origin of universe)
+  const binduRadius = 0.06;
+  for (let i = 0; i < binduCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.5) * binduRadius;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const c = white.clone().lerp(gold, Math.random() * 0.4);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Nine Triangles (edges)
+  const particlesPerTriangle = Math.floor(triangleCount / SRI_YANTRA_TRIANGLES.length);
+  const particlesPerEdge = Math.floor(particlesPerTriangle / 3);
+  
+  for (let t = 0; t < SRI_YANTRA_TRIANGLES.length && idx < binduCount + triangleCount; t++) {
+    const triangle = SRI_YANTRA_TRIANGLES[t];
+    const isUpward = t < 4;
+    
+    const baseColor = isUpward ? gold.clone() : magenta.clone();
+    const accentColor = isUpward ? deepGold.clone() : crimson.clone();
+    
+    for (let e = 0; e < 3; e++) {
+      const v1 = triangle[e];
+      const v2 = triangle[(e + 1) % 3];
+      
+      for (let i = 0; i < particlesPerEdge && idx < binduCount + triangleCount; i++, idx++) {
+        const edgeT = i / particlesPerEdge;
+        const thickness = 0.012;
+        
+        const x = (v1.x + (v2.x - v1.x) * edgeT) * scale + (Math.random() - 0.5) * thickness;
+        const y = (v1.y + (v2.y - v1.y) * edgeT) * scale + (Math.random() - 0.5) * thickness;
+        
+        const layerDepth = (t / SRI_YANTRA_TRIANGLES.length) * 0.15;
+        const z = (isUpward ? layerDepth : -layerDepth) + (Math.random() - 0.5) * 0.02;
+        
+        positions[idx * 3] = x;
+        positions[idx * 3 + 1] = y;
+        positions[idx * 3 + 2] = z;
+        
+        const c = baseColor.clone().lerp(accentColor, edgeT);
+        c.lerp(white, Math.random() * 0.15);
+        
+        colors[idx * 3] = c.r;
+        colors[idx * 3 + 1] = c.g;
+        colors[idx * 3 + 2] = c.b;
+        groups[idx] = 1 + t;
+      }
+    }
+  }
+
+  // 3. Intersection points
+  const intersectionNodes: THREE.Vector3[] = [];
+  
+  for (let t1 = 0; t1 < SRI_YANTRA_TRIANGLES.length; t1++) {
+    const tri1 = SRI_YANTRA_TRIANGLES[t1];
+    for (const v of tri1) {
+      intersectionNodes.push(new THREE.Vector3(v.x * scale, v.y * scale, 0));
+    }
+  }
+  
+  const uniqueNodes: THREE.Vector3[] = [];
+  const threshold = 0.05;
+  for (const node of intersectionNodes) {
+    let isDuplicate = false;
+    for (const unique of uniqueNodes) {
+      if (node.distanceTo(unique) < threshold) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    if (!isDuplicate) uniqueNodes.push(node);
+  }
+  
+  const particlesPerNode = Math.max(1, Math.floor(intersectionCount / uniqueNodes.length));
+  for (let n = 0; n < uniqueNodes.length && idx < binduCount + triangleCount + intersectionCount; n++) {
+    const node = uniqueNodes[n];
+    const nodeRadius = 0.025;
+    
+    for (let i = 0; i < particlesPerNode && idx < binduCount + triangleCount + intersectionCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      
+      positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      
+      const c = orange.clone().lerp(gold, Math.random());
+      c.lerp(white, 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 10;
+    }
+  }
+
+  // 4. Outer circles (lotus petals)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const circleIdx = Math.floor(Math.random() * 3);
+    const radius = [1.1, 1.3, 1.5][circleIdx] * scale;
+    
+    const angle = Math.random() * Math.PI * 2;
+    const radiusJitter = (Math.random() - 0.5) * 0.015;
+    
+    positions[idx * 3] = (radius + radiusJitter) * Math.cos(angle);
+    positions[idx * 3 + 1] = (radius + radiusJitter) * Math.sin(angle);
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.05;
+    
+    const c = gold.clone().lerp(deepGold, Math.random());
+    c.multiplyScalar(0.4 + Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 11;
+  }
+
+  return { positions, colors, groups };
+}
