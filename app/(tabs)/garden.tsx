@@ -472,29 +472,25 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          }
       } else if (shape === 'triquetra') {
          const g = groups[i];
-         // Gentle unified breathing - entire form breathes as one
-         const breath = 1.0 + Math.sin(t * 1.2) * 0.025;
+         // Extremely subtle unified breathing - entire form breathes as one eternal presence
+         const breath = 1.0 + Math.sin(t * 0.8) * 0.015;
          tx *= breath; ty *= breath; tz *= breath;
          
-         // Arc particles (g=0,1,2) - minimal flow along the strands
+         // Arc particles (g=0,1,2) - the three sacred strands flow with barely perceptible energy
          if (g === 0 || g === 1 || g === 2) {
-           const subtleFlow = Math.sin(t * 1.8 + i * 0.005) * 0.012;
-           tx += subtleFlow * Math.cos(Math.atan2(ty, tx));
-           ty += subtleFlow * Math.sin(Math.atan2(ty, tx));
+           const subtleFlow = Math.sin(t * 1.5 + i * 0.003) * 0.008;
+           const angle = Math.atan2(ty, tx);
+           tx += subtleFlow * Math.cos(angle);
+           ty += subtleFlow * Math.sin(angle);
          }
-         // Intersection nodes (g=3) - soft radiant glow
-         else if (g === 3) {
-           const nodeGlow = 1.0 + Math.sin(t * 3 + i * 0.03) * 0.08;
-           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
-         }
-         // Center trinity point (g=4) - sacred gentle pulse
+         // Center luminescence (g=4) - soft eternal light
          else if (g === 4) {
-           const centerGlow = 1.0 + Math.sin(t * 2.5) * 0.12;
-           tx *= centerGlow; ty *= centerGlow; tz *= centerGlow;
+           const coreGlow = 1.0 + Math.sin(t * 2.0) * 0.08;
+           tx *= coreGlow; ty *= coreGlow; tz *= coreGlow;
          }
-         // Ambient halo (g=5) - slow ethereal drift
+         // Ambient halo (g=5) - slow ethereal presence
          else if (g === 5) {
-           const drift = Math.sin(t * 0.8 + Math.atan2(ty, tx) * 2) * 0.02;
+           const drift = Math.sin(t * 0.6 + Math.atan2(ty, tx) * 2) * 0.015;
            const angle = Math.atan2(ty, tx);
            tx += drift * Math.cos(angle);
            ty += drift * Math.sin(angle);
