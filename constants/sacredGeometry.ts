@@ -1167,91 +1167,72 @@ export function generateTriquetraData() {
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.7;
+  const scale = 0.8;
   
-  // Celtic color palette - mystical greens, golds, and silvers
-  const emerald = new THREE.Color('#10B981');
-  const jade = new THREE.Color('#34D399');
-  const gold = new THREE.Color('#FCD34D');
-  const silver = new THREE.Color('#D1D5DB');
+  // Elegant Celtic palette - deep blues, silvers, pure white
+  const sapphire = new THREE.Color('#0F52BA');
+  const azure = new THREE.Color('#007FFF');
+  const silver = new THREE.Color('#C0C0C0');
+  const platinum = new THREE.Color('#E5E4E2');
   const white = new THREE.Color('#FFFFFF');
-  const deepGreen = new THREE.Color('#047857');
-  const lightGreen = new THREE.Color('#6EE7B7');
+  const iceBlue = new THREE.Color('#A5D8FF');
+  const deepBlue = new THREE.Color('#1E3A8A');
 
-  // Triquetra consists of 3 circular arcs that interlock
-  // Each arc is part of a circle with radius R
-  // The three circles are positioned at 120° intervals
+  const R = 0.75 * scale;
+  const centerDistance = 0.48 * scale;
   
-  const R = 0.8 * scale; // Radius of each circle
-  const centerDistance = 0.52 * scale; // Distance from origin to each circle's center
-  
-  // Three circle centers (120° apart)
   const centers = [
     { x: 0, y: centerDistance, angle: 90 },
     { x: centerDistance * Math.cos(210 * Math.PI / 180), y: centerDistance * Math.sin(210 * Math.PI / 180), angle: 210 },
     { x: centerDistance * Math.cos(330 * Math.PI / 180), y: centerDistance * Math.sin(330 * Math.PI / 180), angle: 330 }
   ];
 
-  // Calculate arc segments for each of the three arcs
-  // Each arc is approximately 240° of its circle (to create the interlocking effect)
-  const arcStartAngle = -20; // Start angle offset
-  const arcEndAngle = 220; // End angle offset (240° arc)
+  const arcStartAngle = -25;
+  const arcEndAngle = 225;
   
-  const arcCount = Math.floor(PARTICLE_COUNT * 0.60);
-  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.12);
+  const arcCount = Math.floor(PARTICLE_COUNT * 0.65);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
   const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
-  const outerCircleCount = Math.floor(PARTICLE_COUNT * 0.12);
   
   let idx = 0;
 
-  // 1. Three interlocking arcs
+  // 1. Three interlocking arcs - clean, smooth, no wave effects
   const particlesPerArc = Math.floor(arcCount / 3);
   
   for (let arcIdx = 0; arcIdx < 3; arcIdx++) {
     const center = centers[arcIdx];
-    const baseColor = arcIdx === 0 ? emerald : (arcIdx === 1 ? jade : gold);
-    const accentColor = arcIdx === 0 ? deepGreen : (arcIdx === 1 ? lightGreen : silver);
     
     for (let i = 0; i < particlesPerArc && idx < arcCount; i++, idx++) {
-      // Angle along the arc (240° span)
       const t = i / particlesPerArc;
       const angleInArc = arcStartAngle + t * (arcEndAngle - arcStartAngle);
       const theta = (center.angle + angleInArc) * Math.PI / 180;
       
-      // Position on the circle arc
-      const thickness = 0.025;
+      const thickness = 0.020;
       const radiusJitter = (Math.random() - 0.5) * thickness;
       
       const x = center.x + (R + radiusJitter) * Math.cos(theta);
       const y = center.y + (R + radiusJitter) * Math.sin(theta);
       
-      // 3D depth - arcs weave over/under each other
-      let z = 0;
-      if (arcIdx === 0) {
-        // Top arc: goes under left, over right
-        if (t < 0.3) z = -0.08 * Math.sin(t * Math.PI / 0.3);
-        else if (t > 0.7) z = 0.08 * Math.sin((t - 0.7) * Math.PI / 0.3);
-        else z = 0.04;
-      } else if (arcIdx === 1) {
-        // Bottom-left arc: goes over top, under right
-        if (t < 0.3) z = 0.08 * Math.sin(t * Math.PI / 0.3);
-        else if (t > 0.7) z = -0.08 * Math.sin((t - 0.7) * Math.PI / 0.3);
-        else z = -0.04;
-      } else {
-        // Bottom-right arc: goes under top, over left
-        if (t < 0.3) z = -0.08 * Math.sin(t * Math.PI / 0.3);
-        else if (t > 0.7) z = 0.08 * Math.sin((t - 0.7) * Math.PI / 0.3);
-        else z = 0;
-      }
-      z += (Math.random() - 0.5) * 0.015;
+      // Simple subtle 3D layering - no wave effects
+      const z = (arcIdx - 1) * 0.025 + (Math.random() - 0.5) * 0.012;
       
       positions[idx * 3] = x;
       positions[idx * 3 + 1] = y;
       positions[idx * 3 + 2] = z;
       
-      // Color gradient along arc
-      const c = baseColor.clone().lerp(accentColor, Math.sin(t * Math.PI));
-      c.lerp(white, Math.random() * 0.12);
+      // Elegant color gradient - blue to silver
+      const blendT = Math.sin(t * Math.PI);
+      let c: THREE.Color;
+      
+      if (arcIdx === 0) {
+        c = sapphire.clone().lerp(azure, blendT);
+      } else if (arcIdx === 1) {
+        c = azure.clone().lerp(iceBlue, blendT);
+      } else {
+        c = iceBlue.clone().lerp(platinum, blendT);
+      }
+      
+      c.lerp(white, Math.random() * 0.15);
       
       colors[idx * 3] = c.r;
       colors[idx * 3 + 1] = c.g;
@@ -1260,53 +1241,43 @@ export function generateTriquetraData() {
     }
   }
 
-  // 2. Intersection points (where arcs cross)
-  // Calculate the three main intersection points
+  // 2. Intersection nodes - pure radiant light
   const intersectionNodes: THREE.Vector3[] = [];
   
-  // Intersection point between arc 0 and arc 1
-  const angle01 = (centers[0].angle + centers[1].angle) / 2;
-  intersectionNodes.push(new THREE.Vector3(
-    centerDistance * 0.4 * Math.cos((angle01 + 30) * Math.PI / 180),
-    centerDistance * 0.4 * Math.sin((angle01 + 30) * Math.PI / 180),
-    0
-  ));
+  for (let i = 0; i < 3; i++) {
+    const nextI = (i + 1) % 3;
+    const c1 = centers[i];
+    const c2 = centers[nextI];
+    
+    const midAngle = Math.atan2(c1.y + c2.y, c1.x + c2.x);
+    const dist = centerDistance * 0.55;
+    
+    intersectionNodes.push(new THREE.Vector3(
+      dist * Math.cos(midAngle),
+      dist * Math.sin(midAngle),
+      0
+    ));
+  }
   
-  // Intersection point between arc 1 and arc 2
-  const angle12 = (centers[1].angle + centers[2].angle) / 2 + 180;
-  intersectionNodes.push(new THREE.Vector3(
-    centerDistance * 0.4 * Math.cos((angle12 - 90) * Math.PI / 180),
-    centerDistance * 0.4 * Math.sin((angle12 - 90) * Math.PI / 180),
-    0
-  ));
-  
-  // Intersection point between arc 2 and arc 0
-  const angle20 = (centers[2].angle + centers[0].angle + 360) / 2;
-  intersectionNodes.push(new THREE.Vector3(
-    centerDistance * 0.4 * Math.cos((angle20 + 30) * Math.PI / 180),
-    centerDistance * 0.4 * Math.sin((angle20 + 30) * Math.PI / 180),
-    0
-  ));
-  
-  // Add center point (trinity center)
   intersectionNodes.push(new THREE.Vector3(0, 0, 0));
   
   const particlesPerNode = Math.max(1, Math.floor(intersectionCount / intersectionNodes.length));
   for (let n = 0; n < intersectionNodes.length && idx < arcCount + intersectionCount; n++) {
     const node = intersectionNodes[n];
-    const nodeRadius = n === 3 ? 0.05 : 0.035; // Center node larger
+    const nodeRadius = n === 3 ? 0.08 : 0.05;
     
     for (let i = 0; i < particlesPerNode && idx < arcCount + intersectionCount; i++, idx++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
       
       positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
       positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
-      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi) * 0.5;
       
-      // Bright glowing intersections
-      const c = white.clone().lerp(gold, 0.3 + Math.random() * 0.3);
+      const brightness = 1.0 - (r / nodeRadius) * 0.6;
+      const c = white.clone().lerp(iceBlue, 0.2);
+      c.multiplyScalar(0.75 + brightness * 0.25);
       
       colors[idx * 3] = c.r;
       colors[idx * 3 + 1] = c.g;
@@ -1315,20 +1286,19 @@ export function generateTriquetraData() {
     }
   }
 
-  // 3. Center trinity point (sacred center)
+  // 3. Center trinity point
   for (let i = 0; i < centerCount && idx < arcCount + intersectionCount + centerCount; i++, idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = Math.pow(Math.random(), 0.3) * 0.06;
+    const r = Math.pow(Math.random(), 0.3) * 0.07;
     
     positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[idx * 3 + 2] = r * Math.cos(phi);
     
-    // Pure white-gold center representing unity
-    const brightness = 1.0 - (r / 0.06) * 0.4;
-    const c = white.clone().lerp(gold, 0.2);
-    c.multiplyScalar(0.8 + brightness * 0.2);
+    const brightness = 1.0 - (r / 0.07) * 0.4;
+    const c = white.clone().lerp(silver, 0.15);
+    c.multiplyScalar(0.85 + brightness * 0.15);
     
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;
@@ -1336,45 +1306,24 @@ export function generateTriquetraData() {
     groups[idx] = 4;
   }
 
-  // 4. Outer enclosing circle (eternity ring)
-  const outerRadius = 1.15 * scale;
-  for (let i = 0; i < outerCircleCount && idx < arcCount + intersectionCount + centerCount + outerCircleCount; i++, idx++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radiusJitter = (Math.random() - 0.5) * 0.015;
+  // 4. Ambient celestial glow - soft and ethereal
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.1 + Math.pow(Math.random(), 2.5) * 0.5;
     
-    positions[idx * 3] = (outerRadius + radiusJitter) * Math.cos(angle);
-    positions[idx * 3 + 1] = (outerRadius + radiusJitter) * Math.sin(angle);
-    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.025;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.25;
     
-    // Silver-green outer ring
-    const c = silver.clone().lerp(emerald, 0.3 + Math.random() * 0.3);
-    c.multiplyScalar(0.7 + Math.random() * 0.3);
+    const c = deepBlue.clone().lerp(sapphire, Math.random());
+    c.lerp(silver, Math.random() * 0.2);
+    c.multiplyScalar(0.12 + Math.random() * 0.12);
     
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;
     colors[idx * 3 + 2] = c.b;
     groups[idx] = 5;
-  }
-
-  // 5. Ambient mystical aura
-  for (; idx < PARTICLE_COUNT; idx++) {
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
-    
-    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.3;
-    
-    // Faint green-gold mystical aura
-    const c = deepGreen.clone().lerp(emerald, Math.random());
-    c.lerp(gold, Math.random() * 0.2);
-    c.multiplyScalar(0.15 + Math.random() * 0.15);
-    
-    colors[idx * 3] = c.r;
-    colors[idx * 3 + 1] = c.g;
-    colors[idx * 3 + 2] = c.b;
-    groups[idx] = 6;
   }
 
   return { positions, colors, groups };
