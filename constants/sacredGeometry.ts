@@ -1167,72 +1167,85 @@ export function generateTriquetraData() {
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.8;
+  const scale = 0.85;
   
-  // Elegant Celtic palette - deep blues, silvers, pure white
-  const sapphire = new THREE.Color('#0F52BA');
-  const azure = new THREE.Color('#007FFF');
-  const silver = new THREE.Color('#C0C0C0');
-  const platinum = new THREE.Color('#E5E4E2');
+  // Golden luminous palette - warm, sacred, eternal
+  const deepGold = new THREE.Color('#B8860B');
+  const gold = new THREE.Color('#FFD700');
+  const lightGold = new THREE.Color('#FFF4CC');
   const white = new THREE.Color('#FFFFFF');
-  const iceBlue = new THREE.Color('#A5D8FF');
-  const deepBlue = new THREE.Color('#1E3A8A');
+  const amber = new THREE.Color('#FFBF00');
+  const bronze = new THREE.Color('#CD7F32');
 
-  const R = 0.75 * scale;
-  const centerDistance = 0.48 * scale;
+  // Perfect Triquetra geometry:
+  // Three circles with radius R, centers forming equilateral triangle with side = R
+  // Each circle passes through the centers of the other two
+  const R = 0.72 * scale; // Circle radius
+  const d = R; // Distance between centers (creates perfect overlap)
   
+  // Three circle centers at 120° intervals
   const centers = [
-    { x: 0, y: centerDistance, angle: 90 },
-    { x: centerDistance * Math.cos(210 * Math.PI / 180), y: centerDistance * Math.sin(210 * Math.PI / 180), angle: 210 },
-    { x: centerDistance * Math.cos(330 * Math.PI / 180), y: centerDistance * Math.sin(330 * Math.PI / 180), angle: 330 }
+    { 
+      x: 0, 
+      y: d / Math.sqrt(3), 
+      startAngle: 210 * Math.PI / 180, 
+      endAngle: 330 * Math.PI / 180,
+      zOffset: 0.04  // Above
+    },
+    { 
+      x: -d / 2, 
+      y: -d / (2 * Math.sqrt(3)), 
+      startAngle: 330 * Math.PI / 180, 
+      endAngle: 450 * Math.PI / 180,
+      zOffset: 0  // Middle
+    },
+    { 
+      x: d / 2, 
+      y: -d / (2 * Math.sqrt(3)), 
+      startAngle: 90 * Math.PI / 180, 
+      endAngle: 210 * Math.PI / 180,
+      zOffset: -0.04  // Below
+    }
   ];
-
-  const arcStartAngle = -25;
-  const arcEndAngle = 225;
   
-  const arcCount = Math.floor(PARTICLE_COUNT * 0.65);
-  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
-  const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
+  const arcCount = Math.floor(PARTICLE_COUNT * 0.75); // High density for smooth arcs
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.10);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.05);
   
   let idx = 0;
 
-  // 1. Three interlocking arcs - clean, smooth, no wave effects
+  // 1. Three continuous interlocking arcs - Perfect geometry reconstruction
   const particlesPerArc = Math.floor(arcCount / 3);
   
   for (let arcIdx = 0; arcIdx < 3; arcIdx++) {
     const center = centers[arcIdx];
+    const angleSpan = center.endAngle - center.startAngle;
     
     for (let i = 0; i < particlesPerArc && idx < arcCount; i++, idx++) {
       const t = i / particlesPerArc;
-      const angleInArc = arcStartAngle + t * (arcEndAngle - arcStartAngle);
-      const theta = (center.angle + angleInArc) * Math.PI / 180;
+      const theta = center.startAngle + t * angleSpan;
       
-      const thickness = 0.020;
-      const radiusJitter = (Math.random() - 0.5) * thickness;
+      // Very tight line thickness for clean definition
+      const thickness = 0.018;
+      const radiusVar = (Math.random() - 0.5) * thickness;
       
-      const x = center.x + (R + radiusJitter) * Math.cos(theta);
-      const y = center.y + (R + radiusJitter) * Math.sin(theta);
+      const x = center.x + (R + radiusVar) * Math.cos(theta);
+      const y = center.y + (R + radiusVar) * Math.sin(theta);
       
-      // Simple subtle 3D layering - no wave effects
-      const z = (arcIdx - 1) * 0.025 + (Math.random() - 0.5) * 0.012;
+      // Z-offset for over/under weaving - smooth and intentional
+      const weaveFactor = Math.sin(t * Math.PI); // Smooth transition
+      const z = center.zOffset * weaveFactor + (Math.random() - 0.5) * 0.008;
       
       positions[idx * 3] = x;
       positions[idx * 3 + 1] = y;
       positions[idx * 3 + 2] = z;
       
-      // Elegant color gradient - blue to silver
-      const blendT = Math.sin(t * Math.PI);
-      let c: THREE.Color;
-      
-      if (arcIdx === 0) {
-        c = sapphire.clone().lerp(azure, blendT);
-      } else if (arcIdx === 1) {
-        c = azure.clone().lerp(iceBlue, blendT);
-      } else {
-        c = iceBlue.clone().lerp(platinum, blendT);
-      }
-      
-      c.lerp(white, Math.random() * 0.15);
+      // Golden gradient along each arc - luminous and warm
+      const arcProgress = Math.sin(t * Math.PI); // Brightest at midpoint
+      const c = gold.clone();
+      c.lerp(lightGold, arcProgress * 0.5);
+      c.lerp(amber, (1 - arcProgress) * 0.3);
+      c.lerp(white, Math.random() * 0.12); // Subtle sparkle
       
       colors[idx * 3] = c.r;
       colors[idx * 3 + 1] = c.g;
@@ -1241,43 +1254,42 @@ export function generateTriquetraData() {
     }
   }
 
-  // 2. Intersection nodes - pure radiant light
+  // 2. Calculate intersection points for clean crossings
   const intersectionNodes: THREE.Vector3[] = [];
   
+  // Three outer intersection points (where arcs cross)
   for (let i = 0; i < 3; i++) {
-    const nextI = (i + 1) % 3;
-    const c1 = centers[i];
-    const c2 = centers[nextI];
-    
-    const midAngle = Math.atan2(c1.y + c2.y, c1.x + c2.x);
-    const dist = centerDistance * 0.55;
-    
+    const angle = i * 120 * Math.PI / 180 + 90 * Math.PI / 180;
+    const dist = R * 0.48;
     intersectionNodes.push(new THREE.Vector3(
-      dist * Math.cos(midAngle),
-      dist * Math.sin(midAngle),
+      dist * Math.cos(angle),
+      dist * Math.sin(angle),
       0
     ));
   }
   
+  // Central trinity point
   intersectionNodes.push(new THREE.Vector3(0, 0, 0));
   
   const particlesPerNode = Math.max(1, Math.floor(intersectionCount / intersectionNodes.length));
   for (let n = 0; n < intersectionNodes.length && idx < arcCount + intersectionCount; n++) {
     const node = intersectionNodes[n];
-    const nodeRadius = n === 3 ? 0.08 : 0.05;
+    const isCentral = n === 3;
+    const nodeRadius = isCentral ? 0.06 : 0.04;
     
     for (let i = 0; i < particlesPerNode && idx < arcCount + intersectionCount; i++, idx++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
       
       positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
       positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
-      positions[idx * 3 + 2] = node.z + r * Math.cos(phi) * 0.5;
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi) * 0.4;
       
-      const brightness = 1.0 - (r / nodeRadius) * 0.6;
-      const c = white.clone().lerp(iceBlue, 0.2);
-      c.multiplyScalar(0.75 + brightness * 0.25);
+      // Bright radiant glow at intersections
+      const brightness = 1.0 - (r / nodeRadius) * 0.5;
+      const c = white.clone().lerp(lightGold, 0.4);
+      c.multiplyScalar(0.8 + brightness * 0.2);
       
       colors[idx * 3] = c.r;
       colors[idx * 3 + 1] = c.g;
@@ -1286,19 +1298,20 @@ export function generateTriquetraData() {
     }
   }
 
-  // 3. Center trinity point
+  // 3. Central trinity core - pure sacred light
   for (let i = 0; i < centerCount && idx < arcCount + intersectionCount + centerCount; i++, idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = Math.pow(Math.random(), 0.3) * 0.07;
+    const r = Math.pow(Math.random(), 0.4) * 0.055;
     
     positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[idx * 3 + 2] = r * Math.cos(phi);
     
-    const brightness = 1.0 - (r / 0.07) * 0.4;
-    const c = white.clone().lerp(silver, 0.15);
-    c.multiplyScalar(0.85 + brightness * 0.15);
+    // Pure white-gold center
+    const brightness = 1.0 - (r / 0.055) * 0.3;
+    const c = white.clone().lerp(gold, 0.25);
+    c.multiplyScalar(0.9 + brightness * 0.1);
     
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;
@@ -1306,19 +1319,20 @@ export function generateTriquetraData() {
     groups[idx] = 4;
   }
 
-  // 4. Ambient celestial glow - soft and ethereal
+  // 4. Subtle ambient halo - soft golden energy
   for (; idx < PARTICLE_COUNT; idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = 1.1 + Math.pow(Math.random(), 2.5) * 0.5;
+    const r = 1.0 + Math.pow(Math.random(), 3) * 0.45;
     
     positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.25;
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.2;
     
-    const c = deepBlue.clone().lerp(sapphire, Math.random());
-    c.lerp(silver, Math.random() * 0.2);
-    c.multiplyScalar(0.12 + Math.random() * 0.12);
+    // Soft golden ambient glow
+    const c = deepGold.clone().lerp(bronze, Math.random());
+    c.lerp(amber, Math.random() * 0.3);
+    c.multiplyScalar(0.15 + Math.random() * 0.10);
     
     colors[idx * 3] = c.r;
     colors[idx * 3 + 1] = c.g;

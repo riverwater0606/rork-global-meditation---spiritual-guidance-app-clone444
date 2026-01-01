@@ -472,46 +472,32 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
          }
       } else if (shape === 'triquetra') {
          const g = groups[i];
-         // Celtic mystical pulsing for entire triquetra
-         const pulse = 1.0 + Math.sin(t * 2) * 0.04;
-         tx *= pulse; ty *= pulse; tz *= pulse;
+         // Gentle unified breathing - entire form breathes as one
+         const breath = 1.0 + Math.sin(t * 1.2) * 0.025;
+         tx *= breath; ty *= breath; tz *= breath;
          
-         // Arc 0 (g=0) - emerald flowing energy
-         if (g === 0) {
-           const flow = Math.sin(t * 2.5 + i * 0.01) * 0.025;
-           tx += flow; ty += flow;
+         // Arc particles (g=0,1,2) - minimal flow along the strands
+         if (g === 0 || g === 1 || g === 2) {
+           const subtleFlow = Math.sin(t * 1.8 + i * 0.005) * 0.012;
+           tx += subtleFlow * Math.cos(Math.atan2(ty, tx));
+           ty += subtleFlow * Math.sin(Math.atan2(ty, tx));
          }
-         // Arc 1 (g=1) - jade flowing energy
-         else if (g === 1) {
-           const flow = Math.sin(t * 2.3 + i * 0.01) * 0.025;
-           tx += flow; ty += flow;
-         }
-         // Arc 2 (g=2) - gold flowing energy
-         else if (g === 2) {
-           const flow = Math.sin(t * 2.7 + i * 0.01) * 0.025;
-           tx += flow; ty += flow;
-         }
-         // Intersection nodes (g=3) - bright trinity glow
+         // Intersection nodes (g=3) - soft radiant glow
          else if (g === 3) {
-           const nodeGlow = 1.0 + Math.sin(t * 4 + i * 0.04) * 0.15;
+           const nodeGlow = 1.0 + Math.sin(t * 3 + i * 0.03) * 0.08;
            tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
          }
-         // Center trinity point (g=4) - sacred center pulse
+         // Center trinity point (g=4) - sacred gentle pulse
          else if (g === 4) {
-           const centerGlow = 1.0 + Math.sin(t * 3) * 0.20;
+           const centerGlow = 1.0 + Math.sin(t * 2.5) * 0.12;
            tx *= centerGlow; ty *= centerGlow; tz *= centerGlow;
          }
-         // Outer eternity ring (g=5) - rotating wave
+         // Ambient halo (g=5) - slow ethereal drift
          else if (g === 5) {
-           const ringWave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.035;
-           tx += ringWave; ty += ringWave;
-         }
-         // Ambient aura (g=6) - mystical breathing
-         else if (g === 6) {
-           const auraBreath = Math.sin(t * 1.2 + Math.sqrt(tx*tx + ty*ty) * 2) * 0.03;
+           const drift = Math.sin(t * 0.8 + Math.atan2(ty, tx) * 2) * 0.02;
            const angle = Math.atan2(ty, tx);
-           tx += auraBreath * Math.cos(angle);
-           ty += auraBreath * Math.sin(angle);
+           tx += drift * Math.cos(angle);
+           ty += drift * Math.sin(angle);
          }
       } else if (shape === 'golden-rectangles') {
          const g = groups[i];
