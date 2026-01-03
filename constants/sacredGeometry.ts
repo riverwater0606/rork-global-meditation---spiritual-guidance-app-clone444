@@ -1158,160 +1158,182 @@ export function generateStarOfDavidData() {
 }
 
 // --- TRIQUETRA ---
-// Three interlocking arcs forming the symbol of eternity and trinity
-// Celtic sacred geometry representing the interconnection of all things
-// No beginning, no end - representing eternal life and unity
-// DIRECT IMAGE-TO-PARTICLE CONVERSION: Preserves exact geometry from reference image
+// Three interlocking circular loops forming rounded triangular petals
+// Exact reconstruction from reference image
+// Each loop is a circle segment, creating the characteristic triquetra pattern
+// with inner and outer boundaries forming the interlocking design
 
 export function generateTriquetraData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.95;
+  const scale = 1.0;
   
-  // Golden luminous palette - warm, sacred, eternal
-  const deepGold = new THREE.Color('#B8860B');
+  // Golden luminous palette matching the image's golden yellow color
   const gold = new THREE.Color('#FFD700');
-  const lightGold = new THREE.Color('#FFF4CC');
+  const brightGold = new THREE.Color('#FFF176');
+  const deepGold = new THREE.Color('#FFA000');
   const white = new THREE.Color('#FFFFFF');
-  const amber = new THREE.Color('#FFBF00');
 
-  // Perfect Triquetra Construction:
-  // Based on exact geometric analysis of the triquetra symbol
-  // Three identical arcs, each is 240° of a circle
-  // Centers form an equilateral triangle
-  // Arc radius R and center distance d are related: d = R for perfect interlocking
+  // Triquetra Construction from Image Analysis:
+  // Three circles with centers forming an equilateral triangle
+  // Each circle's radius equals the distance between centers
+  // This creates the perfect vesica piscis overlaps
   
-  const R = 0.65 * scale; // Arc radius
-  const centerDist = R * 1.0; // Distance from origin to each arc center
+  const circleRadius = 0.55 * scale;
+  const centerDistance = circleRadius * 1.0; // Key: R = d for perfect triquetra
   
-  // Three arc centers positioned at 120° intervals (rotated by 30° for proper orientation)
-  const arcCenters = [
-    { 
-      angle: 90 * Math.PI / 180,  // Top arc
-      arcStart: 210 * Math.PI / 180,
-      arcEnd: 330 * Math.PI / 180,
-      layer: 1  // Weaving layer (for z-depth)
-    },
-    { 
-      angle: 210 * Math.PI / 180,  // Bottom-left arc
-      arcStart: 330 * Math.PI / 180,
-      arcEnd: 450 * Math.PI / 180,
-      layer: 0
-    },
-    { 
-      angle: 330 * Math.PI / 180,  // Bottom-right arc
-      arcStart: 90 * Math.PI / 180,
-      arcEnd: 210 * Math.PI / 180,
-      layer: 2
-    }
+  // Three circle centers at 120° apart, rotated 30° to match image orientation
+  const circleData = [
+    { angle: 90 * Math.PI / 180, label: 'top' },
+    { angle: 210 * Math.PI / 180, label: 'bottom-left' },
+    { angle: 330 * Math.PI / 180, label: 'bottom-right' }
   ];
-
-  // Calculate center positions
-  const centers = arcCenters.map(ac => ({
-    x: centerDist * Math.cos(ac.angle),
-    y: centerDist * Math.sin(ac.angle),
-    arcStart: ac.arcStart,
-    arcEnd: ac.arcEnd,
-    layer: ac.layer
+  
+  const circleCenters = circleData.map(d => ({
+    x: centerDistance * Math.cos(d.angle),
+    y: centerDistance * Math.sin(d.angle),
+    angle: d.angle
   }));
   
+  // Calculate which parts of each circle are visible (not covered by other circles)
+  // For triquetra: each circle shows approximately 240° arc (excludes 120° covered by neighbors)
+  
   // Particle distribution
-  const arcParticles = Math.floor(PARTICLE_COUNT * 0.82); // Maximum density for perfect curves
-  const glowParticles = Math.floor(PARTICLE_COUNT * 0.10);
+  const loopParticles = Math.floor(PARTICLE_COUNT * 0.75);
+  const innerTriangleParticles = Math.floor(PARTICLE_COUNT * 0.10);
+  const glowParticles = Math.floor(PARTICLE_COUNT * 0.08);
   
   let idx = 0;
 
-  // 1. Three perfect continuous arcs - High-fidelity curve reconstruction
-  const particlesPerArc = Math.floor(arcParticles / 3);
+  // Helper: Check if a point is inside a circle
+  const isInsideCircle = (px: number, py: number, cx: number, cy: number, r: number) => {
+    const dx = px - cx;
+    const dy = py - cy;
+    return (dx * dx + dy * dy) < (r * r);
+  };
+
+  // 1. Draw the three interlocking loops (outer and inner boundaries)
+  const particlesPerLoop = Math.floor(loopParticles / 3);
   
-  for (let arcIdx = 0; arcIdx < 3; arcIdx++) {
-    const center = centers[arcIdx];
-    const arcLength = center.arcEnd - center.arcStart;
+  for (let loopIdx = 0; loopIdx < 3; loopIdx++) {
+    const center = circleCenters[loopIdx];
+    const otherCenter1 = circleCenters[(loopIdx + 1) % 3];
+    const otherCenter2 = circleCenters[(loopIdx + 2) % 3];
     
-    // Create dense, uniform particle distribution along the arc
-    for (let i = 0; i < particlesPerArc && idx < arcParticles; i++, idx++) {
-      const t = i / (particlesPerArc - 1); // Normalized position along arc (0 to 1)
-      const angle = center.arcStart + t * arcLength;
+    // Sample points along this circle
+    const samplesPerLoop = particlesPerLoop * 2; // Oversample then filter
+    let particlesPlaced = 0;
+    
+    for (let i = 0; i < samplesPerLoop && particlesPlaced < particlesPerLoop && idx < loopParticles; i++) {
+      const angle = (i / samplesPerLoop) * Math.PI * 2;
       
-      // Minimal thickness variation for clean, sharp definition
-      const lineThickness = 0.020;
-      const radialNoise = (Math.random() - 0.5) * lineThickness;
+      // Outer boundary: points on the circle
+      const outerThickness = 0.045; // Tube thickness
+      const innerRadius = circleRadius - outerThickness;
       
-      // Calculate position on arc
-      const x = center.x + (R + radialNoise) * Math.cos(angle);
-      const y = center.y + (R + radialNoise) * Math.sin(angle);
+      // Randomly pick inner or outer edge of the tube
+      const radiusVariation = innerRadius + Math.random() * outerThickness * 2;
       
-      // Z-depth for over/under weaving effect
-      // Create smooth transitions at crossing points
-      const weavingPhase = t * Math.PI * 2; // Full wave across arc
-      const layerOffset = (center.layer - 1) * 0.06; // -0.06, 0, +0.06
-      const z = layerOffset * Math.sin(weavingPhase) * 0.5 + (Math.random() - 0.5) * 0.006;
+      const px = center.x + radiusVariation * Math.cos(angle);
+      const py = center.y + radiusVariation * Math.sin(angle);
       
-      positions[idx * 3] = x;
-      positions[idx * 3 + 1] = y;
-      positions[idx * 3 + 2] = z;
+      // Check if this point should be visible:
+      // It's visible if it's NOT inside BOTH other circles simultaneously
+      // (i.e., it's in the exposed part of this circle)
+      const inOther1 = isInsideCircle(px, py, otherCenter1.x, otherCenter1.y, circleRadius - outerThickness * 0.5);
+      const inOther2 = isInsideCircle(px, py, otherCenter2.x, otherCenter2.y, circleRadius - outerThickness * 0.5);
       
-      // Luminous golden gradient - brighter in center, softer at edges
-      const edgeFalloff = Math.sin(t * Math.PI); // Bright at midpoint
-      const baseColor = gold.clone();
-      baseColor.lerp(lightGold, edgeFalloff * 0.4);
-      baseColor.lerp(amber, (1 - edgeFalloff) * 0.25);
-      
-      // Add subtle sparkle variation
-      if (Math.random() < 0.08) {
-        baseColor.lerp(white, 0.3);
+      // Only draw if not deeply inside both neighbors (allow partial overlap for weaving)
+      if (!(inOther1 && inOther2)) {
+        const z = (Math.random() - 0.5) * 0.03;
+        
+        positions[idx * 3] = px;
+        positions[idx * 3 + 1] = py;
+        positions[idx * 3 + 2] = z;
+        
+        // Color: golden with subtle variation
+        const colorVariation = Math.random();
+        const particleColor = gold.clone();
+        if (colorVariation < 0.1) {
+          particleColor.lerp(brightGold, 0.6);
+        } else if (colorVariation > 0.9) {
+          particleColor.lerp(deepGold, 0.4);
+        }
+        
+        colors[idx * 3] = particleColor.r;
+        colors[idx * 3 + 1] = particleColor.g;
+        colors[idx * 3 + 2] = particleColor.b;
+        groups[idx] = loopIdx;
+        
+        idx++;
+        particlesPlaced++;
       }
-      
-      colors[idx * 3] = baseColor.r;
-      colors[idx * 3 + 1] = baseColor.g;
-      colors[idx * 3 + 2] = baseColor.b;
-      groups[idx] = arcIdx;
     }
   }
 
-  // 2. Soft energy glow around the structure
-  for (; idx < arcParticles + glowParticles; idx++) {
-    // Distribute glow particles in a shell around the triquetra
+  // 2. Inner triangle - the small triangular void in the center where all three loops meet
+  const innerTriangleRadius = 0.12 * scale;
+  for (let i = 0; i < innerTriangleParticles && idx < loopParticles + innerTriangleParticles; i++, idx++) {
+    // Create small particles around the inner triangle vertices
+    const vertexAngle = (Math.floor(Math.random() * 3) * 120 + 30) * Math.PI / 180;
+    const r = innerTriangleRadius * (0.6 + Math.random() * 0.4);
+    const angleJitter = (Math.random() - 0.5) * 0.3;
+    
+    const px = r * Math.cos(vertexAngle + angleJitter);
+    const py = r * Math.sin(vertexAngle + angleJitter);
+    const pz = (Math.random() - 0.5) * 0.02;
+    
+    positions[idx * 3] = px;
+    positions[idx * 3 + 1] = py;
+    positions[idx * 3 + 2] = pz;
+    
+    // Bright golden center
+    const centerColor = gold.clone().lerp(white, 0.3);
+    colors[idx * 3] = centerColor.r;
+    colors[idx * 3 + 1] = centerColor.g;
+    colors[idx * 3 + 2] = centerColor.b;
+    groups[idx] = 3;
+  }
+
+  // 3. Soft outer glow
+  for (; idx < loopParticles + innerTriangleParticles + glowParticles; idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = 0.9 + Math.pow(Math.random(), 2) * 0.35;
+    const r = 1.0 + Math.pow(Math.random(), 2) * 0.3;
     
     positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[idx * 3 + 2] = r * Math.cos(phi) * 0.15;
     
-    // Soft golden ambient glow
     const glowColor = deepGold.clone();
-    glowColor.lerp(gold, Math.random() * 0.5);
-    glowColor.multiplyScalar(0.12 + Math.random() * 0.08);
+    glowColor.multiplyScalar(0.15 + Math.random() * 0.1);
     
     colors[idx * 3] = glowColor.r;
     colors[idx * 3 + 1] = glowColor.g;
     colors[idx * 3 + 2] = glowColor.b;
-    groups[idx] = 5;
+    groups[idx] = 4;
   }
 
-  // 3. Fill remaining with faint center luminescence
+  // 4. Fill remaining with ambient particles
   for (; idx < PARTICLE_COUNT; idx++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = Math.pow(Math.random(), 1.5) * 0.25;
+    const r = Math.pow(Math.random(), 1.8) * 0.3;
     
     positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[idx * 3 + 2] = r * Math.cos(phi);
     
-    // Faint golden core
-    const coreColor = gold.clone();
-    coreColor.lerp(white, 0.3);
-    coreColor.multiplyScalar(0.18 + Math.random() * 0.12);
+    const ambientColor = gold.clone();
+    ambientColor.lerp(white, 0.2);
+    ambientColor.multiplyScalar(0.12 + Math.random() * 0.08);
     
-    colors[idx * 3] = coreColor.r;
-    colors[idx * 3 + 1] = coreColor.g;
-    colors[idx * 3 + 2] = coreColor.b;
-    groups[idx] = 4;
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 5;
   }
 
   return { positions, colors, groups };
