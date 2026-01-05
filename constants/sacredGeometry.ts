@@ -3,12 +3,11 @@ import { LAND_CAPS, CITY_CAPS, CONTINENT_COLORS } from './earthData';
 
 export const PARTICLE_COUNT = 20000;
 
-// --- HELPERS ---
-
+// Helper: Random point in unit sphere
 const randomInSphere = () => {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = Math.pow(Math.random(), 1/3); 
+    const r = Math.pow(Math.random(), 1/3); // Uniform distribution
     return new THREE.Vector3(
         r * Math.sin(phi) * Math.cos(theta),
         r * Math.sin(phi) * Math.sin(theta),
@@ -16,572 +15,1710 @@ const randomInSphere = () => {
     );
 };
 
-const createBuffer = () => ({
-    positions: new Float32Array(PARTICLE_COUNT * 3),
-    colors: new Float32Array(PARTICLE_COUNT * 3),
-    groups: new Float32Array(PARTICLE_COUNT)
-});
+// --- MERKABA ---
+export function generateMerkabaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT); 
+  // Groups: 0 = Top Tetrahedron (Gold), 1 = Bottom Tetrahedron (Silver), 2 = Core (White)
 
-const setParticle = (
-    i: number, 
-    buffers: { positions: Float32Array, colors: Float32Array, groups: Float32Array }, 
-    pos: THREE.Vector3, 
-    color: THREE.Color, 
-    group: number
-) => {
-    buffers.positions[i * 3] = pos.x;
-    buffers.positions[i * 3 + 1] = pos.y;
-    buffers.positions[i * 3 + 2] = pos.z;
-    buffers.colors[i * 3] = color.r;
-    buffers.colors[i * 3 + 1] = color.g;
-    buffers.colors[i * 3 + 2] = color.b;
-    buffers.groups[i] = group;
-};
+  const scale = 1.1;
+  const R = 1.0 * scale;
 
-// --- GENERATORS ---
+  // Tetrahedron 1 (Pointing Up)
+  // Vertices: (0, R, 0), and base triangle at y = -R/3
+  const t1_v = [
+    new THREE.Vector3(0, R, 0), 
+    new THREE.Vector3(R * Math.sqrt(8/9), -R/3, 0),
+    new THREE.Vector3(-R * Math.sqrt(2/9), -R/3, R * Math.sqrt(2/3)),
+    new THREE.Vector3(-R * Math.sqrt(2/9), -R/3, -R * Math.sqrt(2/3))
+  ];
+  // Edges: [0,1], [0,2], [0,3], [1,2], [2,3], [3,1]
+  const edges = [[0,1], [0,2], [0,3], [1,2], [2,3], [3,1]];
 
-// 1. Flower of Life (Basic)
-export const generateFlowerOfLifeData = () => {
-    const buffers = createBuffer();
-    const R = 2.0;
-    
-    // Simple 7-circle seed pattern
-    const centers = [
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(R, 0, 0),
-        new THREE.Vector3(-R, 0, 0),
-        new THREE.Vector3(R/2, R*Math.sqrt(3)/2, 0),
-        new THREE.Vector3(-R/2, R*Math.sqrt(3)/2, 0),
-        new THREE.Vector3(R/2, -R*Math.sqrt(3)/2, 0),
-        new THREE.Vector3(-R/2, -R*Math.sqrt(3)/2, 0),
-    ];
+  // Tetrahedron 2 (Pointing Down) - Inverted T1
+  const t2_v = t1_v.map(v => v.clone().multiplyScalar(-1));
 
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const centerIdx = Math.floor(Math.random() * centers.length);
-        const center = centers[centerIdx];
-        
-        // Random point on circle perimeter with some thickness
-        const theta = Math.random() * Math.PI * 2;
-        const radius = R; 
-        const jitter = (Math.random() - 0.5) * 0.1;
-        
-        const px = center.x + (radius + jitter) * Math.cos(theta);
-        const py = center.y + (radius + jitter) * Math.sin(theta);
-        const pz = (Math.random() - 0.5) * 0.1; // Flat but slight depth
+  const gold = new THREE.Color("#FFD700");
+  const silver = new THREE.Color("#C0C0C0");
+  const white = new THREE.Color("#FFFFFF");
+  const paleBlue = new THREE.Color("#AFEEEE");
 
-        setParticle(i, buffers, new THREE.Vector3(px, py, pz), new THREE.Color(1, 0.84, 0), 0); // Gold
+  const getPointOnEdge = (vArr: THREE.Vector3[], edgeIdx: number) => {
+      const idx1 = edges[edgeIdx][0];
+      const idx2 = edges[edgeIdx][1];
+      const t = Math.random();
+      return new THREE.Vector3().lerpVectors(vArr[idx1], vArr[idx2], t);
+  };
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    let p = new THREE.Vector3();
+    let c = new THREE.Color();
+    let g = 0;
+
+    // 10% Core, 45% Top, 45% Bottom
+    const r = Math.random();
+
+    if (r < 0.1) {
+       // Core
+       g = 2;
+       p = randomInSphere().multiplyScalar(0.25); // Small solid core
+       c.copy(white);
+    } else if (r < 0.55) {
+       // Top Tetrahedron (Gold)
+       g = 0;
+       // 20% Vertices, 80% Edges
+       if (Math.random() < 0.2) {
+          const vIdx = Math.floor(Math.random() * 4);
+          p.copy(t1_v[vIdx]).add(randomInSphere().multiplyScalar(0.08)); // Glow around vertex
+          c.copy(white).lerp(gold, 0.2); // Very bright
+       } else {
+          const eIdx = Math.floor(Math.random() * 6);
+          p = getPointOnEdge(t1_v, eIdx);
+          p.add(randomInSphere().multiplyScalar(0.02)); // Tight edge
+          c.copy(gold);
+       }
+    } else {
+       // Bottom Tetrahedron (Silver)
+       g = 1;
+       if (Math.random() < 0.2) {
+          const vIdx = Math.floor(Math.random() * 4);
+          p.copy(t2_v[vIdx]).add(randomInSphere().multiplyScalar(0.08));
+          c.copy(paleBlue); // Blueish glow
+       } else {
+          const eIdx = Math.floor(Math.random() * 6);
+          p = getPointOnEdge(t2_v, eIdx);
+          p.add(randomInSphere().multiplyScalar(0.02));
+          c.copy(silver);
+       }
     }
-    return buffers;
-};
 
-// 1.5 Flower of Life (Complete/Full)
-export const generateFlowerOfLifeCompleteData = () => {
-    const buffers = createBuffer();
-    // 19 circles pattern
-    const R = 0.8; 
+    positions[i*3] = p.x;
+    positions[i*3+1] = p.y;
+    positions[i*3+2] = p.z;
+    colors[i*3] = c.r;
+    colors[i*3+1] = c.g;
+    colors[i*3+2] = c.b;
+    groups[i] = g;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- FLOWER OF LIFE (3D) ---
+// True sacred geometry: 19 interlocking circles forming the cosmic pattern
+// Each circle has radius 1, centers are at distance 1 from neighbors
+
+export function generateFlowerOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.42;
+  const circleRadius = 1.0 * scale;
+  
+  // Sacred blue-cyan palette
+  const deepBlue = new THREE.Color("#0EA5E9");
+  const royalBlue = new THREE.Color("#3B82F6");
+  const cyan = new THREE.Color("#22D3EE");
+  const lightCyan = new THREE.Color("#67E8F9");
+  const white = new THREE.Color("#FFFFFF");
+
+  // Generate all 19 circle centers for perfect Flower of Life
+  const circleCenters: { x: number; y: number; ring: number }[] = [];
+  const r = circleRadius;
+  
+  // Center circle (ring 0)
+  circleCenters.push({ x: 0, y: 0, ring: 0 });
+  
+  // First ring: 6 circles (ring 1)
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: r * Math.cos(angle), 
+      y: r * Math.sin(angle),
+      ring: 1
+    });
+  }
+  
+  // Second ring: 6 circles at corners (ring 2)
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: 2 * r * Math.cos(angle), 
+      y: 2 * r * Math.sin(angle),
+      ring: 2
+    });
+  }
+  
+  // Second ring: 6 circles in between (ring 2)
+  const sqrt3 = Math.sqrt(3);
+  for (let i = 0; i < 6; i++) {
+    const angle = (30 + i * 60) * Math.PI / 180;
+    circleCenters.push({ 
+      x: sqrt3 * r * Math.cos(angle), 
+      y: sqrt3 * r * Math.sin(angle),
+      ring: 2
+    });
+  }
+
+  // Calculate intersection points for glow nodes
+  const intersectionPoints: THREE.Vector3[] = [];
+  intersectionPoints.push(new THREE.Vector3(0, 0, 0));
+  
+  for (let i = 0; i < circleCenters.length; i++) {
+    for (let j = i + 1; j < circleCenters.length; j++) {
+      const c1 = circleCenters[i];
+      const c2 = circleCenters[j];
+      const dx = c2.x - c1.x;
+      const dy = c2.y - c1.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      
+      if (d < 2 * circleRadius * 1.01 && d > 0.01) {
+        const a = d / 2;
+        const hSq = circleRadius * circleRadius - a * a;
+        if (hSq > 0) {
+          const h = Math.sqrt(hSq);
+          const mx = (c1.x + c2.x) / 2;
+          const my = (c1.y + c2.y) / 2;
+          const perpX = -dy / d;
+          const perpY = dx / d;
+          intersectionPoints.push(new THREE.Vector3(mx + h * perpX, my + h * perpY, 0));
+          intersectionPoints.push(new THREE.Vector3(mx - h * perpX, my - h * perpY, 0));
+        }
+      }
+    }
+  }
+
+  // Particle distribution
+  const circleParticles = Math.floor(PARTICLE_COUNT * 0.70); // 70% for circle outlines
+  const intersectionParticles = Math.floor(PARTICLE_COUNT * 0.12); // 12% for intersections
+  const outerCircleParticles = Math.floor(PARTICLE_COUNT * 0.10); // 10% for outer circle
+  
+  const particlesPerCircle = Math.floor(circleParticles / circleCenters.length);
+  const outerRadius = 2.15 * circleRadius;
+  
+  let idx = 0;
+
+  // 1. Draw each of the 19 circles with many particles on circumference
+  for (let c = 0; c < circleCenters.length; c++) {
+    const center = circleCenters[c];
+    const zOffset = (center.ring === 0 ? 0.02 : center.ring === 1 ? 0.01 : 0) * (Math.random() > 0.5 ? 1 : -1);
     
-    // Easier: Just manual relative positions for 19 circles
-    const H = R * Math.sqrt(3)/2;
-    const offsets = [
-       [0,0],
-       [R,0], [-R,0], [R/2, H], [-R/2, H], [R/2, -H], [-R/2, -H],
-       [2*R,0], [-2*R,0], [R, 2*H], [-R, 2*H], [R, -2*H], [-R, -2*H],
-       [1.5*R, H], [-1.5*R, H], [1.5*R, -H], [-1.5*R, -H],
-       [0, 2*H], [0, -2*H]
-    ];
+    for (let i = 0; i < particlesPerCircle && idx < circleParticles; i++, idx++) {
+      // Distribute evenly around circle with slight randomness
+      const baseAngle = (i / particlesPerCircle) * Math.PI * 2;
+      const angleJitter = (Math.random() - 0.5) * 0.05;
+      const theta = baseAngle + angleJitter;
+      
+      // Very tight line with minimal thickness
+      const radiusJitter = (Math.random() - 0.5) * 0.008;
+      const finalRadius = circleRadius + radiusJitter;
+      
+      const x = center.x + finalRadius * Math.cos(theta);
+      const y = center.y + finalRadius * Math.sin(theta);
+      const z = zOffset + (Math.random() - 0.5) * 0.015;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Color gradient: center = royal blue, outer = cyan/light cyan
+      const distFromOrigin = Math.sqrt(x * x + y * y);
+      const t = Math.min(distFromOrigin / (outerRadius * 0.9), 1);
+      
+      const color = new THREE.Color();
+      color.copy(royalBlue).lerp(cyan, t * 0.7);
+      color.lerp(lightCyan, t * 0.3);
+      color.lerp(white, Math.random() * 0.1); // Subtle sparkle
+      
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 2. Intersection glow points (sacred nodes)
+  const particlesPerIntersection = Math.max(1, Math.floor(intersectionParticles / intersectionPoints.length));
+  for (let p = 0; p < intersectionPoints.length && idx < circleParticles + intersectionParticles; p++) {
+    const point = intersectionPoints[p];
     
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const centerIdx = Math.floor(Math.random() * offsets.length);
-        const [cx, cy] = offsets[centerIdx];
+    for (let i = 0; i < particlesPerIntersection && idx < circleParticles + intersectionParticles; i++, idx++) {
+      const spread = 0.018;
+      const x = point.x + (Math.random() - 0.5) * spread;
+      const y = point.y + (Math.random() - 0.5) * spread;
+      const z = point.z + (Math.random() - 0.5) * 0.02;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Bright white/cyan glow
+      const color = new THREE.Color();
+      color.copy(white).lerp(lightCyan, Math.random() * 0.3);
+      
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = 0;
+    }
+  }
+
+  // 3. Outer enclosing circle
+  for (let i = 0; i < outerCircleParticles && idx < circleParticles + intersectionParticles + outerCircleParticles; i++, idx++) {
+    const baseAngle = (i / outerCircleParticles) * Math.PI * 2;
+    const angleJitter = (Math.random() - 0.5) * 0.03;
+    const theta = baseAngle + angleJitter;
+    
+    const radiusJitter = (Math.random() - 0.5) * 0.006;
+    const finalRadius = outerRadius + radiusJitter;
+    
+    positions[idx * 3] = finalRadius * Math.cos(theta);
+    positions[idx * 3 + 1] = finalRadius * Math.sin(theta);
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.01;
+    
+    const color = new THREE.Color();
+    color.copy(deepBlue).lerp(royalBlue, 0.4);
+    color.lerp(cyan, Math.random() * 0.2);
+    
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Faint connection lines between nearby intersections
+  for (; idx < PARTICLE_COUNT; idx++) {
+    // Pick two random intersection points that are close
+    const p1Idx = Math.floor(Math.random() * intersectionPoints.length);
+    let p2Idx = Math.floor(Math.random() * intersectionPoints.length);
+    if (p2Idx === p1Idx) p2Idx = (p1Idx + 1) % intersectionPoints.length;
+    
+    const p1 = intersectionPoints[p1Idx];
+    const p2 = intersectionPoints[p2Idx];
+    
+    const dist = p1.distanceTo(p2);
+    if (dist > circleRadius * 1.5) {
+      // Too far, just place randomly on a circle
+      const circleIdx = Math.floor(Math.random() * circleCenters.length);
+      const center = circleCenters[circleIdx];
+      const theta = Math.random() * Math.PI * 2;
+      positions[idx * 3] = center.x + circleRadius * Math.cos(theta);
+      positions[idx * 3 + 1] = center.y + circleRadius * Math.sin(theta);
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.02;
+    } else {
+      // Draw along connection line
+      const t = Math.random();
+      positions[idx * 3] = p1.x + (p2.x - p1.x) * t + (Math.random() - 0.5) * 0.01;
+      positions[idx * 3 + 1] = p1.y + (p2.y - p1.y) * t + (Math.random() - 0.5) * 0.01;
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.015;
+    }
+    
+    // Faint cyan connection color
+    const color = new THREE.Color();
+    color.copy(cyan).lerp(white, 0.2);
+    color.multiplyScalar(0.5); // Faint
+    
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 3;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- FLOWER OF LIFE COMPLETE (3D) ---
+// 19 interlocking circles + outer ring.
+// Explicitly draws 19 full circles to ensure complete petals at the edge.
+export function generateFlowerOfLifeCompleteData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.35; 
+  const R = 1.0 * scale; // Radius of each small circle
+  const boundaryR = 3.0 * R; // Enclosing circle radius
+
+  // Colors
+  const deepBlue = new THREE.Color("#0EA5E9");
+  const cyan = new THREE.Color("#22D3EE");
+  const lightCyan = new THREE.Color("#A5F3FC");
+  const white = new THREE.Color("#FFFFFF");
+
+  // Explicit 19 centers for the Flower of Life
+  const centers: {x: number, y: number}[] = [];
+  
+  // 1. Center
+  centers.push({x: 0, y: 0});
+  
+  // 2. Ring 1 (6 circles at distance R)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3;
+     centers.push({ x: R * Math.cos(theta), y: R * Math.sin(theta) });
+  }
+
+  // 3. Ring 2 (12 circles)
+  // 6 at distance 2R (on axes)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3;
+     centers.push({ x: 2 * R * Math.cos(theta), y: 2 * R * Math.sin(theta) });
+  }
+  // 6 at distance sqrt(3)R (in between)
+  for(let i=0; i<6; i++) {
+     const theta = i * Math.PI / 3 + Math.PI / 6;
+     const rGrid = Math.sqrt(3) * R;
+     centers.push({ x: rGrid * Math.cos(theta), y: rGrid * Math.sin(theta) });
+  }
+
+  let idx = 0;
+
+  // 1. Draw 19 Circles (Full complete petals)
+  // 75% of particles for the circles
+  const circleParticlesTotal = Math.floor(PARTICLE_COUNT * 0.75);
+  const particlesPerCircle = Math.floor(circleParticlesTotal / centers.length);
+  
+  for(let c=0; c<centers.length; c++) {
+    const center = centers[c];
+    for(let i=0; i<particlesPerCircle && idx < PARTICLE_COUNT; i++) {
+        const theta = (i/particlesPerCircle) * Math.PI * 2;
+        // Add slight jitter for "particle" look
+        const rJitter = (Math.random()-0.5) * 0.015;
+        const x = center.x + (R + rJitter) * Math.cos(theta);
+        const y = center.y + (R + rJitter) * Math.sin(theta);
+        const z = (Math.random()-0.5) * 0.04; // Thickness
+
+        positions[idx*3] = x;
+        positions[idx*3+1] = y;
+        positions[idx*3+2] = z;
+
+        // Color
+        const color = new THREE.Color().copy(deepBlue).lerp(cyan, Math.random() * 0.8);
+        // Glow effect for some particles
+        if(Math.random() < 0.05) color.lerp(white, 0.6);
+
+        colors[idx*3] = color.r;
+        colors[idx*3+1] = color.g;
+        colors[idx*3+2] = color.b;
+        groups[idx] = 1; // Circle group
+        idx++;
+    }
+  }
+
+  // 2. Draw Outer Circle (Enclosing)
+  // 15% of particles
+  const outerParticles = Math.floor(PARTICLE_COUNT * 0.15);
+  for(let i=0; i<outerParticles && idx < PARTICLE_COUNT; i++) {
+     const angle = Math.random() * Math.PI * 2;
+     const rJitter = (Math.random()-0.5) * 0.01;
+     const x = (boundaryR + rJitter) * Math.cos(angle);
+     const y = (boundaryR + rJitter) * Math.sin(angle);
+     const z = (Math.random()-0.5) * 0.04;
+
+     positions[idx*3] = x;
+     positions[idx*3+1] = y;
+     positions[idx*3+2] = z;
+
+     const color = new THREE.Color().copy(cyan).lerp(lightCyan, 0.5 + Math.random()*0.5);
+     colors[idx*3] = color.r;
+     colors[idx*3+1] = color.g;
+     colors[idx*3+2] = color.b;
+     groups[idx] = 2; // Outer group
+     idx++;
+  }
+
+  // 3. Fill remaining with ambient sparkles inside
+  while(idx < PARTICLE_COUNT) {
+      const theta = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * boundaryR;
+      
+      positions[idx*3] = r * Math.cos(theta);
+      positions[idx*3+1] = r * Math.sin(theta);
+      positions[idx*3+2] = (Math.random()-0.5) * 0.2;
+      
+      const color = new THREE.Color().copy(deepBlue).multiplyScalar(0.3);
+      colors[idx*3] = color.r;
+      colors[idx*3+1] = color.g;
+      colors[idx*3+2] = color.b;
+      groups[idx] = 3;
+      idx++;
+  }
+
+  return { positions, colors, groups };
+}
+
+export function generateEarthData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const R = 1.0;
+  
+  // Precompute vectors for caps
+  const landNodes = LAND_CAPS.map(c => ({
+      v: new THREE.Vector3().setFromSphericalCoords(1, (90 - c.lat) * Math.PI/180, (c.lon + 180) * Math.PI/180),
+      // Use cosine of radius. Stricter boundary.
+      minDot: Math.cos(c.r * Math.PI / 180) 
+  }));
+
+  const cityNodes = CITY_CAPS.map(c => ({
+      v: new THREE.Vector3().setFromSphericalCoords(1, (90 - c.lat) * Math.PI/180, (c.lon + 180) * Math.PI/180),
+      minDot: Math.cos(c.r * Math.PI / 180),
+      color: new THREE.Color(c.color)
+  }));
+
+  // Sun direction (Left lit) - Softened for ambient feel since we rotate the earth
+  // const sunDir = new THREE.Vector3(-1, 0.2, 0.5).normalize(); // Removed hard sun to avoid rotating shadows
+
+  // Noise for clouds
+  const isCloud = (p: THREE.Vector3) => {
+     // Simple spatial noise
+     const s = 4.0;
+     const n = Math.sin(p.x*s) * Math.sin(p.y*s*1.5 + p.z*2) * Math.cos(p.z*s);
+     return n > 0.4;
+  };
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+     let p = new THREE.Vector3();
+     let c = new THREE.Color();
+     let g = 0;
+     
+     // Rejection sampling for better distribution
+     let found = false;
+     let attempts = 0;
+
+     while (!found && attempts < 15) { // Increased attempts
+        attempts++;
+        p = randomInSphere().normalize().multiplyScalar(R);
+
+        // 1. Clouds (Floating) - 20% of particles (Increased for realism)
+        if (i < PARTICLE_COUNT * 0.20) {
+           if (isCloud(p)) {
+              p.multiplyScalar(1.06); // Float above
+              c.set(CONTINENT_COLORS.cloud);
+              c.multiplyScalar(0.8); // Transparent
+              found = true;
+              continue;
+           }
+        }
+
+        // 2. Check Land
+        let landDot = -1;
+        for (const node of landNodes) {
+           // Add noise to the radius check to fuzz edges (Fix for "Square/Blocky" look)
+           const edgeNoise = (Math.random() - 0.5) * 0.02;
+           const d = p.dot(node.v);
+           if (d > node.minDot + edgeNoise) {
+              if (d > landDot) landDot = d; // Max overlap
+           }
+        }
         
-        const theta = Math.random() * Math.PI * 2;
-        const jitter = (Math.random() - 0.5) * 0.05;
+        // Determine Day/Night - REMOVED BAKED SHADOWS (User complained about separation line)
+        // Instead we use a subtle gradient based on Y to give depth without rotating shadows
+        const isLand = landDot > -1;
         
-        const px = cx + (R + jitter) * Math.cos(theta);
-        const py = cy + (R + jitter) * Math.sin(theta);
-        const pz = (Math.random() - 0.5) * 0.1;
-        
-        // Group 1: Circles
-        // Group 2: Outer Circle (Large container)
-        const isOuter = i > PARTICLE_COUNT * 0.8;
-        if (isOuter) {
-            const bigR = 3 * R;
-            const px2 = (bigR + jitter) * Math.cos(theta);
-            const py2 = (bigR + jitter) * Math.sin(theta);
-            setParticle(i, buffers, new THREE.Vector3(px2, py2, pz), new THREE.Color(0.8, 0.9, 1.0), 2);
+        // Mock latitude lighting (poles darker)
+        const poleFactor = 1.0 - Math.abs(p.y) * 0.3;
+
+        if (isLand) {
+           // Land
+           c.set(CONTINENT_COLORS.land).multiplyScalar(poleFactor);
+           
+           // Cities (Always visible but subtle)
+           let isCity = false;
+           for (const city of cityNodes) {
+              if (p.dot(city.v) > city.minDot) {
+                 isCity = true;
+                 break;
+              }
+           }
+           
+           // Day Land
+           if (isCity && Math.random() < 0.3) { // 30% of city area has lights even in day (reflection?) or just style
+               c.set(CONTINENT_COLORS.city);
+           }
+           
+           // Ice caps
+           if (Math.abs(p.y) > 0.9) c.set(CONTINENT_COLORS.ice);
+           
+           found = true; 
         } else {
-            setParticle(i, buffers, new THREE.Vector3(px, py, pz), new THREE.Color(1, 0.9, 0.5), 1);
+           // Ocean
+           // Reduce ocean density to make land pop, but kept higher than before (0.6 -> 0.4 skip)
+           // Fix "Very empty side" issue
+           if (Math.random() > 0.55) { // Skip 55% of ocean points -> Land is 2x denser
+               continue; 
+           }
+           
+           // Deep Ocean Color with variation
+           c.set(CONTINENT_COLORS.ocean).multiplyScalar(poleFactor * (0.8 + Math.random() * 0.4));
+           
+           found = true;
         }
-    }
+     }
+     
+     // Fallback
+     if (!found) {
+        p = randomInSphere().normalize().multiplyScalar(R);
+        c.set(CONTINENT_COLORS.ocean).multiplyScalar(0.5);
+     }
+
+     positions[i*3] = p.x;
+     positions[i*3+1] = p.y;
+     positions[i*3+2] = p.z;
+     colors[i*3] = c.r;
+     colors[i*3+1] = c.g;
+     colors[i*3+2] = c.b;
+     groups[i] = g;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- TREE OF LIFE (Kabbalah) ---
+// 10 Sephiroth spheres connected by 22 paths
+// Represents the cosmic blueprint and spiritual evolution
+
+const SEPHIROTH_POSITIONS = [
+  { name: 'Kether', x: 0, y: 1.6, pillar: 'middle', color: '#FFFFFF' },      // Crown - Top
+  { name: 'Chokmah', x: 0.6, y: 1.1, pillar: 'right', color: '#87CEEB' },   // Wisdom
+  { name: 'Binah', x: -0.6, y: 1.1, pillar: 'left', color: '#4B0082' },     // Understanding
+  { name: 'Chesed', x: 0.6, y: 0.5, pillar: 'right', color: '#4169E1' },    // Mercy
+  { name: 'Geburah', x: -0.6, y: 0.5, pillar: 'left', color: '#DC143C' },   // Severity
+  { name: 'Tiphereth', x: 0, y: 0.3, pillar: 'middle', color: '#FFD700' },  // Beauty - Center
+  { name: 'Netzach', x: 0.6, y: -0.3, pillar: 'right', color: '#00FF7F' },  // Victory
+  { name: 'Hod', x: -0.6, y: -0.3, pillar: 'left', color: '#FF8C00' },      // Glory
+  { name: 'Yesod', x: 0, y: -0.9, pillar: 'middle', color: '#9370DB' },     // Foundation
+  { name: 'Malkuth', x: 0, y: -1.6, pillar: 'middle', color: '#228B22' },   // Kingdom - Bottom
+];
+
+// 22 Paths connecting the Sephiroth (traditional Kabbalistic paths)
+const TREE_PATHS = [
+  [0, 1], [0, 2], [0, 5],           // Kether connections
+  [1, 2], [1, 3], [1, 5],           // Chokmah connections
+  [2, 4], [2, 5],                   // Binah connections
+  [3, 4], [3, 5], [3, 6],           // Chesed connections
+  [4, 5], [4, 7],                   // Geburah connections
+  [5, 6], [5, 7], [5, 8],           // Tiphereth connections (center hub)
+  [6, 7], [6, 8],                   // Netzach connections
+  [7, 8],                           // Hod to Yesod
+  [8, 9],                           // Yesod to Malkuth
+];
+
+// --- GRID OF LIFE (64 Tetrahedron) ---
+// The 64 Tetrahedron Grid is a fundamental structure of the vacuum geometry
+// It represents where space converges over time - the matrix of creation
+
+const generateGridVertices = () => {
+  const vertices: THREE.Vector3[] = [];
+  const scale = 0.35;
+  
+  // 64 Tetrahedron grid forms from overlapping star tetrahedra
+  // Create a 3D grid of vertices that define the tetrahedra
+  
+  // Core vertices - center structure
+  const h = Math.sqrt(2/3); // Height ratio for tetrahedron
+  const levels = 4;
+  
+  // Generate vertices in a layered structure
+  for (let layer = -levels; layer <= levels; layer++) {
+    const y = layer * h * 0.5 * scale;
+    const layerOffset = Math.abs(layer) % 2 === 0 ? 0 : 0.5;
+    const radius = (levels - Math.abs(layer) * 0.3) * scale;
     
-    return buffers;
+    // Hexagonal arrangement at each layer
+    const pointsInLayer = Math.max(1, 6 * (levels - Math.abs(layer)));
+    for (let i = 0; i < pointsInLayer; i++) {
+      const angle = (i / pointsInLayer) * Math.PI * 2 + layerOffset;
+      const r = radius * (0.3 + (i % 3) * 0.3);
+      vertices.push(new THREE.Vector3(
+        r * Math.cos(angle),
+        y,
+        r * Math.sin(angle)
+      ));
+    }
+  }
+  
+  // Add central axis vertices
+  for (let i = -3; i <= 3; i++) {
+    vertices.push(new THREE.Vector3(0, i * 0.3 * scale, 0));
+  }
+  
+  // Add octahedral frame vertices
+  const octaScale = 1.2 * scale;
+  vertices.push(new THREE.Vector3(octaScale, 0, 0));
+  vertices.push(new THREE.Vector3(-octaScale, 0, 0));
+  vertices.push(new THREE.Vector3(0, octaScale, 0));
+  vertices.push(new THREE.Vector3(0, -octaScale, 0));
+  vertices.push(new THREE.Vector3(0, 0, octaScale));
+  vertices.push(new THREE.Vector3(0, 0, -octaScale));
+  
+  return vertices;
 };
 
-// 2. Star of David (Interlaced Triangles 3D)
-export const generateStarOfDavidData = () => {
-    const buffers = createBuffer();
-    
-    // Two 2D triangles extruded slightly
-    const R = 2.5;
-    const thickness = 0.1;
-    
-    // Recalculate standard equilateral
-    // Top: (0, R)
-    const t1 = [
-        new THREE.Vector3(0, R, 0),
-        new THREE.Vector3(R * Math.sin(Math.PI/3), -R * Math.cos(Math.PI/3), 0),
-        new THREE.Vector3(-R * Math.sin(Math.PI/3), -R * Math.cos(Math.PI/3), 0)
-    ];
-    
-    // Triangle 2: Point Down
-    const t2 = [
-        new THREE.Vector3(0, -R, 0),
-        new THREE.Vector3(R * Math.sin(Math.PI/3), R * Math.cos(Math.PI/3), 0),
-        new THREE.Vector3(-R * Math.sin(Math.PI/3), R * Math.cos(Math.PI/3), 0)
-    ];
-
-    const getPointOnTriangle = (triangle: THREE.Vector3[]) => {
-        // Random edge
-        const edge = Math.floor(Math.random() * 3);
-        const p1 = triangle[edge];
-        const p2 = triangle[(edge + 1) % 3];
-        const alpha = Math.random();
-        
-        const p = new THREE.Vector3().lerpVectors(p1, p2, alpha);
-        // Add thickness jitter
-        p.x += (Math.random()-0.5) * thickness;
-        p.y += (Math.random()-0.5) * thickness;
-        p.z += (Math.random()-0.5) * thickness;
-        return p;
-    };
-
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const rand = Math.random();
-        
-        if (rand < 0.05) {
-            // Vertices (Nodes)
-            const t = Math.random() > 0.5 ? t1 : t2;
-            const v = t[Math.floor(Math.random()*3)];
-            const p = v.clone().add(randomInSphere().multiplyScalar(0.2));
-            setParticle(i, buffers, p, new THREE.Color(1, 1, 1), 2);
-        } else if (rand < 0.525) {
-            // Triangle 1 (Blue-ish)
-            const p = getPointOnTriangle(t1);
-            setParticle(i, buffers, p, new THREE.Color(0.4, 0.6, 1), 0);
-        } else {
-            // Triangle 2 (Gold-ish)
-            const p = getPointOnTriangle(t2);
-            setParticle(i, buffers, p, new THREE.Color(1, 0.8, 0.4), 1);
-        }
+const generateTetrahedronEdges = (vertices: THREE.Vector3[]) => {
+  const edges: [THREE.Vector3, THREE.Vector3][] = [];
+  const threshold = 0.45; // Connect vertices within this distance
+  
+  for (let i = 0; i < vertices.length; i++) {
+    for (let j = i + 1; j < vertices.length; j++) {
+      const dist = vertices[i].distanceTo(vertices[j]);
+      if (dist < threshold && dist > 0.05) {
+        edges.push([vertices[i], vertices[j]]);
+      }
     }
-    return buffers;
+  }
+  
+  return edges;
 };
 
-// 3. Merkaba (Star Tetrahedron)
-export const generateMerkabaData = () => {
-    const buffers = createBuffer();
-    const R = 2.0;
-    
-    // Tetrahedron 1: (1,1,1), (1,-1,-1), (-1,1,-1), (-1,-1,1) (Scaled)
-    const t1 = [
-        new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(R),
-        new THREE.Vector3(1, -1, -1).normalize().multiplyScalar(R),
-        new THREE.Vector3(-1, 1, -1).normalize().multiplyScalar(R),
-        new THREE.Vector3(-1, -1, 1).normalize().multiplyScalar(R)
-    ];
-    
-    // Tetrahedron 2: (-1,-1,-1), (-1,1,1), (1,-1,1), (1,1,-1) (Scaled)
-    const t2 = [
-        new THREE.Vector3(-1, -1, -1).normalize().multiplyScalar(R),
-        new THREE.Vector3(-1, 1, 1).normalize().multiplyScalar(R),
-        new THREE.Vector3(1, -1, 1).normalize().multiplyScalar(R),
-        new THREE.Vector3(1, 1, -1).normalize().multiplyScalar(R)
-    ];
+export function generateGridOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
 
-    // Edges map: 0-1, 0-2, 0-3, 1-2, 1-3, 2-3
-    const edges = [[0,1], [0,2], [0,3], [1,2], [1,3], [2,3]];
-    
-    const getPointOnTetra = (verts: THREE.Vector3[]) => {
-        const edgeIdx = Math.floor(Math.random() * 6);
-        const [a, b] = edges[edgeIdx];
-        const p1 = verts[a];
-        const p2 = verts[b];
-        const alpha = Math.random();
-        const p = new THREE.Vector3().lerpVectors(p1, p2, alpha);
-        // Jitter
-        p.add(randomInSphere().multiplyScalar(0.05));
-        return p;
-    };
+  const vertices = generateGridVertices();
+  const edges = generateTetrahedronEdges(vertices);
+  
+  // Color palette - cosmic purples, cyans, golds
+  const deepPurple = new THREE.Color('#4C1D95');
+  const violet = new THREE.Color('#7C3AED');
+  const cyan = new THREE.Color('#22D3EE');
+  const gold = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const magenta = new THREE.Color('#EC4899');
 
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        if (Math.random() < 0.5) {
-            // T1 (Male, Sun) - Gold
-            const p = getPointOnTetra(t1);
-            setParticle(i, buffers, p, new THREE.Color(1, 0.8, 0.2), 0);
-        } else {
-            // T2 (Female, Earth) - Silver
-            const p = getPointOnTetra(t2);
-            setParticle(i, buffers, p, new THREE.Color(0.8, 0.8, 1), 1);
-        }
+  const vertexCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.55);
+  const innerGridCount = Math.floor(PARTICLE_COUNT * 0.20);
+  
+  let idx = 0;
+
+  // 1. Vertex nodes (glowing intersection points)
+  const particlesPerVertex = Math.floor(vertexCount / vertices.length);
+  for (let v = 0; v < vertices.length && idx < vertexCount; v++) {
+    const vertex = vertices[v];
+    const nodeRadius = 0.04;
+    
+    for (let i = 0; i < particlesPerVertex && idx < vertexCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      
+      positions[idx * 3] = vertex.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = vertex.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = vertex.z + r * Math.cos(phi);
+      
+      // Distance from center affects color
+      const distFromCenter = vertex.length();
+      const c = white.clone().lerp(gold, distFromCenter * 1.5);
+      c.lerp(cyan, Math.random() * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
     }
-    return buffers;
-};
+  }
 
-// 4. Tree of Life
-export const generateTreeOfLifeData = () => {
-    const buffers = createBuffer();
-    // 10 Sephiroth coordinates (approx relative)
-    const sephiroth = [
-        { x: 0, y: 3.5, z: 0, color: '#fff' }, // Keter
-        { x: 1.5, y: 2.5, z: 0, color: '#888' }, // Chokhmah
-        { x: -1.5, y: 2.5, z: 0, color: '#333' }, // Binah
-        { x: 1.5, y: 0.5, z: 0, color: '#22f' }, // Chesed
-        { x: -1.5, y: 0.5, z: 0, color: '#f22' }, // Gevurah
-        { x: 0, y: 0, z: 0, color: '#ff2' }, // Tiferet
-        { x: 1.5, y: -1.5, z: 0, color: '#2f2' }, // Netzach
-        { x: -1.5, y: -1.5, z: 0, color: '#fa2' }, // Hod
-        { x: 0, y: -2.5, z: 0, color: '#a2f' }, // Yesod
-        { x: 0, y: -4.0, z: 0, color: '#322' }, // Malkuth
-    ];
+  // 2. Edge lines (tetrahedron framework)
+  const particlesPerEdge = Math.floor(edgeCount / Math.max(edges.length, 1));
+  for (let e = 0; e < edges.length && idx < vertexCount + edgeCount; e++) {
+    const [start, end] = edges[e];
     
-    // Connections (indices)
-    const paths = [
-        [0,1], [0,2], [1,2], 
-        [1,3], [2,4], 
-        [1,5], [2,5], 
-        [3,4], [3,5], [4,5],
-        [3,6], [4,7], 
-        [5,6], [5,7], [5,8],
-        [6,7], [6,8], [7,8],
-        [8,9]
-    ];
-
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const rand = Math.random();
-        if (rand < 0.2) {
-            // Sephira (Sphere)
-            const idx = Math.floor(Math.random() * sephiroth.length);
-            const s = sephiroth[idx];
-            const p = randomInSphere().multiplyScalar(0.4).add(new THREE.Vector3(s.x, s.y, s.z));
-            setParticle(i, buffers, p, new THREE.Color(s.color), 0);
-        } else {
-            // Path
-            const pIdx = Math.floor(Math.random() * paths.length);
-            const [a, b] = paths[pIdx];
-            const s1 = sephiroth[a];
-            const s2 = sephiroth[b];
-            
-            const alpha = Math.random();
-            const px = s1.x + (s2.x - s1.x) * alpha;
-            const py = s1.y + (s2.y - s1.y) * alpha;
-            const pz = s1.z + (s2.z - s1.z) * alpha;
-            
-            // Jitter
-            const j = (Math.random()-0.5) * 0.1;
-            
-            setParticle(i, buffers, new THREE.Vector3(px+j, py+j, pz+j), new THREE.Color(0.8, 0.8, 0.8), 1);
-        }
+    for (let i = 0; i < particlesPerEdge && idx < vertexCount + edgeCount; i++, idx++) {
+      const t = Math.random();
+      const thickness = 0.008;
+      
+      const x = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * thickness;
+      const y = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * thickness;
+      const z = start.z + (end.z - start.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Gradient from start to end color based on position
+      const c = violet.clone().lerp(cyan, t);
+      c.lerp(magenta, Math.sin(t * Math.PI) * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
     }
-    return buffers;
-};
+  }
 
-// 6. Grid of Life (Isotropic Vector Matrix / 64 Tetrahedron)
-export const generateGridOfLifeData = () => {
-    const buffers = createBuffer();
-    // Generate a simple cubic or tet grid layout
-    const size = 3;
-    const spacing = 1.0;
+  // 3. Inner tetrahedra structure (64 small tetrahedra visualization)
+  const innerScale = 0.25;
+  for (; idx < vertexCount + edgeCount + innerGridCount; idx++) {
+    // Create small tetrahedra distributed in the grid
+    const gridX = (Math.random() - 0.5) * 2 * innerScale;
+    const gridY = (Math.random() - 0.5) * 2 * innerScale;
+    const gridZ = (Math.random() - 0.5) * 2 * innerScale;
     
-    const points: THREE.Vector3[] = [];
-    for(let x=-size; x<=size; x++) {
-        for(let y=-size; y<=size; y++) {
-            for(let z=-size; z<=size; z++) {
-                if (Math.abs(x)+Math.abs(y)+Math.abs(z) <= size + 1) {
-                    points.push(new THREE.Vector3(x*spacing, y*spacing, z*spacing));
-                }
-            }
-        }
+    // Snap to tetrahedron structure
+    const tetraSize = 0.08;
+    const tx = Math.round(gridX / tetraSize) * tetraSize;
+    const ty = Math.round(gridY / tetraSize) * tetraSize;
+    const tz = Math.round(gridZ / tetraSize) * tetraSize;
+    
+    positions[idx * 3] = tx + (Math.random() - 0.5) * 0.02;
+    positions[idx * 3 + 1] = ty + (Math.random() - 0.5) * 0.02;
+    positions[idx * 3 + 2] = tz + (Math.random() - 0.5) * 0.02;
+    
+    const c = deepPurple.clone().lerp(violet, Math.random());
+    c.lerp(white, 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Outer spherical boundary (vastness of space)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 0.9 + Math.random() * 0.15;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    // Faint cosmic dust
+    const c = deepPurple.clone().lerp(cyan, Math.random() * 0.4);
+    c.multiplyScalar(0.4 + Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  return { positions, colors, groups };
+}
+
+export function generateTreeOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.7;
+  
+  // Scale sephiroth positions
+  const sephiroth = SEPHIROTH_POSITIONS.map(s => ({
+    ...s,
+    x: s.x * scale,
+    y: s.y * scale,
+    color: new THREE.Color(s.color)
+  }));
+
+  // Color palette
+  const white = new THREE.Color('#FFFFFF');
+  const gold = new THREE.Color('#FFD700');
+  const pathColor = new THREE.Color('#ADD8E6');
+
+  const sphereCount = Math.floor(PARTICLE_COUNT * 0.30);
+  const pathCount = Math.floor(PARTICLE_COUNT * 0.60);
+
+  let idx = 0;
+
+  // 1. Sephiroth Spheres (10 spheres)
+  const particlesPerSphere = Math.floor(sphereCount / sephiroth.length);
+  
+  for (let s = 0; s < sephiroth.length; s++) {
+    const seph = sephiroth[s];
+    const sphereRadius = 0.12;
+    
+    for (let i = 0; i < particlesPerSphere && idx < sphereCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 1/3) * sphereRadius;
+      
+      const x = seph.x + r * Math.sin(phi) * Math.cos(theta);
+      const y = seph.y + r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const distFromCenter = Math.sqrt((x - seph.x) ** 2 + (y - seph.y) ** 2 + z ** 2);
+      const brightness = 1.0 - (distFromCenter / (sphereRadius * sphereRadius)) * 0.5;
+      
+      const c = seph.color.clone();
+      c.lerp(white, brightness * 0.4);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      
+      groups[idx] = s;
     }
+  }
+
+  // 2. Paths (22 connecting lines)
+  const particlesPerPath = Math.floor(pathCount / TREE_PATHS.length);
+  
+  for (let p = 0; p < TREE_PATHS.length; p++) {
+    const [idx1, idx2] = TREE_PATHS[p];
+    const start = sephiroth[idx1];
+    const end = sephiroth[idx2];
     
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const rand = Math.random();
-        if (rand < 0.3) {
-            // Nodes
-            const p = points[Math.floor(Math.random()*points.length)];
-            const j = randomInSphere().multiplyScalar(0.15);
-            setParticle(i, buffers, p.clone().add(j), new THREE.Color(0, 1, 1), 0);
-        } else {
-            // Lines
-            const p1 = points[Math.floor(Math.random()*points.length)];
-            const p2 = p1.clone().add(new THREE.Vector3(
-                 Math.round(Math.random()*2-1)*spacing, 
-                 Math.round(Math.random()*2-1)*spacing, 
-                 Math.round(Math.random()*2-1)*spacing
-            ));
-            
-            const alpha = Math.random();
-            const p = new THREE.Vector3().lerpVectors(p1, p2, alpha);
-            setParticle(i, buffers, p, new THREE.Color(0, 0.5, 1), 1);
-        }
+    for (let i = 0; i < particlesPerPath && idx < sphereCount + pathCount; i++, idx++) {
+      const t = Math.random();
+      const thickness = 0.015;
+      
+      const x = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * thickness;
+      const y = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * thickness;
+      const z = (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = start.color.clone().lerp(end.color, t);
+      c.lerp(pathColor, 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      
+      groups[idx] = 10 + p;
     }
-    return buffers;
-};
+  }
 
-// 7. Sri Yantra
-export const generateSriYantraData = () => {
-    const buffers = createBuffer();
-    // 9 Interlocking triangles.
-    const triangles = [
-        { dir: 1, y: 0.2, s: 2.0 },
-        { dir: 1, y: 0.5, s: 1.5 },
-        { dir: 1, y: 0.8, s: 1.0 },
-        { dir: 1, y: 1.0, s: 0.6 },
-        { dir: -1, y: -0.2, s: 2.0 },
-        { dir: -1, y: -0.5, s: 1.5 },
-        { dir: -1, y: -0.8, s: 1.0 },
-        { dir: -1, y: -1.0, s: 0.6 },
-        { dir: -1, y: -1.2, s: 0.4 },
-    ];
+  // 3. Ambient glow around entire tree
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.random() * 0.5;
     
-    const getTriPoint = (t: {dir: number, y: number, s: number}) => {
-        let v: THREE.Vector3[];
-        if (t.dir === 1) {
-            v = [
-                new THREE.Vector3(0, t.y + t.s, 0),
-                new THREE.Vector3(t.s * 0.866, t.y - t.s * 0.5, 0),
-                new THREE.Vector3(-t.s * 0.866, t.y - t.s * 0.5, 0)
-            ];
-        } else {
-             v = [
-                new THREE.Vector3(0, t.y - t.s, 0),
-                new THREE.Vector3(t.s * 0.866, t.y + t.s * 0.5, 0),
-                new THREE.Vector3(-t.s * 0.866, t.y + t.s * 0.5, 0)
-            ];
-        }
-        const edge = Math.floor(Math.random() * 3);
-        return new THREE.Vector3().lerpVectors(v[edge], v[(edge+1)%3], Math.random());
-    };
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const c = white.clone().lerp(gold, Math.random() * 0.3);
+    c.multiplyScalar(0.3 + Math.random() * 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    
+    groups[idx] = 32;
+  }
 
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        if (Math.random() < 0.1) {
-            // Center Bindu
-            setParticle(i, buffers, randomInSphere().multiplyScalar(0.1), new THREE.Color(1, 1, 1), 0);
-        } else if (Math.random() < 0.8) {
-            // Triangles
-            const tIdx = Math.floor(Math.random() * triangles.length);
-            const p = getTriPoint(triangles[tIdx]);
-            p.z = (Math.random()-0.5) * 0.1;
-            setParticle(i, buffers, p, new THREE.Color(1, 0.4, 0.4), tIdx + 1);
-        } else {
-            // Outer Circles
-            const r = 2.5;
-            const ang = Math.random() * Math.PI * 2;
-            const p = new THREE.Vector3(r * Math.cos(ang), r * Math.sin(ang), 0);
-            setParticle(i, buffers, p, new THREE.Color(1, 0.8, 0.2), 11);
-        }
+  return { positions, colors, groups };
+}
+
+// --- SRI YANTRA ---
+// 9 interlocking triangles (4 upward, 5 downward) surrounding the bindu
+// Represents union of masculine and feminine energies, cosmic creation
+
+const SRI_YANTRA_TRIANGLES = [
+  // 4 Upward triangles (Shiva - masculine)
+  [
+    { x: 0, y: 0.95 },
+    { x: -0.85, y: -0.55 },
+    { x: 0.85, y: -0.55 }
+  ],
+  [
+    { x: 0, y: 0.7 },
+    { x: -0.65, y: -0.35 },
+    { x: 0.65, y: -0.35 }
+  ],
+  [
+    { x: 0, y: 0.45 },
+    { x: -0.45, y: -0.2 },
+    { x: 0.45, y: -0.2 }
+  ],
+  [
+    { x: 0, y: 0.25 },
+    { x: -0.25, y: -0.1 },
+    { x: 0.25, y: -0.1 }
+  ],
+  // 5 Downward triangles (Shakti - feminine)
+  [
+    { x: 0, y: -0.95 },
+    { x: -0.8, y: 0.5 },
+    { x: 0.8, y: 0.5 }
+  ],
+  [
+    { x: 0, y: -0.65 },
+    { x: -0.6, y: 0.3 },
+    { x: 0.6, y: 0.3 }
+  ],
+  [
+    { x: 0, y: -0.4 },
+    { x: -0.42, y: 0.15 },
+    { x: 0.42, y: 0.15 }
+  ],
+  [
+    { x: 0, y: -0.2 },
+    { x: -0.28, y: 0.08 },
+    { x: 0.28, y: 0.08 }
+  ],
+  [
+    { x: 0, y: -0.08 },
+    { x: -0.15, y: 0.03 },
+    { x: 0.15, y: 0.03 }
+  ],
+];
+
+// --- STAR OF DAVID (Magen David) ---
+// Two interlocking equilateral triangles forming a hexagram
+// Represents harmony between divine and human, masculine and feminine
+// The six points symbolize the six days of creation
+
+export function generateStarOfDavidData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 1.0;
+  const R = 1.2 * scale;
+  
+  // Refined sacred palette - elegant blues and golds
+  const deepBlue = new THREE.Color('#1E40AF');
+  const royalBlue = new THREE.Color('#3B82F6');
+  const skyBlue = new THREE.Color('#0EA5E9');
+  const lightBlue = new THREE.Color('#7DD3FC');
+  const gold = new THREE.Color('#FBBF24');
+  const paleGold = new THREE.Color('#FDE68A');
+  const white = new THREE.Color('#FFFFFF');
+
+  // Triangle 1: Pointing UP (Divine, Masculine)
+  const t1_vertices = [
+    { x: 0, y: R },
+    { x: R * Math.cos(210 * Math.PI / 180), y: R * Math.sin(210 * Math.PI / 180) },
+    { x: R * Math.cos(330 * Math.PI / 180), y: R * Math.sin(330 * Math.PI / 180) }
+  ];
+
+  // Triangle 2: Pointing DOWN (Earthly, Feminine)
+  const t2_vertices = [
+    { x: 0, y: -R },
+    { x: R * Math.cos(30 * Math.PI / 180), y: R * Math.sin(30 * Math.PI / 180) },
+    { x: R * Math.cos(150 * Math.PI / 180), y: R * Math.sin(150 * Math.PI / 180) }
+  ];
+
+
+
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.55);
+  const vertexCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+
+  // 1. Triangle Edges - Clean, prominent lines
+  const particlesPerEdge = Math.floor(edgeCount / 6);
+  
+  // Upward Triangle (Blue tones)
+  for (let e = 0; e < 3; e++) {
+    const v1 = t1_vertices[e];
+    const v2 = t1_vertices[(e + 1) % 3];
+    
+    for (let i = 0; i < particlesPerEdge && idx < edgeCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.012;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = 0.06 + (Math.random() - 0.5) * 0.015;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Smooth blue gradient
+      const c = skyBlue.clone().lerp(lightBlue, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.12);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
     }
-    return buffers;
-};
-
-// 8. Triquetra (New - 3 Continuous Arcs/Petals)
-export const generateTriquetraData = () => {
-    const buffers = createBuffer();
+  }
+  
+  // Downward Triangle (Gold tones)
+  for (let e = 0; e < 3; e++) {
+    const v1 = t2_vertices[e];
+    const v2 = t2_vertices[(e + 1) % 3];
     
-    // Scale factor
-    const R = 1.5;
-    
-    // We generate 3 "petals" or "vesica piscis" shapes arranged radially.
-    // Each petal is formed by two circle arcs.
-    // To make it look like a continuous knot, we weave them.
-    
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        // Choose one of 3 petals
-        const petal = Math.floor(Math.random() * 3);
-        const petalAngle = petal * (2 * Math.PI / 3) + Math.PI/2; // Pointing up at 90 deg
-        
-        // Construct a single vertical petal (pointed oval)
-        // A vesica piscis is the intersection of two circles.
-        // We want the outline.
-        // Right Arc: Center at (-offset, 0), Radius arcR.
-        // Left Arc: Center at (offset, 0), Radius arcR.
-        
-        const arcR = R * 0.8;
-        const offset = R * 0.4;
-        
-        // To find the tips (intersection points):
-        // x=0 => y^2 = arcR^2 - offset^2 => y = +/- sqrt(arcR^2 - offset^2)
-        const tipY = Math.sqrt(arcR*arcR - offset*offset);
-        
-        // We only want the outer arcs that form the petal shape.
-        // For Right Arc (center -offset): we want positive X (relative to its center)?
-        // No, the petal is centered at 0.
-        // Right Arc passes through (0, tipY) and (0, -tipY) and (arcR-offset, 0).
-        // This forms the RIGHT side of the petal.
-        
-        const side = Math.random() > 0.5 ? 1 : -1; // 1 = Right side of petal, -1 = Left side
-        
-        // Arc Center in local petal space
-        const cx = -side * offset; 
-        const cy = 0;
-        
-        // Calculate angle range to hit the tips
-        // At tip (0, tipY): 
-        // dx = 0 - cx = side*offset
-        // dy = tipY
-        // angle = atan2(dy, dx)
-        const maxAng = Math.atan2(tipY, side * offset); 
-        const minAng = Math.atan2(-tipY, side * offset);
-        
-        // Random angle within the arc segment
-        const a = minAng + Math.random() * (maxAng - minAng);
-        
-        let lx = cx + arcR * Math.cos(a);
-        let ly = cy + arcR * Math.sin(a);
-        
-        // Add thickness/glow
-        const jitter = randomInSphere().multiplyScalar(0.06);
-        lx += jitter.x;
-        ly += jitter.y;
-        
-        // Rotate to petal position
-        const px = lx * Math.cos(petalAngle) - ly * Math.sin(petalAngle);
-        const py = lx * Math.sin(petalAngle) + ly * Math.cos(petalAngle);
-        
-        // Weaving effect (Z-depth)
-        // We want over-under pattern at intersections.
-        // Intersections happen near the center? No, triquetra loops overlap.
-        // Simple heuristic: Z based on distance from center or angle phase
-        const pz = Math.sin(a * 4 + petal * 2) * 0.2 + jitter.z;
-        
-        setParticle(i, buffers, new THREE.Vector3(px, py, pz), new THREE.Color(1, 0.84, 0), petal); // Gold
+    for (let i = 0; i < particlesPerEdge && idx < edgeCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.012;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = -0.06 + (Math.random() - 0.5) * 0.015;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Smooth gold gradient
+      const c = gold.clone().lerp(paleGold, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.12);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
     }
-    return buffers;
-};
+  }
 
-// 9. Golden Rectangles (New - 3 Orthogonal)
-export const generateGoldenRectanglesData = () => {
-    const buffers = createBuffer();
-    const phi = 1.61803398875;
-    const s = 1.5; // Scale
+  // 2. Vertex nodes - Radiant star points
+  const particlesPerVertex = Math.floor(vertexCount / 6);
+  const allVertices = [...t1_vertices, ...t2_vertices];
+  
+  for (let v = 0; v < 6 && idx < edgeCount + vertexCount; v++) {
+    const vertex = allVertices[v];
+    const nodeRadius = 0.10;
+    const isUpward = v < 3;
     
-    const rects = [
-        { type: 0, w: 1, h: phi }, // XY plane? No, Borromean are usually (1, phi, 0) cyclic
-        { type: 1, w: 1, h: phi }, 
-        { type: 2, w: 1, h: phi }
-    ];
-
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const rIdx = Math.floor(Math.random() * 3);
-        const r = rects[rIdx];
-        
-        // Perimeter position
-        const peri = 2 * (r.w + r.h);
-        const d = Math.random() * peri;
-        
-        let u = 0, v = 0;
-        if (d < r.w) { u = -r.w/2 + d; v = r.h/2; }
-        else if (d < r.w + r.h) { u = r.w/2; v = r.h/2 - (d - r.w); }
-        else if (d < 2*r.w + r.h) { u = r.w/2 - (d - (r.w + r.h)); v = -r.h/2; }
-        else { u = -r.w/2; v = -r.h/2 + (d - (2*r.w + r.h)); }
-        
-        u *= s; v *= s;
-        
-        const jit = randomInSphere().multiplyScalar(0.08);
-        const p = new THREE.Vector3();
-        
-        // Cyclic assignment for Icosahedron planes
-        if (rIdx === 0) { 
-            // Plane 1: x=u, y=v, z=0 (approx)
-            // Actually: (0, +/-1, +/-phi) is one. (+/-phi, 0, +/-1) is another. (+/-1, +/-phi, 0) is third.
-            // Let's stick to standard XYZ planes for visual clarity of "3 rectangles"
-            p.set(u, v, 0); 
-        } else if (rIdx === 1) { 
-            p.set(0, u, v); 
-        } else { 
-            p.set(v, 0, u); 
-        }
-        
-        p.add(jit);
-        const c = new THREE.Color(1.0, 0.8 + rIdx*0.05, 0.2); // Gold variants
-        
-        setParticle(i, buffers, p, c, rIdx);
-        
-        // Inner Volume (faint)
-        if (Math.random() < 0.05) {
-             p.multiplyScalar(Math.random());
-             setParticle(i, buffers, p, c, 4);
-        }
+    for (let i = 0; i < particlesPerVertex && idx < edgeCount + vertexCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
+      
+      const x = vertex.x + r * Math.sin(phi) * Math.cos(theta);
+      const y = vertex.y + r * Math.sin(phi) * Math.sin(theta);
+      const z = (isUpward ? 0.06 : -0.06) + r * Math.cos(phi) * 0.3;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      // Bright radiant vertices
+      const brightness = 1.0 - (r / nodeRadius) * 0.6;
+      const c = white.clone();
+      if (isUpward) {
+        c.lerp(lightBlue, 0.4);
+      } else {
+        c.lerp(paleGold, 0.5);
+      }
+      c.multiplyScalar(0.7 + brightness * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
     }
-    return buffers;
-};
+  }
 
-// 5. Earth
-export const generateEarthData = () => {
-    const buffers = createBuffer();
+  // 3. Sacred center point - The bindu
+  const binduRadius = 0.05;
+  for (let i = 0; i < centerCount && idx < edgeCount + vertexCount + centerCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.3) * binduRadius;
     
-    // Helper to check if point is on land
-    const isLand = (lat: number, lon: number) => {
-        for (const cap of LAND_CAPS) {
-            const dLat = lat - cap.lat;
-            let dLon = lon - cap.lon;
-            if (dLon > 180) dLon -= 360;
-            if (dLon < -180) dLon += 360;
-            const dLonCorr = dLon * Math.cos(cap.lat * Math.PI / 180);
-            const dist = Math.sqrt(dLat*dLat + dLonCorr*dLonCorr);
-            if (dist < cap.r) return true;
-        }
-        return false;
-    };
-
-    const isCity = (lat: number, lon: number) => {
-        for (const city of CITY_CAPS) {
-            const dLat = lat - city.lat;
-            let dLon = lon - city.lon;
-            if (dLon > 180) dLon -= 360;
-            if (dLon < -180) dLon += 360;
-            const dist = Math.sqrt(dLat*dLat + dLon*dLon);
-            if (dist < city.r) return true;
-        }
-        return false;
-    };
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
     
-    const R = 2.0;
+    // Pure white-gold center
+    const brightness = 1.0 - (r / binduRadius) * 0.3;
+    const c = white.clone().lerp(gold, 0.15);
+    c.multiplyScalar(0.8 + brightness * 0.2);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
 
-    for(let i=0; i<PARTICLE_COUNT; i++) {
-        const theta = Math.random() * Math.PI * 2; 
-        const phi = Math.acos(2 * Math.random() - 1);
+  // 4. Subtle ambient halo - Soft, ethereal
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    
+    // Gentle spherical halo
+    const r = 1.3 + Math.pow(Math.random(), 2) * 0.35;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.3;
+    
+    // Soft blue-white ambient glow
+    const c = deepBlue.clone().lerp(royalBlue, Math.random());
+    c.lerp(white, Math.random() * 0.15);
+    c.multiplyScalar(0.2 + Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- TRIQUETRA ---
+// Three interlocking circular loops forming rounded triangular petals
+// Exact reconstruction from reference image
+// Each loop is a circle segment, creating the characteristic triquetra pattern
+// with inner and outer boundaries forming the interlocking design
+
+export function generateTriquetraData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 1.0;
+  
+  // Golden luminous palette matching the image's golden yellow color
+  const gold = new THREE.Color('#FFD700');
+  const brightGold = new THREE.Color('#FFF176');
+  const deepGold = new THREE.Color('#FFA000');
+  const white = new THREE.Color('#FFFFFF');
+
+  // Triquetra Construction from Image Analysis:
+  // Three circles with centers forming an equilateral triangle
+  // Each circle's radius equals the distance between centers
+  // This creates the perfect vesica piscis overlaps
+  
+  const circleRadius = 0.55 * scale;
+  const centerDistance = circleRadius * 1.0; // Key: R = d for perfect triquetra
+  
+  // Three circle centers at 120° apart, rotated 30° to match image orientation
+  const circleData = [
+    { angle: 90 * Math.PI / 180, label: 'top' },
+    { angle: 210 * Math.PI / 180, label: 'bottom-left' },
+    { angle: 330 * Math.PI / 180, label: 'bottom-right' }
+  ];
+  
+  const circleCenters = circleData.map(d => ({
+    x: centerDistance * Math.cos(d.angle),
+    y: centerDistance * Math.sin(d.angle),
+    angle: d.angle
+  }));
+  
+  // Calculate which parts of each circle are visible (not covered by other circles)
+  // For triquetra: each circle shows approximately 240° arc (excludes 120° covered by neighbors)
+  
+  // Particle distribution
+  const loopParticles = Math.floor(PARTICLE_COUNT * 0.75);
+  const innerTriangleParticles = Math.floor(PARTICLE_COUNT * 0.10);
+  const glowParticles = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+
+  // Helper: Check if a point is inside a circle
+  const isInsideCircle = (px: number, py: number, cx: number, cy: number, r: number) => {
+    const dx = px - cx;
+    const dy = py - cy;
+    return (dx * dx + dy * dy) < (r * r);
+  };
+
+  // 1. Draw the three interlocking loops (outer and inner boundaries)
+  const particlesPerLoop = Math.floor(loopParticles / 3);
+  
+  for (let loopIdx = 0; loopIdx < 3; loopIdx++) {
+    const center = circleCenters[loopIdx];
+    const otherCenter1 = circleCenters[(loopIdx + 1) % 3];
+    const otherCenter2 = circleCenters[(loopIdx + 2) % 3];
+    
+    // Sample points along this circle
+    const samplesPerLoop = particlesPerLoop * 2; // Oversample then filter
+    let particlesPlaced = 0;
+    
+    for (let i = 0; i < samplesPerLoop && particlesPlaced < particlesPerLoop && idx < loopParticles; i++) {
+      const angle = (i / samplesPerLoop) * Math.PI * 2;
+      
+      // Outer boundary: points on the circle
+      const outerThickness = 0.045; // Tube thickness
+      const innerRadius = circleRadius - outerThickness;
+      
+      // Randomly pick inner or outer edge of the tube
+      const radiusVariation = innerRadius + Math.random() * outerThickness * 2;
+      
+      const px = center.x + radiusVariation * Math.cos(angle);
+      const py = center.y + radiusVariation * Math.sin(angle);
+      
+      // Check if this point should be visible:
+      // It's visible if it's NOT inside BOTH other circles simultaneously
+      // (i.e., it's in the exposed part of this circle)
+      const inOther1 = isInsideCircle(px, py, otherCenter1.x, otherCenter1.y, circleRadius - outerThickness * 0.5);
+      const inOther2 = isInsideCircle(px, py, otherCenter2.x, otherCenter2.y, circleRadius - outerThickness * 0.5);
+      
+      // Only draw if not deeply inside both neighbors (allow partial overlap for weaving)
+      if (!(inOther1 && inOther2)) {
+        const z = (Math.random() - 0.5) * 0.03;
         
-        const lat = 90 - (phi * 180 / Math.PI);
-        const lon = (theta * 180 / Math.PI) - 180;
+        positions[idx * 3] = px;
+        positions[idx * 3 + 1] = py;
+        positions[idx * 3 + 2] = z;
         
-        let color = new THREE.Color(CONTINENT_COLORS.ocean);
-        let r = R;
-        let group = 0;
-        
-        if (isCity(lat, lon)) {
-            color = new THREE.Color(CONTINENT_COLORS.city);
-            r = R * 1.02;
-            group = 2;
-        } else if (isLand(lat, lon)) {
-            color = new THREE.Color(CONTINENT_COLORS.land);
-            color.g += (Math.random()-0.5)*0.1;
-            r = R * 1.005;
-            group = 1;
-        } else {
-             color.b += (Math.random()-0.5)*0.1;
+        // Color: golden with subtle variation
+        const colorVariation = Math.random();
+        const particleColor = gold.clone();
+        if (colorVariation < 0.1) {
+          particleColor.lerp(brightGold, 0.6);
+        } else if (colorVariation > 0.9) {
+          particleColor.lerp(deepGold, 0.4);
         }
         
-        if (Math.random() < 0.15) {
-             r = R * 1.05;
-             color = new THREE.Color(CONTINENT_COLORS.cloud);
-             group = 3;
-        }
-
-        const x = r * Math.sin(phi) * Math.cos(theta);
-        const y = r * Math.cos(phi);
-        const z = r * Math.sin(phi) * Math.sin(theta);
+        colors[idx * 3] = particleColor.r;
+        colors[idx * 3 + 1] = particleColor.g;
+        colors[idx * 3 + 2] = particleColor.b;
+        groups[idx] = loopIdx;
         
-        setParticle(i, buffers, new THREE.Vector3(x, y, z), color, group);
+        idx++;
+        particlesPlaced++;
+      }
     }
-    return buffers;
-};
+  }
+
+  // 2. Inner triangle - the small triangular void in the center where all three loops meet
+  const innerTriangleRadius = 0.12 * scale;
+  for (let i = 0; i < innerTriangleParticles && idx < loopParticles + innerTriangleParticles; i++, idx++) {
+    // Create small particles around the inner triangle vertices
+    const vertexAngle = (Math.floor(Math.random() * 3) * 120 + 30) * Math.PI / 180;
+    const r = innerTriangleRadius * (0.6 + Math.random() * 0.4);
+    const angleJitter = (Math.random() - 0.5) * 0.3;
+    
+    const px = r * Math.cos(vertexAngle + angleJitter);
+    const py = r * Math.sin(vertexAngle + angleJitter);
+    const pz = (Math.random() - 0.5) * 0.02;
+    
+    positions[idx * 3] = px;
+    positions[idx * 3 + 1] = py;
+    positions[idx * 3 + 2] = pz;
+    
+    // Bright golden center
+    const centerColor = gold.clone().lerp(white, 0.3);
+    colors[idx * 3] = centerColor.r;
+    colors[idx * 3 + 1] = centerColor.g;
+    colors[idx * 3 + 2] = centerColor.b;
+    groups[idx] = 3;
+  }
+
+  // 3. Soft outer glow
+  for (; idx < loopParticles + innerTriangleParticles + glowParticles; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.0 + Math.pow(Math.random(), 2) * 0.3;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.15;
+    
+    const glowColor = deepGold.clone();
+    glowColor.multiplyScalar(0.15 + Math.random() * 0.1);
+    
+    colors[idx * 3] = glowColor.r;
+    colors[idx * 3 + 1] = glowColor.g;
+    colors[idx * 3 + 2] = glowColor.b;
+    groups[idx] = 4;
+  }
+
+  // 4. Fill remaining with ambient particles
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 1.8) * 0.3;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const ambientColor = gold.clone();
+    ambientColor.lerp(white, 0.2);
+    ambientColor.multiplyScalar(0.12 + Math.random() * 0.08);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 5;
+  }
+
+  return { positions, colors, groups };
+}
+
+export function generateSriYantraData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.8;
+  
+  // Sacred color palette - gold, magenta, orange (wealth and prosperity)
+  const gold = new THREE.Color('#FFD700');
+  const deepGold = new THREE.Color('#FFA500');
+  const magenta = new THREE.Color('#FF1493');
+  const orange = new THREE.Color('#FF6B35');
+  const white = new THREE.Color('#FFFFFF');
+  const crimson = new THREE.Color('#DC143C');
+
+  const binduCount = Math.floor(PARTICLE_COUNT * 0.08);
+  const triangleCount = Math.floor(PARTICLE_COUNT * 0.70);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.12);
+  
+  let idx = 0;
+
+  // 1. Bindu - Central point (origin of universe)
+  const binduRadius = 0.06;
+  for (let i = 0; i < binduCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.5) * binduRadius;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const c = white.clone().lerp(gold, Math.random() * 0.4);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Nine Triangles (edges)
+  const particlesPerTriangle = Math.floor(triangleCount / SRI_YANTRA_TRIANGLES.length);
+  const particlesPerEdge = Math.floor(particlesPerTriangle / 3);
+  
+  for (let t = 0; t < SRI_YANTRA_TRIANGLES.length && idx < binduCount + triangleCount; t++) {
+    const triangle = SRI_YANTRA_TRIANGLES[t];
+    const isUpward = t < 4;
+    
+    const baseColor = isUpward ? gold.clone() : magenta.clone();
+    const accentColor = isUpward ? deepGold.clone() : crimson.clone();
+    
+    for (let e = 0; e < 3; e++) {
+      const v1 = triangle[e];
+      const v2 = triangle[(e + 1) % 3];
+      
+      for (let i = 0; i < particlesPerEdge && idx < binduCount + triangleCount; i++, idx++) {
+        const edgeT = i / particlesPerEdge;
+        const thickness = 0.012;
+        
+        const x = (v1.x + (v2.x - v1.x) * edgeT) * scale + (Math.random() - 0.5) * thickness;
+        const y = (v1.y + (v2.y - v1.y) * edgeT) * scale + (Math.random() - 0.5) * thickness;
+        
+        const layerDepth = (t / SRI_YANTRA_TRIANGLES.length) * 0.15;
+        const z = (isUpward ? layerDepth : -layerDepth) + (Math.random() - 0.5) * 0.02;
+        
+        positions[idx * 3] = x;
+        positions[idx * 3 + 1] = y;
+        positions[idx * 3 + 2] = z;
+        
+        const c = baseColor.clone().lerp(accentColor, edgeT);
+        c.lerp(white, Math.random() * 0.15);
+        
+        colors[idx * 3] = c.r;
+        colors[idx * 3 + 1] = c.g;
+        colors[idx * 3 + 2] = c.b;
+        groups[idx] = 1 + t;
+      }
+    }
+  }
+
+  // 3. Intersection points
+  const intersectionNodes: THREE.Vector3[] = [];
+  
+  for (let t1 = 0; t1 < SRI_YANTRA_TRIANGLES.length; t1++) {
+    const tri1 = SRI_YANTRA_TRIANGLES[t1];
+    for (const v of tri1) {
+      intersectionNodes.push(new THREE.Vector3(v.x * scale, v.y * scale, 0));
+    }
+  }
+  
+  const uniqueNodes: THREE.Vector3[] = [];
+  const threshold = 0.05;
+  for (const node of intersectionNodes) {
+    let isDuplicate = false;
+    for (const unique of uniqueNodes) {
+      if (node.distanceTo(unique) < threshold) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    if (!isDuplicate) uniqueNodes.push(node);
+  }
+  
+  const particlesPerNode = Math.max(1, Math.floor(intersectionCount / uniqueNodes.length));
+  for (let n = 0; n < uniqueNodes.length && idx < binduCount + triangleCount + intersectionCount; n++) {
+    const node = uniqueNodes[n];
+    const nodeRadius = 0.025;
+    
+    for (let i = 0; i < particlesPerNode && idx < binduCount + triangleCount + intersectionCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+      
+      positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      
+      const c = orange.clone().lerp(gold, Math.random());
+      c.lerp(white, 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 10;
+    }
+  }
+
+  // 4. Outer circles (lotus petals)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const circleIdx = Math.floor(Math.random() * 3);
+    const radius = [1.1, 1.3, 1.5][circleIdx] * scale;
+    
+    const angle = Math.random() * Math.PI * 2;
+    const radiusJitter = (Math.random() - 0.5) * 0.015;
+    
+    positions[idx * 3] = (radius + radiusJitter) * Math.cos(angle);
+    positions[idx * 3 + 1] = (radius + radiusJitter) * Math.sin(angle);
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.05;
+    
+    const c = gold.clone().lerp(deepGold, Math.random());
+    c.multiplyScalar(0.4 + Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 11;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- GOLDEN RECTANGLES ---
+// Three interconnected golden rectangles representing the cosmos and union of forces
+// Each rectangle has sides in the golden ratio φ ≈ 1.618
+// The three rectangles are mutually perpendicular (XY, YZ, ZX planes)
+// Represents the underlying structure of creation and harmony in the universe
+
+export function generateGoldenRectanglesData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.65;
+  const phi = 1.618; // Golden ratio
+  
+  // Dimensions of golden rectangle
+  const width = 1.0 * scale;
+  const height = phi * scale;
+  
+  // Golden color palette - amber, gold, bronze representing wealth and divine proportion
+  const deepGold = new THREE.Color('#B8860B');
+  const gold = new THREE.Color('#FFD700');
+  const amber = new THREE.Color('#FFBF00');
+  const bronze = new THREE.Color('#CD7F32');
+  const white = new THREE.Color('#FFFFFF');
+  const orange = new THREE.Color('#FF8C00');
+  const lightGold = new THREE.Color('#FFF4D6');
+
+  // Three rectangles in perpendicular planes
+  // Rectangle 1: XY plane (width along X, height along Y)
+  // Rectangle 2: YZ plane (width along Y, height along Z)
+  // Rectangle 3: ZX plane (width along Z, height along X)
+  
+  const rectangleCount = Math.floor(PARTICLE_COUNT * 0.65);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const centerCount = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+  
+  // 1. Three Golden Rectangles (edges)
+  const particlesPerRectangle = Math.floor(rectangleCount / 3);
+  const particlesPerEdge = Math.floor(particlesPerRectangle / 4); // 4 edges per rectangle
+  
+  // Rectangle 1: XY plane (vertical orientation)
+  const rect1Color = gold;
+  const rect1Accent = amber;
+  const rect1Edges = [
+    [{ x: -width/2, y: -height/2, z: 0 }, { x: width/2, y: -height/2, z: 0 }],  // Bottom
+    [{ x: width/2, y: -height/2, z: 0 }, { x: width/2, y: height/2, z: 0 }],    // Right
+    [{ x: width/2, y: height/2, z: 0 }, { x: -width/2, y: height/2, z: 0 }],    // Top
+    [{ x: -width/2, y: height/2, z: 0 }, { x: -width/2, y: -height/2, z: 0 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect1Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect1Color.clone().lerp(rect1Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
+    }
+  }
+  
+  // Rectangle 2: YZ plane (frontal orientation)
+  const rect2Color = bronze;
+  const rect2Accent = orange;
+  const rect2Edges = [
+    [{ x: 0, y: -width/2, z: -height/2 }, { x: 0, y: width/2, z: -height/2 }],  // Bottom
+    [{ x: 0, y: width/2, z: -height/2 }, { x: 0, y: width/2, z: height/2 }],    // Right
+    [{ x: 0, y: width/2, z: height/2 }, { x: 0, y: -width/2, z: height/2 }],    // Top
+    [{ x: 0, y: -width/2, z: height/2 }, { x: 0, y: -width/2, z: -height/2 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect2Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount * 2; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (v2.y - v1.y) * t + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (v2.z - v1.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect2Color.clone().lerp(rect2Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+  
+  // Rectangle 3: ZX plane (horizontal orientation)
+  const rect3Color = deepGold;
+  const rect3Accent = lightGold;
+  const rect3Edges = [
+    [{ x: -height/2, y: 0, z: -width/2 }, { x: height/2, y: 0, z: -width/2 }],  // Bottom
+    [{ x: height/2, y: 0, z: -width/2 }, { x: height/2, y: 0, z: width/2 }],    // Right
+    [{ x: height/2, y: 0, z: width/2 }, { x: -height/2, y: 0, z: width/2 }],    // Top
+    [{ x: -height/2, y: 0, z: width/2 }, { x: -height/2, y: 0, z: -width/2 }]   // Left
+  ];
+  
+  for (let e = 0; e < 4; e++) {
+    const [v1, v2] = rect3Edges[e];
+    for (let i = 0; i < particlesPerEdge && idx < rectangleCount * 3; i++, idx++) {
+      const t = i / particlesPerEdge;
+      const thickness = 0.018;
+      
+      const x = v1.x + (v2.x - v1.x) * t + (Math.random() - 0.5) * thickness;
+      const y = v1.y + (Math.random() - 0.5) * thickness;
+      const z = v1.z + (v2.z - v1.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const c = rect3Color.clone().lerp(rect3Accent, Math.sin(t * Math.PI));
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+    }
+  }
+  
+  // 2. Intersection nodes (12 edge intersections where rectangles cross)
+  const intersectionNodes: THREE.Vector3[] = [
+    // Rectangle 1 & 2 intersections (4 points on Y axis)
+    new THREE.Vector3(0, height/2, 0),
+    new THREE.Vector3(0, -height/2, 0),
+    new THREE.Vector3(0, width/2, 0),
+    new THREE.Vector3(0, -width/2, 0),
+    // Rectangle 2 & 3 intersections (4 points on Z axis)
+    new THREE.Vector3(0, 0, height/2),
+    new THREE.Vector3(0, 0, -height/2),
+    new THREE.Vector3(0, 0, width/2),
+    new THREE.Vector3(0, 0, -width/2),
+    // Rectangle 3 & 1 intersections (4 points on X axis)
+    new THREE.Vector3(height/2, 0, 0),
+    new THREE.Vector3(-height/2, 0, 0),
+    new THREE.Vector3(width/2, 0, 0),
+    new THREE.Vector3(-width/2, 0, 0),
+  ];
+  
+  const particlesPerNode = Math.max(1, Math.floor(intersectionCount / intersectionNodes.length));
+  for (let n = 0; n < intersectionNodes.length && idx < rectangleCount + intersectionCount; n++) {
+    const node = intersectionNodes[n];
+    const nodeRadius = 0.06;
+    
+    for (let i = 0; i < particlesPerNode && idx < rectangleCount + intersectionCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
+      
+      positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      
+      // Bright glowing intersections
+      const brightness = 1.0 - (r / nodeRadius) * 0.5;
+      const c = white.clone().lerp(gold, 0.3);
+      c.multiplyScalar(0.7 + brightness * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 3;
+    }
+  }
+  
+  // 3. Sacred center point (cosmic origin)
+  for (let i = 0; i < centerCount && idx < rectangleCount + intersectionCount + centerCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.3) * 0.08;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    // Pure white-gold radiant center
+    const brightness = 1.0 - (r / 0.08) * 0.3;
+    const c = white.clone().lerp(gold, 0.2);
+    c.multiplyScalar(0.85 + brightness * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 4;
+  }
+  
+  // 4. Outer spherical aura (divine proportion radiating outward)
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.4;
+    
+    // Soft golden ambient glow
+    const c = deepGold.clone().lerp(amber, Math.random());
+    c.lerp(white, Math.random() * 0.15);
+    c.multiplyScalar(0.2 + Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 5;
+  }
+
+  return { positions, colors, groups };
+}
