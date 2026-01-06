@@ -2715,3 +2715,353 @@ export function generateCelticKnotData() {
 
   return { positions, colors, groups };
 }
+
+// --- STARBURST NOVA ---
+// Radial explosion rays with particle trails creating a cosmic nova effect
+// Represents explosive creation, energy release, and cosmic birth
+
+export function generateStarburstNovaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.95;
+  const white = new THREE.Color('#FFFFFF');
+  const hotWhite = new THREE.Color('#F0F8FF');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const deepBlue = new THREE.Color('#1E40AF');
+  const violet = new THREE.Color('#8B5CF6');
+
+  const numMajorRays = 12;
+  const numMinorRays = 24;
+  const coreRadius = 0.12 * scale;
+  const maxRayLength = 1.1 * scale;
+
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const majorRayCount = Math.floor(PARTICLE_COUNT * 0.35);
+  const minorRayCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const trailCount = Math.floor(PARTICLE_COUNT * 0.15);
+  
+  let idx = 0;
+
+  for (let i = 0; i < coreCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.4) * coreRadius;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const brightness = 1.0 - (r / coreRadius) * 0.3;
+    const c = white.clone().lerp(hotWhite, Math.random() * 0.3);
+    c.multiplyScalar(0.9 + brightness * 0.1);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  const particlesPerMajorRay = Math.floor(majorRayCount / numMajorRays);
+  for (let ray = 0; ray < numMajorRays; ray++) {
+    const rayTheta = (ray / numMajorRays) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+    const rayPhi = Math.acos(2 * ((ray % 3) / 3 + Math.random() * 0.3) - 1);
+    const rayDir = new THREE.Vector3(
+      Math.sin(rayPhi) * Math.cos(rayTheta),
+      Math.sin(rayPhi) * Math.sin(rayTheta),
+      Math.cos(rayPhi)
+    ).normalize();
+    const rayLength = maxRayLength * (0.7 + Math.random() * 0.3);
+    
+    for (let i = 0; i < particlesPerMajorRay && idx < coreCount + majorRayCount; i++, idx++) {
+      const t = Math.pow(i / particlesPerMajorRay, 0.6);
+      const dist = coreRadius + t * rayLength;
+      const thickness = 0.04 * (1 - t * 0.7);
+      const perpTheta = Math.random() * Math.PI * 2;
+      const perpDist = Math.random() * thickness;
+      const up = Math.abs(rayDir.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+      const perp1 = new THREE.Vector3().crossVectors(rayDir, up).normalize();
+      const perp2 = new THREE.Vector3().crossVectors(rayDir, perp1).normalize();
+      const x = rayDir.x * dist + perp1.x * Math.cos(perpTheta) * perpDist + perp2.x * Math.sin(perpTheta) * perpDist;
+      const y = rayDir.y * dist + perp1.y * Math.cos(perpTheta) * perpDist + perp2.y * Math.sin(perpTheta) * perpDist;
+      const z = rayDir.z * dist + perp1.z * Math.cos(perpTheta) * perpDist + perp2.z * Math.sin(perpTheta) * perpDist;
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      const c = white.clone();
+      c.lerp(lightCyan, t * 0.6);
+      c.lerp(electricBlue, t * 0.4);
+      c.multiplyScalar(1.0 - t * 0.4);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  const particlesPerMinorRay = Math.floor(minorRayCount / numMinorRays);
+  for (let ray = 0; ray < numMinorRays; ray++) {
+    const rayTheta = Math.random() * Math.PI * 2;
+    const rayPhi = Math.acos(2 * Math.random() - 1);
+    const rayDir = new THREE.Vector3(
+      Math.sin(rayPhi) * Math.cos(rayTheta),
+      Math.sin(rayPhi) * Math.sin(rayTheta),
+      Math.cos(rayPhi)
+    ).normalize();
+    const rayLength = maxRayLength * (0.4 + Math.random() * 0.4);
+    
+    for (let i = 0; i < particlesPerMinorRay && idx < coreCount + majorRayCount + minorRayCount; i++, idx++) {
+      const t = Math.pow(i / particlesPerMinorRay, 0.5);
+      const dist = coreRadius * 0.8 + t * rayLength;
+      const thickness = 0.02 * (1 - t * 0.6);
+      positions[idx * 3] = rayDir.x * dist + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 1] = rayDir.y * dist + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 2] = rayDir.z * dist + (Math.random() - 0.5) * thickness;
+      const c = cyan.clone().lerp(violet, t * 0.5);
+      c.lerp(lightCyan, Math.random() * 0.2);
+      c.multiplyScalar(0.7 - t * 0.3);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+    }
+  }
+
+  for (let i = 0; i < trailCount && idx < coreCount + majorRayCount + minorRayCount + trailCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = coreRadius + Math.pow(Math.random(), 0.8) * maxRayLength * 1.2;
+    const spiralAngle = r * 2;
+    const spiralOffset = 0.05 * Math.sin(spiralAngle);
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta + spiralOffset);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta + spiralOffset);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const distFactor = (r - coreRadius) / (maxRayLength * 1.2);
+    const c = electricBlue.clone().lerp(deepBlue, distFactor);
+    c.multiplyScalar(0.4 - distFactor * 0.25);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const ambientColor = deepBlue.clone().lerp(violet, Math.random());
+    ambientColor.multiplyScalar(0.08 + Math.random() * 0.06);
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- LATTICE WAVE ---
+// 3D grid with wave propagation particles creating a matrix-like structure
+// Represents the fabric of spacetime, quantum field fluctuations
+
+export function generateLatticeWaveData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.9;
+  const gridSize = 8;
+  const cellSize = 0.2 * scale;
+  const gridExtent = (gridSize * cellSize) / 2;
+  
+  const deepBlue = new THREE.Color('#1E3A8A');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const teal = new THREE.Color('#14B8A6');
+  const white = new THREE.Color('#FFFFFF');
+
+  const waveFreq1 = 2.5;
+  const waveFreq2 = 3.0;
+  const waveAmplitude = 0.08 * scale;
+
+  const gridNodeCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const gridEdgeCount = Math.floor(PARTICLE_COUNT * 0.35);
+  const waveParticleCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const glowCount = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+
+  const getWaveDisplacement = (x: number, y: number, z: number) => {
+    const wave1 = Math.sin(x * waveFreq1 + y * waveFreq2) * waveAmplitude;
+    const wave2 = Math.sin(y * waveFreq2 + z * waveFreq1) * waveAmplitude;
+    const wave3 = Math.sin(z * waveFreq1 + x * waveFreq2) * waveAmplitude;
+    return { dx: wave2 * 0.5, dy: wave1, dz: wave3 * 0.5 };
+  };
+
+  const totalNodes = (gridSize + 1) * (gridSize + 1) * (gridSize + 1);
+  const particlesPerNode = Math.max(1, Math.floor(gridNodeCount / totalNodes));
+  
+  for (let xi = 0; xi <= gridSize && idx < gridNodeCount; xi++) {
+    for (let yi = 0; yi <= gridSize && idx < gridNodeCount; yi++) {
+      for (let zi = 0; zi <= gridSize && idx < gridNodeCount; zi++) {
+        const baseX = (xi - gridSize / 2) * cellSize;
+        const baseY = (yi - gridSize / 2) * cellSize;
+        const baseZ = (zi - gridSize / 2) * cellSize;
+        const wave = getWaveDisplacement(baseX, baseY, baseZ);
+        
+        for (let p = 0; p < particlesPerNode && idx < gridNodeCount; p++, idx++) {
+          const nodeRadius = 0.025;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const r = Math.pow(Math.random(), 0.5) * nodeRadius;
+          positions[idx * 3] = baseX + wave.dx + r * Math.sin(phi) * Math.cos(theta);
+          positions[idx * 3 + 1] = baseY + wave.dy + r * Math.sin(phi) * Math.sin(theta);
+          positions[idx * 3 + 2] = baseZ + wave.dz + r * Math.cos(phi);
+          const waveIntensity = Math.abs(wave.dy) / waveAmplitude;
+          const brightness = 0.6 + waveIntensity * 0.4;
+          const c = lightCyan.clone().lerp(white, waveIntensity * 0.5);
+          c.multiplyScalar(brightness);
+          colors[idx * 3] = c.r;
+          colors[idx * 3 + 1] = c.g;
+          colors[idx * 3 + 2] = c.b;
+          groups[idx] = 0;
+        }
+      }
+    }
+  }
+
+  const totalEdges = gridSize * (gridSize + 1) * (gridSize + 1) * 3;
+  const particlesPerEdge = Math.max(1, Math.floor(gridEdgeCount / totalEdges));
+  
+  for (let xi = 0; xi < gridSize && idx < gridNodeCount + gridEdgeCount; xi++) {
+    for (let yi = 0; yi <= gridSize && idx < gridNodeCount + gridEdgeCount; yi++) {
+      for (let zi = 0; zi <= gridSize && idx < gridNodeCount + gridEdgeCount; zi++) {
+        const x1 = (xi - gridSize / 2) * cellSize;
+        const x2 = (xi + 1 - gridSize / 2) * cellSize;
+        const y = (yi - gridSize / 2) * cellSize;
+        const z = (zi - gridSize / 2) * cellSize;
+        for (let p = 0; p < particlesPerEdge && idx < gridNodeCount + gridEdgeCount; p++, idx++) {
+          const t = p / particlesPerEdge;
+          const x = x1 + (x2 - x1) * t;
+          const wave = getWaveDisplacement(x, y, z);
+          const thickness = 0.008;
+          positions[idx * 3] = x + wave.dx + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 1] = y + wave.dy + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 2] = z + wave.dz + (Math.random() - 0.5) * thickness;
+          const c = cyan.clone().lerp(electricBlue, t);
+          c.multiplyScalar(0.5 + Math.abs(wave.dy) / waveAmplitude * 0.3);
+          colors[idx * 3] = c.r;
+          colors[idx * 3 + 1] = c.g;
+          colors[idx * 3 + 2] = c.b;
+          groups[idx] = 1;
+        }
+      }
+    }
+  }
+  
+  for (let xi = 0; xi <= gridSize && idx < gridNodeCount + gridEdgeCount; xi++) {
+    for (let yi = 0; yi < gridSize && idx < gridNodeCount + gridEdgeCount; yi++) {
+      for (let zi = 0; zi <= gridSize && idx < gridNodeCount + gridEdgeCount; zi++) {
+        const x = (xi - gridSize / 2) * cellSize;
+        const y1 = (yi - gridSize / 2) * cellSize;
+        const y2 = (yi + 1 - gridSize / 2) * cellSize;
+        const z = (zi - gridSize / 2) * cellSize;
+        for (let p = 0; p < particlesPerEdge && idx < gridNodeCount + gridEdgeCount; p++, idx++) {
+          const t = p / particlesPerEdge;
+          const y = y1 + (y2 - y1) * t;
+          const wave = getWaveDisplacement(x, y, z);
+          const thickness = 0.008;
+          positions[idx * 3] = x + wave.dx + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 1] = y + wave.dy + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 2] = z + wave.dz + (Math.random() - 0.5) * thickness;
+          const c = teal.clone().lerp(cyan, t);
+          c.multiplyScalar(0.5 + Math.abs(wave.dy) / waveAmplitude * 0.3);
+          colors[idx * 3] = c.r;
+          colors[idx * 3 + 1] = c.g;
+          colors[idx * 3 + 2] = c.b;
+          groups[idx] = 1;
+        }
+      }
+    }
+  }
+  
+  for (let xi = 0; xi <= gridSize && idx < gridNodeCount + gridEdgeCount; xi++) {
+    for (let yi = 0; yi <= gridSize && idx < gridNodeCount + gridEdgeCount; yi++) {
+      for (let zi = 0; zi < gridSize && idx < gridNodeCount + gridEdgeCount; zi++) {
+        const x = (xi - gridSize / 2) * cellSize;
+        const y = (yi - gridSize / 2) * cellSize;
+        const z1 = (zi - gridSize / 2) * cellSize;
+        const z2 = (zi + 1 - gridSize / 2) * cellSize;
+        for (let p = 0; p < particlesPerEdge && idx < gridNodeCount + gridEdgeCount; p++, idx++) {
+          const t = p / particlesPerEdge;
+          const z = z1 + (z2 - z1) * t;
+          const wave = getWaveDisplacement(x, y, z);
+          const thickness = 0.008;
+          positions[idx * 3] = x + wave.dx + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 1] = y + wave.dy + (Math.random() - 0.5) * thickness;
+          positions[idx * 3 + 2] = z + wave.dz + (Math.random() - 0.5) * thickness;
+          const c = electricBlue.clone().lerp(teal, t);
+          c.multiplyScalar(0.5 + Math.abs(wave.dy) / waveAmplitude * 0.3);
+          colors[idx * 3] = c.r;
+          colors[idx * 3 + 1] = c.g;
+          colors[idx * 3 + 2] = c.b;
+          groups[idx] = 1;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < waveParticleCount && idx < gridNodeCount + gridEdgeCount + waveParticleCount; i++, idx++) {
+    const x = (Math.random() - 0.5) * gridSize * cellSize * 1.1;
+    const y = (Math.random() - 0.5) * gridSize * cellSize * 1.1;
+    const z = (Math.random() - 0.5) * gridSize * cellSize * 1.1;
+    const wave = getWaveDisplacement(x, y, z);
+    positions[idx * 3] = x + wave.dx * 2;
+    positions[idx * 3 + 1] = y + wave.dy * 2;
+    positions[idx * 3 + 2] = z + wave.dz * 2;
+    const wavePhase = Math.sin(x * waveFreq1 + y * waveFreq2 + z * waveFreq1);
+    const c = cyan.clone().lerp(lightCyan, (wavePhase + 1) / 2);
+    c.lerp(white, Math.abs(wavePhase) * 0.3);
+    c.multiplyScalar(0.4 + Math.abs(wavePhase) * 0.4);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  for (let i = 0; i < glowCount && idx < gridNodeCount + gridEdgeCount + waveParticleCount + glowCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = gridExtent * 1.2 + Math.random() * 0.2;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const glowColor = deepBlue.clone().lerp(cyan, Math.random() * 0.4);
+    glowColor.multiplyScalar(0.2 + Math.random() * 0.15);
+    colors[idx * 3] = glowColor.r;
+    colors[idx * 3 + 1] = glowColor.g;
+    colors[idx * 3 + 2] = glowColor.b;
+    groups[idx] = 3;
+  }
+
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const ambientColor = deepBlue.clone().lerp(teal, Math.random());
+    ambientColor.multiplyScalar(0.08 + Math.random() * 0.06);
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
