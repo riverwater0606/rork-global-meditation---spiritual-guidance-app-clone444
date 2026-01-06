@@ -2053,3 +2053,350 @@ export function generateGoldenRectanglesData() {
 
   return { positions, colors, groups };
 }
+
+// --- FRACTAL TREE ---
+// Branching tree structure with particle leaves using recursive math
+// Represents growth, life force, and the branching nature of creation
+
+export function generateFractalTreeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.9;
+  
+  // Nature-inspired blue-cyan-green palette
+  const deepTeal = new THREE.Color('#0D9488');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const emerald = new THREE.Color('#10B981');
+  const mint = new THREE.Color('#6EE7B7');
+  const white = new THREE.Color('#FFFFFF');
+
+  // Store all branch segments
+  const branches: { start: THREE.Vector3; end: THREE.Vector3; depth: number; thickness: number }[] = [];
+  const leafPositions: THREE.Vector3[] = [];
+
+  // Recursive branch generation
+  const generateBranch = (
+    start: THREE.Vector3,
+    direction: THREE.Vector3,
+    length: number,
+    depth: number,
+    maxDepth: number
+  ) => {
+    if (depth > maxDepth) {
+      leafPositions.push(start.clone());
+      return;
+    }
+
+    const end = start.clone().add(direction.clone().multiplyScalar(length));
+    branches.push({ start: start.clone(), end: end.clone(), depth, thickness: Math.max(0.01, 0.05 * (1 - depth / maxDepth)) });
+
+    if (depth === maxDepth) {
+      leafPositions.push(end.clone());
+      return;
+    }
+
+    const branchCount = depth < 2 ? 3 : 2;
+    const angleSpread = 0.5 + depth * 0.15;
+    const lengthReduction = 0.65;
+
+    for (let i = 0; i < branchCount; i++) {
+      const newDir = direction.clone();
+      
+      const angleX = (Math.random() - 0.5) * angleSpread;
+      const angleZ = (Math.random() - 0.5) * angleSpread;
+      const spreadAngle = ((i / (branchCount - 1 || 1)) - 0.5) * angleSpread * 1.5;
+      
+      newDir.applyAxisAngle(new THREE.Vector3(1, 0, 0), angleX + spreadAngle * 0.5);
+      newDir.applyAxisAngle(new THREE.Vector3(0, 0, 1), angleZ + spreadAngle * 0.5);
+      newDir.normalize();
+
+      generateBranch(end, newDir, length * lengthReduction, depth + 1, maxDepth);
+    }
+  };
+
+  // Generate the tree structure
+  const trunkStart = new THREE.Vector3(0, -1.2 * scale, 0);
+  const trunkDir = new THREE.Vector3(0, 1, 0);
+  generateBranch(trunkStart, trunkDir, 0.5 * scale, 0, 5);
+
+  // Particle distribution
+  const branchParticles = Math.floor(PARTICLE_COUNT * 0.55);
+  const leafParticles = Math.floor(PARTICLE_COUNT * 0.30);
+  const glowParticles = Math.floor(PARTICLE_COUNT * 0.08);
+
+  let idx = 0;
+
+  // 1. Branch particles
+  const particlesPerBranch = Math.max(1, Math.floor(branchParticles / Math.max(branches.length, 1)));
+  
+  for (let b = 0; b < branches.length && idx < branchParticles; b++) {
+    const branch = branches[b];
+    
+    for (let i = 0; i < particlesPerBranch && idx < branchParticles; i++, idx++) {
+      const t = i / particlesPerBranch;
+      const thickness = branch.thickness;
+      
+      const x = branch.start.x + (branch.end.x - branch.start.x) * t + (Math.random() - 0.5) * thickness;
+      const y = branch.start.y + (branch.end.y - branch.start.y) * t + (Math.random() - 0.5) * thickness;
+      const z = branch.start.z + (branch.end.z - branch.start.z) * t + (Math.random() - 0.5) * thickness;
+      
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
+      
+      const depthFactor = branch.depth / 5;
+      const c = deepTeal.clone().lerp(cyan, depthFactor);
+      c.lerp(lightCyan, t * 0.3);
+      c.lerp(white, Math.random() * 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 0;
+    }
+  }
+
+  // 2. Leaf particles (glowing endpoints)
+  const particlesPerLeaf = Math.max(1, Math.floor(leafParticles / Math.max(leafPositions.length, 1)));
+  
+  for (let l = 0; l < leafPositions.length && idx < branchParticles + leafParticles; l++) {
+    const leaf = leafPositions[l];
+    const leafRadius = 0.06;
+    
+    for (let i = 0; i < particlesPerLeaf && idx < branchParticles + leafParticles; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.5) * leafRadius;
+      
+      positions[idx * 3] = leaf.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = leaf.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = leaf.z + r * Math.cos(phi);
+      
+      const brightness = 1.0 - (r / leafRadius) * 0.5;
+      const c = emerald.clone().lerp(mint, Math.random());
+      c.lerp(white, brightness * 0.4);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 3. Soft glow around tree
+  for (let i = 0; i < glowParticles && idx < branchParticles + leafParticles + glowParticles; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.2 + Math.pow(Math.random(), 2) * 0.4;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta) * 0.6;
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 1.2 - 0.2;
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.6;
+    
+    const glowColor = deepTeal.clone().lerp(cyan, Math.random());
+    glowColor.multiplyScalar(0.2 + Math.random() * 0.15);
+    
+    colors[idx * 3] = glowColor.r;
+    colors[idx * 3 + 1] = glowColor.g;
+    colors[idx * 3 + 2] = glowColor.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Ambient particles
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.3 + Math.pow(Math.random(), 2) * 0.5;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta) * 0.7;
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 1.3 - 0.1;
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.7;
+    
+    const ambientColor = cyan.clone().lerp(emerald, Math.random());
+    ambientColor.multiplyScalar(0.1 + Math.random() * 0.08);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 3;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- WAVE INTERFERENCE ---
+// Sine wave patterns intersecting creating interference patterns
+// Represents the wave nature of reality, quantum superposition, and harmonic resonance
+
+export function generateWaveInterferenceData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 1.0;
+  
+  // Electric blue-purple interference palette
+  const deepBlue = new THREE.Color('#1E3A8A');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const violet = new THREE.Color('#8B5CF6');
+  const magenta = new THREE.Color('#D946EF');
+  const white = new THREE.Color('#FFFFFF');
+
+  // Wave parameters
+  const wave1Freq = 3.0;
+  const wave2Freq = 4.0;
+  const wave3Freq = 2.5;
+  const amplitude = 0.3 * scale;
+
+  // Particle distribution
+  const wave1Particles = Math.floor(PARTICLE_COUNT * 0.30);
+  const wave2Particles = Math.floor(PARTICLE_COUNT * 0.30);
+  const interferenceParticles = Math.floor(PARTICLE_COUNT * 0.25);
+  const nodesParticles = Math.floor(PARTICLE_COUNT * 0.08);
+
+  let idx = 0;
+
+  // 1. Wave 1 - Horizontal sine wave (XY plane)
+  for (let i = 0; i < wave1Particles && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = (i / wave1Particles) * Math.PI * 2 * 2;
+    const x = ((i / wave1Particles) - 0.5) * 2.0 * scale;
+    const y = Math.sin(t * wave1Freq) * amplitude;
+    const z = (Math.random() - 0.5) * 0.04;
+    
+    const thickness = 0.025;
+    positions[idx * 3] = x + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 1] = y + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 2] = z;
+    
+    const c = cyan.clone().lerp(electricBlue, Math.sin(t) * 0.5 + 0.5);
+    c.lerp(white, Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Wave 2 - Vertical sine wave (XZ plane)
+  for (let i = 0; i < wave2Particles && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = (i / wave2Particles) * Math.PI * 2 * 2;
+    const x = ((i / wave2Particles) - 0.5) * 2.0 * scale;
+    const y = (Math.random() - 0.5) * 0.04;
+    const z = Math.sin(t * wave2Freq + Math.PI / 4) * amplitude;
+    
+    const thickness = 0.025;
+    positions[idx * 3] = x + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z + (Math.random() - 0.5) * thickness;
+    
+    const c = violet.clone().lerp(magenta, Math.sin(t) * 0.5 + 0.5);
+    c.lerp(white, Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+
+  // 3. Interference pattern - superposition of waves creating a 3D surface
+  for (let i = 0; i < interferenceParticles && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (Math.random() - 0.5) * 2.0 * scale;
+    const v = (Math.random() - 0.5) * 2.0 * scale;
+    
+    // Combined wave interference
+    const wave1 = Math.sin(u * wave1Freq * Math.PI);
+    const wave2 = Math.sin(v * wave2Freq * Math.PI);
+    const wave3 = Math.sin((u + v) * wave3Freq * Math.PI);
+    
+    const interference = (wave1 + wave2 + wave3) / 3.0 * amplitude * 0.8;
+    
+    const x = u;
+    const y = interference;
+    const z = v;
+    
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    
+    // Color based on interference amplitude (constructive = bright, destructive = dim)
+    const interferenceStrength = Math.abs(interference) / amplitude;
+    const c = electricBlue.clone().lerp(cyan, interferenceStrength);
+    c.lerp(violet, Math.abs(wave3) * 0.4);
+    c.lerp(white, interferenceStrength * 0.3);
+    c.multiplyScalar(0.5 + interferenceStrength * 0.5);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Nodes (points of maximum constructive interference)
+  const nodeRadius = 0.05;
+  const nodePositionsArr: THREE.Vector3[] = [];
+  
+  // Find approximate node positions
+  for (let i = -2; i <= 2; i++) {
+    for (let j = -2; j <= 2; j++) {
+      const x = i * 0.4 * scale;
+      const z = j * 0.4 * scale;
+      const wave1 = Math.sin(x * wave1Freq * Math.PI);
+      const wave2 = Math.sin(z * wave2Freq * Math.PI);
+      const y = (wave1 + wave2) / 2.0 * amplitude;
+      
+      if (Math.abs(wave1 + wave2) > 1.5) {
+        nodePositionsArr.push(new THREE.Vector3(x, y, z));
+      }
+    }
+  }
+  
+  const particlesPerNode = Math.max(1, Math.floor(nodesParticles / Math.max(nodePositionsArr.length, 1)));
+  
+  for (let n = 0; n < nodePositionsArr.length && idx < wave1Particles + wave2Particles + interferenceParticles + nodesParticles; n++) {
+    const node = nodePositionsArr[n];
+    
+    for (let i = 0; i < particlesPerNode && idx < wave1Particles + wave2Particles + interferenceParticles + nodesParticles; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.4) * nodeRadius;
+      
+      positions[idx * 3] = node.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = node.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = node.z + r * Math.cos(phi);
+      
+      const brightness = 1.0 - (r / nodeRadius) * 0.4;
+      const c = white.clone().lerp(cyan, 0.3);
+      c.multiplyScalar(0.8 + brightness * 0.2);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 3;
+    }
+  }
+
+  // 5. Ambient cosmic particles
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.1 + Math.pow(Math.random(), 2) * 0.4;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.5;
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const ambientColor = deepBlue.clone().lerp(violet, Math.random());
+    ambientColor.multiplyScalar(0.12 + Math.random() * 0.08);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}

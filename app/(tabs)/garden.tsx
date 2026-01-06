@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -196,6 +196,22 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 12. Fractal Tree
+    const generateFractalTree = () => {
+      const data = generateFractalTreeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 13. Wave Interference
+    const generateWaveInterference = () => {
+      const data = generateWaveInterferenceData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -250,6 +266,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'golden-rectangles') generateGoldenRectangles();
     else if (shape === 'double-helix-dna') generateDoubleHelixDNA();
     else if (shape === 'vortex-ring') generateVortexRing();
+    else if (shape === 'fractal-tree') generateFractalTree();
+    else if (shape === 'wave-interference') generateWaveInterference();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -631,6 +649,71 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
            tx += drift;
            tz += drift * 0.5;
          }
+      } else if (shape === 'fractal-tree') {
+         const g = groups[i];
+         // Gentle swaying motion like wind through branches
+         const sway = Math.sin(t * 0.8 + ty * 2) * 0.02;
+         tx += sway;
+         tz += sway * 0.5;
+         
+         // Branch particles (g=0) - subtle breathing
+         if (g === 0) {
+           const breath = 1.0 + Math.sin(t * 1.5 + ty * 3) * 0.015;
+           tx *= breath;
+           tz *= breath;
+         }
+         // Leaf particles (g=1) - glowing pulse at endpoints
+         else if (g === 1) {
+           const leafGlow = 1.0 + Math.sin(t * 3 + i * 0.02) * 0.1;
+           tx *= leafGlow;
+           ty *= leafGlow;
+           tz *= leafGlow;
+         }
+         // Glow particles (g=2) - floating ambient
+         else if (g === 2) {
+           const floatY = Math.sin(t * 1.2 + i * 0.01) * 0.03;
+           ty += floatY;
+         }
+         // Ambient particles (g=3) - gentle drift
+         else if (g === 3) {
+           const drift = Math.sin(t * 0.6 + i * 0.005) * 0.02;
+           tx += drift;
+           tz += drift * 0.3;
+         }
+      } else if (shape === 'wave-interference') {
+         const g = groups[i];
+         // Global wave motion
+         const globalWave = Math.sin(t * 1.5) * 0.02;
+         ty += globalWave;
+         
+         // Wave 1 (g=0) - horizontal oscillation
+         if (g === 0) {
+           const oscillate = Math.sin(t * 2.5 + tx * 5) * 0.03;
+           ty += oscillate;
+         }
+         // Wave 2 (g=1) - vertical oscillation
+         else if (g === 1) {
+           const oscillate = Math.sin(t * 2.3 + tx * 5) * 0.03;
+           tz += oscillate;
+         }
+         // Interference surface (g=2) - rippling effect
+         else if (g === 2) {
+           const ripple = Math.sin(t * 2 + Math.sqrt(tx*tx + tz*tz) * 4) * 0.025;
+           ty += ripple;
+         }
+         // Node particles (g=3) - bright pulsing
+         else if (g === 3) {
+           const nodePulse = 1.0 + Math.sin(t * 4 + i * 0.03) * 0.12;
+           tx *= nodePulse;
+           ty *= nodePulse;
+           tz *= nodePulse;
+         }
+         // Ambient particles (g=4) - slow drift
+         else if (g === 4) {
+           const drift = Math.sin(t * 0.8 + i * 0.004) * 0.015;
+           tx += drift;
+           tz += drift * 0.5;
+         }
       } 
 
       // Modifiers based on mode
@@ -734,6 +817,8 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'golden-rectangles', name: 'Golden Rectangles', nameZh: '黃金矩形', icon: '' },
   { id: 'double-helix-dna', name: 'Double Helix DNA', nameZh: 'DNA雙螺旋', icon: '' },
   { id: 'vortex-ring', name: 'Vortex Ring', nameZh: '漩渦環', icon: '' },
+  { id: 'fractal-tree', name: 'Fractal Tree', nameZh: '分形樹', icon: '' },
+  { id: 'wave-interference', name: 'Wave Interference', nameZh: '波干涉', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
