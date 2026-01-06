@@ -1495,6 +1495,337 @@ export function generateSriYantraData() {
 // The three rectangles are mutually perpendicular (XY, YZ, ZX planes)
 // Represents the underlying structure of creation and harmony in the universe
 
+// --- DOUBLE HELIX DNA ---
+// Two intertwined spirals representing the DNA structure
+// Parametric helix with particle trails creating a biological/cosmic aesthetic
+
+export function generateDoubleHelixDNAData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.8;
+  const helixRadius = 0.4 * scale;
+  const helixHeight = 2.2 * scale;
+  const turns = 3.5;
+  
+  // Blue-cyan DNA palette
+  const deepCyan = new THREE.Color('#0891B2');
+  const brightCyan = new THREE.Color('#22D3EE');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const white = new THREE.Color('#FFFFFF');
+  const teal = new THREE.Color('#14B8A6');
+
+  // Particle distribution
+  const strand1Count = Math.floor(PARTICLE_COUNT * 0.35);
+  const strand2Count = Math.floor(PARTICLE_COUNT * 0.35);
+  const connectionCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const trailCount = Math.floor(PARTICLE_COUNT * 0.08);
+  
+  let idx = 0;
+
+  // Helper: Get helix position at parameter t (0 to 1)
+  const getHelixPoint = (t: number, phaseOffset: number) => {
+    const angle = t * turns * Math.PI * 2 + phaseOffset;
+    const y = (t - 0.5) * helixHeight;
+    return {
+      x: helixRadius * Math.cos(angle),
+      y: y,
+      z: helixRadius * Math.sin(angle)
+    };
+  };
+
+  // 1. First DNA Strand (Cyan-Blue)
+  for (let i = 0; i < strand1Count && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = i / strand1Count;
+    const pos = getHelixPoint(t, 0);
+    
+    // Add thickness to the strand
+    const thickness = 0.035;
+    const noiseX = (Math.random() - 0.5) * thickness;
+    const noiseY = (Math.random() - 0.5) * thickness;
+    const noiseZ = (Math.random() - 0.5) * thickness;
+    
+    positions[idx * 3] = pos.x + noiseX;
+    positions[idx * 3 + 1] = pos.y + noiseY;
+    positions[idx * 3 + 2] = pos.z + noiseZ;
+    
+    // Color gradient along strand
+    const c = brightCyan.clone().lerp(electricBlue, t);
+    c.lerp(white, Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Second DNA Strand (Teal-Cyan) - 180° offset
+  for (let i = 0; i < strand2Count && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = i / strand2Count;
+    const pos = getHelixPoint(t, Math.PI); // 180° phase offset
+    
+    const thickness = 0.035;
+    const noiseX = (Math.random() - 0.5) * thickness;
+    const noiseY = (Math.random() - 0.5) * thickness;
+    const noiseZ = (Math.random() - 0.5) * thickness;
+    
+    positions[idx * 3] = pos.x + noiseX;
+    positions[idx * 3 + 1] = pos.y + noiseY;
+    positions[idx * 3 + 2] = pos.z + noiseZ;
+    
+    // Color gradient along strand
+    const c = teal.clone().lerp(lightCyan, t);
+    c.lerp(white, Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+
+  // 3. Base pair connections (rungs of the ladder)
+  const numConnections = 20;
+  const particlesPerConnection = Math.floor(connectionCount / numConnections);
+  
+  for (let c = 0; c < numConnections && idx < strand1Count + strand2Count + connectionCount; c++) {
+    const t = (c + 0.5) / numConnections;
+    const pos1 = getHelixPoint(t, 0);
+    const pos2 = getHelixPoint(t, Math.PI);
+    
+    for (let i = 0; i < particlesPerConnection && idx < strand1Count + strand2Count + connectionCount; i++, idx++) {
+      const lerp = i / particlesPerConnection;
+      const thickness = 0.02;
+      
+      positions[idx * 3] = pos1.x + (pos2.x - pos1.x) * lerp + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 1] = pos1.y + (pos2.y - pos1.y) * lerp + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 2] = pos1.z + (pos2.z - pos1.z) * lerp + (Math.random() - 0.5) * thickness;
+      
+      // Bright connection color
+      const connectionColor = white.clone().lerp(lightCyan, 0.3);
+      connectionColor.lerp(brightCyan, Math.abs(lerp - 0.5) * 2);
+      
+      colors[idx * 3] = connectionColor.r;
+      colors[idx * 3 + 1] = connectionColor.g;
+      colors[idx * 3 + 2] = connectionColor.b;
+      groups[idx] = 2;
+    }
+  }
+
+  // 4. Particle trails / energy glow around helix
+  for (let i = 0; i < trailCount && idx < strand1Count + strand2Count + connectionCount + trailCount; i++, idx++) {
+    const t = Math.random();
+    const phase = Math.random() * Math.PI * 2;
+    const pos = getHelixPoint(t, phase);
+    
+    // Expand outward from helix
+    const expansion = 1.2 + Math.random() * 0.5;
+    
+    positions[idx * 3] = pos.x * expansion;
+    positions[idx * 3 + 1] = pos.y + (Math.random() - 0.5) * 0.3;
+    positions[idx * 3 + 2] = pos.z * expansion;
+    
+    // Soft glow color
+    const glowColor = deepCyan.clone().lerp(brightCyan, Math.random());
+    glowColor.multiplyScalar(0.4 + Math.random() * 0.3);
+    
+    colors[idx * 3] = glowColor.r;
+    colors[idx * 3 + 1] = glowColor.g;
+    colors[idx * 3 + 2] = glowColor.b;
+    groups[idx] = 3;
+  }
+
+  // 5. Ambient particles filling outer space
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.0 + Math.pow(Math.random(), 2) * 0.5;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 1.3; // Elongate vertically
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const ambientColor = deepCyan.clone().lerp(electricBlue, Math.random());
+    ambientColor.multiplyScalar(0.15 + Math.random() * 0.1);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- VORTEX RING (Toroidal Vortex) ---
+// A toroidal vortex with flowing particles creating a cosmic ring of energy
+// Mathematical torus with velocity-based particle distribution
+
+export function generateVortexRingData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.9;
+  const majorRadius = 0.7 * scale; // Distance from center to tube center
+  const minorRadius = 0.25 * scale; // Tube radius
+  
+  // Blue-cyan-purple vortex palette
+  const deepBlue = new THREE.Color('#1E40AF');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const purple = new THREE.Color('#8B5CF6');
+  const white = new THREE.Color('#FFFFFF');
+
+  // Particle distribution
+  const torusSurfaceCount = Math.floor(PARTICLE_COUNT * 0.45);
+  const flowLinesCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.12);
+  const outerVortexCount = Math.floor(PARTICLE_COUNT * 0.10);
+  
+  let idx = 0;
+
+  // Helper: Get torus position
+  const getTorusPoint = (u: number, v: number) => {
+    // u: angle around the tube (0 to 2π)
+    // v: angle around the torus (0 to 2π)
+    const x = (majorRadius + minorRadius * Math.cos(u)) * Math.cos(v);
+    const y = minorRadius * Math.sin(u);
+    const z = (majorRadius + minorRadius * Math.cos(u)) * Math.sin(v);
+    return { x, y, z };
+  };
+
+  // 1. Torus Surface Particles
+  for (let i = 0; i < torusSurfaceCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * Math.PI * 2;
+    const pos = getTorusPoint(u, v);
+    
+    // Add slight thickness variation
+    const thickness = 0.02;
+    positions[idx * 3] = pos.x + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 1] = pos.y + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 2] = pos.z + (Math.random() - 0.5) * thickness;
+    
+    // Color based on position around torus
+    const colorT = (v / (Math.PI * 2));
+    const c = cyan.clone().lerp(electricBlue, Math.sin(colorT * Math.PI * 2) * 0.5 + 0.5);
+    c.lerp(lightCyan, Math.cos(u) * 0.3 + 0.3);
+    c.lerp(white, Math.random() * 0.1);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Flow Lines (spiral paths around the tube)
+  const numFlowLines = 12;
+  const particlesPerFlowLine = Math.floor(flowLinesCount / numFlowLines);
+  
+  for (let line = 0; line < numFlowLines; line++) {
+    const lineOffset = (line / numFlowLines) * Math.PI * 2;
+    
+    for (let i = 0; i < particlesPerFlowLine && idx < torusSurfaceCount + flowLinesCount; i++, idx++) {
+      const t = i / particlesPerFlowLine;
+      const v = t * Math.PI * 2 * 3; // 3 loops around
+      const u = lineOffset + t * Math.PI * 2 * 2; // Spiral effect
+      
+      // Slightly inside the torus surface for flow effect
+      const flowRadius = minorRadius * 0.7;
+      const x = (majorRadius + flowRadius * Math.cos(u)) * Math.cos(v);
+      const y = flowRadius * Math.sin(u);
+      const z = (majorRadius + flowRadius * Math.cos(u)) * Math.sin(v);
+      
+      const thickness = 0.015;
+      positions[idx * 3] = x + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 1] = y + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 2] = z + (Math.random() - 0.5) * thickness;
+      
+      // Bright flow line color
+      const brightness = Math.sin(t * Math.PI) * 0.5 + 0.5;
+      const c = lightCyan.clone().lerp(white, brightness * 0.4);
+      c.lerp(purple, Math.sin(t * Math.PI * 4) * 0.2 + 0.1);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 3. Core Ring (bright center of the torus tube)
+  for (let i = 0; i < coreCount && idx < torusSurfaceCount + flowLinesCount + coreCount; i++, idx++) {
+    const v = Math.random() * Math.PI * 2;
+    
+    // Core is at the center of the tube (u doesn't matter, minorRadius = 0)
+    const coreRadius = minorRadius * 0.15;
+    const offsetAngle = Math.random() * Math.PI * 2;
+    
+    const x = majorRadius * Math.cos(v) + coreRadius * Math.cos(offsetAngle) * Math.cos(v);
+    const y = coreRadius * Math.sin(offsetAngle);
+    const z = majorRadius * Math.sin(v) + coreRadius * Math.cos(offsetAngle) * Math.sin(v);
+    
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    
+    // Bright white-cyan core
+    const c = white.clone().lerp(lightCyan, Math.random() * 0.3);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Outer Vortex (particles being pulled in)
+  for (let i = 0; i < outerVortexCount && idx < torusSurfaceCount + flowLinesCount + coreCount + outerVortexCount; i++, idx++) {
+    const v = Math.random() * Math.PI * 2;
+    const spiralT = Math.random();
+    
+    // Spiral inward toward the torus
+    const outerRadius = majorRadius * (1.3 + spiralT * 0.5);
+    const heightOffset = (Math.random() - 0.5) * 0.6;
+    
+    positions[idx * 3] = outerRadius * Math.cos(v + spiralT * Math.PI);
+    positions[idx * 3 + 1] = heightOffset;
+    positions[idx * 3 + 2] = outerRadius * Math.sin(v + spiralT * Math.PI);
+    
+    // Fading color as it goes outward
+    const c = purple.clone().lerp(deepBlue, spiralT);
+    c.multiplyScalar(0.4 + (1 - spiralT) * 0.4);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  // 5. Ambient cosmic dust
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.1 + Math.pow(Math.random(), 2) * 0.4;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.5; // Flatten
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    
+    const ambientColor = deepBlue.clone().lerp(purple, Math.random());
+    ambientColor.multiplyScalar(0.12 + Math.random() * 0.08);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
+
 export function generateGoldenRectanglesData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   const colors = new Float32Array(PARTICLE_COUNT * 3);

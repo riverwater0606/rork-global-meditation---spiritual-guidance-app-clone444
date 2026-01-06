@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -180,6 +180,22 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 10. Double Helix DNA
+    const generateDoubleHelixDNA = () => {
+      const data = generateDoubleHelixDNAData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 11. Vortex Ring
+    const generateVortexRing = () => {
+      const data = generateVortexRingData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -232,6 +248,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'sri-yantra') generateSriYantra();
     else if (shape === 'triquetra') generateTriquetra();
     else if (shape === 'golden-rectangles') generateGoldenRectangles();
+    else if (shape === 'double-helix-dna') generateDoubleHelixDNA();
+    else if (shape === 'vortex-ring') generateVortexRing();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -537,6 +555,82 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
              tz += radialPulse * (tz / dist);
            }
          }
+      } else if (shape === 'double-helix-dna') {
+         const g = groups[i];
+         // Gentle pulse for entire DNA structure
+         const pulse = 1.0 + Math.sin(t * 1.5) * 0.03;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Strand 1 (g=0) - flowing cyan energy upward
+         if (g === 0) {
+           const flow = Math.sin(t * 2.5 + ty * 4) * 0.02;
+           tx += flow * Math.cos(ty * 3);
+           tz += flow * Math.sin(ty * 3);
+         }
+         // Strand 2 (g=1) - flowing teal energy downward
+         else if (g === 1) {
+           const flow = Math.sin(t * 2.3 - ty * 4) * 0.02;
+           tx += flow * Math.cos(ty * 3 + Math.PI);
+           tz += flow * Math.sin(ty * 3 + Math.PI);
+         }
+         // Base pair connections (g=2) - pulsing bridges
+         else if (g === 2) {
+           const connectionPulse = 1.0 + Math.sin(t * 4 + i * 0.05) * 0.08;
+           tx *= connectionPulse;
+           tz *= connectionPulse;
+         }
+         // Trail particles (g=3) - floating around helix
+         else if (g === 3) {
+           const drift = Math.sin(t * 1.2 + i * 0.01) * 0.04;
+           tx += drift;
+           tz += drift * 0.5;
+         }
+         // Ambient particles (g=4) - subtle cosmic drift
+         else if (g === 4) {
+           const cosmicDrift = Math.sin(t * 0.8 + i * 0.005) * 0.02;
+           tx += cosmicDrift;
+           ty += cosmicDrift * 0.3;
+         }
+      } else if (shape === 'vortex-ring') {
+         const g = groups[i];
+         // Gentle breathing pulse for the torus
+         const pulse = 1.0 + Math.sin(t * 1.8) * 0.025;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Torus surface (g=0) - swirling motion around the ring
+         if (g === 0) {
+           const angle = Math.atan2(tz, tx);
+           const swirl = Math.sin(t * 2 + angle * 3) * 0.025;
+           tx += swirl * Math.cos(angle + Math.PI / 2);
+           tz += swirl * Math.sin(angle + Math.PI / 2);
+         }
+         // Flow lines (g=1) - spiraling energy
+         else if (g === 1) {
+           const spiral = Math.sin(t * 3 + i * 0.01) * 0.03;
+           const angle = Math.atan2(tz, tx);
+           tx += spiral * Math.cos(angle);
+           tz += spiral * Math.sin(angle);
+           ty += Math.sin(t * 2.5 + i * 0.02) * 0.015;
+         }
+         // Core ring (g=2) - bright pulsing center
+         else if (g === 2) {
+           const coreGlow = 1.0 + Math.sin(t * 4) * 0.12;
+           tx *= coreGlow;
+           tz *= coreGlow;
+         }
+         // Outer vortex (g=3) - particles being drawn in
+         else if (g === 3) {
+           const inwardPull = Math.sin(t * 1.5 + i * 0.008) * 0.04;
+           const angle = Math.atan2(tz, tx);
+           tx -= inwardPull * Math.cos(angle);
+           tz -= inwardPull * Math.sin(angle);
+         }
+         // Ambient dust (g=4) - slow cosmic drift
+         else if (g === 4) {
+           const drift = Math.sin(t * 0.7 + i * 0.003) * 0.015;
+           tx += drift;
+           tz += drift * 0.5;
+         }
       } 
 
       // Modifiers based on mode
@@ -638,6 +732,8 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'sri-yantra', name: 'Sri Yantra', nameZh: '吉祥之輪', icon: '' },
   { id: 'triquetra', name: 'Triquetra', nameZh: '三位一體結', icon: '' },
   { id: 'golden-rectangles', name: 'Golden Rectangles', nameZh: '黃金矩形', icon: '' },
+  { id: 'double-helix-dna', name: 'Double Helix DNA', nameZh: 'DNA雙螺旋', icon: '' },
+  { id: 'vortex-ring', name: 'Vortex Ring', nameZh: '漩渦環', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
