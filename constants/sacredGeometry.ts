@@ -2400,3 +2400,318 @@ export function generateWaveInterferenceData() {
 
   return { positions, colors, groups };
 }
+
+// --- QUANTUM ORBITALS ---
+// Electron cloud style lobes based on spherical harmonics
+// Visualizes p and d orbital shapes with glowing particle clouds
+
+export function generateQuantumOrbitalsData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.85;
+  const deepBlue = new THREE.Color('#1E3A8A');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const violet = new THREE.Color('#8B5CF6');
+  const purple = new THREE.Color('#A855F7');
+  const white = new THREE.Color('#FFFFFF');
+
+  const pOrbitalDensity = (x: number, y: number, z: number, axis: 'x' | 'y' | 'z') => {
+    const r = Math.sqrt(x * x + y * y + z * z);
+    if (r < 0.01) return 0;
+    let cosTheta = 0;
+    if (axis === 'x') cosTheta = x / r;
+    else if (axis === 'y') cosTheta = y / r;
+    else cosTheta = z / r;
+    return Math.abs(cosTheta) * Math.exp(-r * 2.5);
+  };
+
+  const dOrbitalDensity = (x: number, y: number, z: number, type: 'xy' | 'xz' | 'yz' | 'z2') => {
+    const r = Math.sqrt(x * x + y * y + z * z);
+    if (r < 0.01) return 0;
+    let angular = 0;
+    if (type === 'xy') angular = (x * y) / (r * r);
+    else if (type === 'xz') angular = (x * z) / (r * r);
+    else if (type === 'yz') angular = (y * z) / (r * r);
+    else angular = (2 * z * z - x * x - y * y) / (r * r);
+    return Math.abs(angular) * Math.exp(-r * 2.0);
+  };
+
+  const pOrbitalCount = Math.floor(PARTICLE_COUNT * 0.30);
+  const dOrbitalCount = Math.floor(PARTICLE_COUNT * 0.35);
+  const nucleusCount = Math.floor(PARTICLE_COUNT * 0.10);
+  const shellCount = Math.floor(PARTICLE_COUNT * 0.15);
+  let idx = 0;
+
+  const pAxes: ('x' | 'y' | 'z')[] = ['x', 'y', 'z'];
+  const pColors = [electricBlue, cyan, lightCyan];
+  const particlesPerPAxis = Math.floor(pOrbitalCount / 3);
+
+  for (let axisIdx = 0; axisIdx < 3; axisIdx++) {
+    const axis = pAxes[axisIdx];
+    const baseColor = pColors[axisIdx];
+    let placed = 0;
+    let attempts = 0;
+    while (placed < particlesPerPAxis && attempts < particlesPerPAxis * 10 && idx < pOrbitalCount) {
+      attempts++;
+      const x = (Math.random() - 0.5) * 2.0 * scale;
+      const y = (Math.random() - 0.5) * 2.0 * scale;
+      const z = (Math.random() - 0.5) * 2.0 * scale;
+      const density = pOrbitalDensity(x, y, z, axis);
+      if (Math.random() < density * 3) {
+        positions[idx * 3] = x;
+        positions[idx * 3 + 1] = y;
+        positions[idx * 3 + 2] = z;
+        const c = baseColor.clone().lerp(white, density * 0.5);
+        c.lerp(violet, Math.random() * 0.15);
+        colors[idx * 3] = c.r;
+        colors[idx * 3 + 1] = c.g;
+        colors[idx * 3 + 2] = c.b;
+        groups[idx] = axisIdx;
+        idx++;
+        placed++;
+      }
+    }
+  }
+
+  const dTypes: ('xy' | 'xz' | 'yz' | 'z2')[] = ['xy', 'xz', 'yz', 'z2'];
+  const dColorBase = [violet, purple, electricBlue, cyan];
+  const particlesPerDType = Math.floor(dOrbitalCount / 4);
+
+  for (let typeIdx = 0; typeIdx < 4; typeIdx++) {
+    const dType = dTypes[typeIdx];
+    const baseColor = dColorBase[typeIdx];
+    let placed = 0;
+    let attempts = 0;
+    while (placed < particlesPerDType && attempts < particlesPerDType * 12 && idx < pOrbitalCount + dOrbitalCount) {
+      attempts++;
+      const x = (Math.random() - 0.5) * 1.8 * scale;
+      const y = (Math.random() - 0.5) * 1.8 * scale;
+      const z = (Math.random() - 0.5) * 1.8 * scale;
+      const density = dOrbitalDensity(x, y, z, dType);
+      if (Math.random() < density * 4) {
+        positions[idx * 3] = x;
+        positions[idx * 3 + 1] = y;
+        positions[idx * 3 + 2] = z;
+        const c = baseColor.clone().lerp(lightCyan, density * 0.4);
+        c.lerp(white, Math.random() * 0.2);
+        colors[idx * 3] = c.r;
+        colors[idx * 3 + 1] = c.g;
+        colors[idx * 3 + 2] = c.b;
+        groups[idx] = 3 + typeIdx;
+        idx++;
+        placed++;
+      }
+    }
+  }
+
+  for (let i = 0; i < nucleusCount && idx < pOrbitalCount + dOrbitalCount + nucleusCount; i++, idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.3) * 0.08 * scale;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const brightness = 1.0 - (r / (0.08 * scale)) * 0.3;
+    const c = white.clone().lerp(cyan, 0.2);
+    c.multiplyScalar(0.85 + brightness * 0.15);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 7;
+  }
+
+  const shellRadii = [0.3, 0.6, 0.9];
+  const particlesPerShell = Math.floor(shellCount / shellRadii.length);
+  for (let s = 0; s < shellRadii.length; s++) {
+    const shellRadius = shellRadii[s] * scale;
+    for (let i = 0; i < particlesPerShell && idx < pOrbitalCount + dOrbitalCount + nucleusCount + shellCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = shellRadius + (Math.random() - 0.5) * 0.04;
+      positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = r * Math.cos(phi);
+      const c = deepBlue.clone().lerp(electricBlue, s / shellRadii.length);
+      c.lerp(cyan, Math.random() * 0.3);
+      c.multiplyScalar(0.4 + Math.random() * 0.3);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 8 + s;
+    }
+  }
+
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.1 + Math.pow(Math.random(), 2) * 0.4;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const ambientColor = deepBlue.clone().lerp(violet, Math.random());
+    ambientColor.multiplyScalar(0.1 + Math.random() * 0.08);
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 11;
+  }
+
+  return { positions, colors, groups };
+}
+
+// --- CELTIC KNOT ---
+// Interlocking knot lines with particle glow using parametric curves
+// Represents eternity, interconnectedness, and the infinite cycle
+
+export function generateCelticKnotData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.9;
+  const deepGold = new THREE.Color('#B8860B');
+  const gold = new THREE.Color('#FFD700');
+  const amber = new THREE.Color('#FFBF00');
+  const bronze = new THREE.Color('#CD7F32');
+  const copper = new THREE.Color('#B87333');
+  const white = new THREE.Color('#FFFFFF');
+  const emerald = new THREE.Color('#10B981');
+
+  const trefoilPoint = (t: number, knotScale: number) => ({
+    x: (Math.sin(t) + 2 * Math.sin(2 * t)) * knotScale * 0.25,
+    y: (Math.cos(t) - 2 * Math.cos(2 * t)) * knotScale * 0.25,
+    z: -Math.sin(3 * t) * knotScale * 0.15
+  });
+
+  const figure8Point = (t: number, knotScale: number) => ({
+    x: (2 + Math.cos(2 * t)) * Math.cos(3 * t) * knotScale * 0.18,
+    y: (2 + Math.cos(2 * t)) * Math.sin(3 * t) * knotScale * 0.18,
+    z: Math.sin(4 * t) * knotScale * 0.12
+  });
+
+  const trefoilCount = Math.floor(PARTICLE_COUNT * 0.35);
+  const figure8Count = Math.floor(PARTICLE_COUNT * 0.30);
+  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const glowCount = Math.floor(PARTICLE_COUNT * 0.12);
+  let idx = 0;
+
+  for (let i = 0; i < trefoilCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = (i / trefoilCount) * Math.PI * 2;
+    const pos = trefoilPoint(t, scale);
+    const thickness = 0.04;
+    const tubeAngle = Math.random() * Math.PI * 2;
+    const dt = 0.01;
+    const posNext = trefoilPoint(t + dt, scale);
+    const tangent = new THREE.Vector3(posNext.x - pos.x, posNext.y - pos.y, posNext.z - pos.z).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const perp1 = new THREE.Vector3().crossVectors(tangent, up).normalize();
+    if (perp1.length() < 0.1) perp1.set(1, 0, 0);
+    const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize();
+    const tubeRadius = thickness * Math.random();
+    positions[idx * 3] = pos.x + perp1.x * Math.cos(tubeAngle) * tubeRadius + perp2.x * Math.sin(tubeAngle) * tubeRadius;
+    positions[idx * 3 + 1] = pos.y + perp1.y * Math.cos(tubeAngle) * tubeRadius + perp2.y * Math.sin(tubeAngle) * tubeRadius;
+    positions[idx * 3 + 2] = pos.z + perp1.z * Math.cos(tubeAngle) * tubeRadius + perp2.z * Math.sin(tubeAngle) * tubeRadius;
+    const colorT = t / (Math.PI * 2);
+    const c = gold.clone().lerp(amber, Math.sin(colorT * Math.PI * 3) * 0.5 + 0.5);
+    c.lerp(white, Math.random() * 0.15);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  for (let i = 0; i < figure8Count && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = (i / figure8Count) * Math.PI * 2;
+    const pos = figure8Point(t, scale);
+    const thickness = 0.035;
+    positions[idx * 3] = pos.x + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 1] = pos.y + (Math.random() - 0.5) * thickness;
+    positions[idx * 3 + 2] = pos.z + (Math.random() - 0.5) * thickness;
+    const colorT = t / (Math.PI * 2);
+    const c = bronze.clone().lerp(copper, Math.sin(colorT * Math.PI * 4) * 0.5 + 0.5);
+    c.lerp(gold, Math.random() * 0.2);
+    c.lerp(white, Math.random() * 0.1);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+
+  const intersectionPoints: THREE.Vector3[] = [];
+  for (let i = 0; i < 50; i++) {
+    const t1 = (i / 50) * Math.PI * 2;
+    const pos1 = trefoilPoint(t1, scale);
+    for (let j = 0; j < 50; j++) {
+      const t2 = (j / 50) * Math.PI * 2;
+      const pos2 = figure8Point(t2, scale);
+      const dist = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2));
+      if (dist < 0.15) {
+        const midpoint = new THREE.Vector3((pos1.x + pos2.x) / 2, (pos1.y + pos2.y) / 2, (pos1.z + pos2.z) / 2);
+        let isUnique = true;
+        for (const existing of intersectionPoints) {
+          if (midpoint.distanceTo(existing) < 0.1) { isUnique = false; break; }
+        }
+        if (isUnique) intersectionPoints.push(midpoint);
+      }
+    }
+  }
+
+  const particlesPerIntersection = Math.max(1, Math.floor(intersectionCount / Math.max(intersectionPoints.length, 1)));
+  for (let p = 0; p < intersectionPoints.length && idx < trefoilCount + figure8Count + intersectionCount; p++) {
+    const point = intersectionPoints[p];
+    for (let i = 0; i < particlesPerIntersection && idx < trefoilCount + figure8Count + intersectionCount; i++, idx++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.pow(Math.random(), 0.4) * 0.06;
+      positions[idx * 3] = point.x + r * Math.sin(phi) * Math.cos(theta);
+      positions[idx * 3 + 1] = point.y + r * Math.sin(phi) * Math.sin(theta);
+      positions[idx * 3 + 2] = point.z + r * Math.cos(phi);
+      const brightness = 1.0 - (r / 0.06) * 0.4;
+      const c = white.clone().lerp(gold, 0.3);
+      c.lerp(emerald, Math.random() * 0.15);
+      c.multiplyScalar(0.8 + brightness * 0.2);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+    }
+  }
+
+  for (let i = 0; i < glowCount && idx < trefoilCount + figure8Count + intersectionCount + glowCount; i++, idx++) {
+    const knotT = Math.random() * Math.PI * 2;
+    const knotPos = Math.random() > 0.5 ? trefoilPoint(knotT, scale) : figure8Point(knotT, scale);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const expandRadius = 0.1 + Math.random() * 0.15;
+    positions[idx * 3] = knotPos.x + expandRadius * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = knotPos.y + expandRadius * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = knotPos.z + expandRadius * Math.cos(phi);
+    const glowColor = deepGold.clone().lerp(gold, Math.random());
+    glowColor.multiplyScalar(0.25 + Math.random() * 0.15);
+    colors[idx * 3] = glowColor.r;
+    colors[idx * 3 + 1] = glowColor.g;
+    colors[idx * 3 + 2] = glowColor.b;
+    groups[idx] = 3;
+  }
+
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.0 + Math.pow(Math.random(), 2) * 0.5;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.4;
+    const ambientColor = deepGold.clone().lerp(bronze, Math.random());
+    ambientColor.multiplyScalar(0.1 + Math.random() * 0.08);
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}

@@ -31,7 +31,7 @@ interface CustomMeditation {
   gradient?: [string, string];
 }
 
-export type OrbShape = 'default' | 'flower-of-life' | 'flower-of-life-complete' | 'star-of-david' | 'merkaba' | 'earth' | 'tree-of-life' | 'grid-of-life' | 'sri-yantra' | 'triquetra' | 'golden-rectangles' | 'double-helix-dna' | 'vortex-ring' | 'fractal-tree' | 'wave-interference';
+export type OrbShape = 'default' | 'flower-of-life' | 'flower-of-life-complete' | 'star-of-david' | 'merkaba' | 'earth' | 'tree-of-life' | 'grid-of-life' | 'sri-yantra' | 'triquetra' | 'golden-rectangles' | 'double-helix-dna' | 'vortex-ring' | 'fractal-tree' | 'wave-interference' | 'quantum-orbitals' | 'celtic-knot';
 
 export interface Orb {
   id: string;

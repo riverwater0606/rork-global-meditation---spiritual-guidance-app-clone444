@@ -10,7 +10,7 @@ import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationPr
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
@@ -212,6 +212,22 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
       groups.set(data.groups);
     };
 
+    // 14. Quantum Orbitals
+    const generateQuantumOrbitals = () => {
+      const data = generateQuantumOrbitalsData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 15. Celtic Knot
+    const generateCelticKnot = () => {
+      const data = generateCelticKnotData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
     // 5. Earth
     const generateEarth = () => {
       const data = generateEarthData();
@@ -268,6 +284,8 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     else if (shape === 'vortex-ring') generateVortexRing();
     else if (shape === 'fractal-tree') generateFractalTree();
     else if (shape === 'wave-interference') generateWaveInterference();
+    else if (shape === 'quantum-orbitals') generateQuantumOrbitals();
+    else if (shape === 'celtic-knot') generateCelticKnot();
     else generateSphere(); // Default
     
     // Always generate heart positions so they are ready
@@ -819,6 +837,8 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
   { id: 'vortex-ring', name: 'Vortex Ring', nameZh: '漩渦環', icon: '' },
   { id: 'fractal-tree', name: 'Fractal Tree', nameZh: '分形樹', icon: '' },
   { id: 'wave-interference', name: 'Wave Interference', nameZh: '波干涉', icon: '' },
+  { id: 'quantum-orbitals', name: 'Quantum Orbitals', nameZh: '量子軌道', icon: '' },
+  { id: 'celtic-knot', name: 'Celtic Knot', nameZh: '凱爾特結', icon: '' },
   { id: 'earth', name: 'Earth', nameZh: '地球', icon: '' },
 ];
 
