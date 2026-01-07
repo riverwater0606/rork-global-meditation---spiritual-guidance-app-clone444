@@ -3065,3 +3065,204 @@ export function generateLatticeWaveData() {
 
   return { positions, colors, groups };
 }
+
+// --- SACRED FLAME ---
+// Upward spiral flame with particle embers using helix + noise
+// Represents transformation, purification, and eternal spiritual fire
+
+export function generateSacredFlameData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+
+  const scale = 0.95;
+  
+  // Blue-cyan flame palette
+  const deepBlue = new THREE.Color('#1E3A8A');
+  const electricBlue = new THREE.Color('#3B82F6');
+  const cyan = new THREE.Color('#22D3EE');
+  const lightCyan = new THREE.Color('#67E8F9');
+  const white = new THREE.Color('#FFFFFF');
+  const teal = new THREE.Color('#14B8A6');
+  const violet = new THREE.Color('#8B5CF6');
+
+  // Flame parameters
+  const flameHeight = 2.0 * scale;
+  const baseRadius = 0.35 * scale;
+  const spiralTurns = 4;
+  const noiseScale = 2.5;
+
+  // Simple noise function
+  const noise = (x: number, y: number, z: number) => {
+    const n1 = Math.sin(x * noiseScale + y * 1.3) * Math.cos(z * noiseScale * 0.8);
+    const n2 = Math.sin(y * noiseScale * 1.2 + z * 0.9) * Math.cos(x * noiseScale);
+    const n3 = Math.sin(z * noiseScale * 0.7 + x * 1.1) * Math.cos(y * noiseScale * 1.4);
+    return (n1 + n2 + n3) / 3;
+  };
+
+  // Particle distribution
+  const coreFlameCount = Math.floor(PARTICLE_COUNT * 0.40);
+  const spiralCount = Math.floor(PARTICLE_COUNT * 0.25);
+  const emberCount = Math.floor(PARTICLE_COUNT * 0.20);
+  const glowCount = Math.floor(PARTICLE_COUNT * 0.08);
+
+  let idx = 0;
+
+  // 1. Core Flame - Dense upward flowing particles
+  for (let i = 0; i < coreFlameCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = Math.pow(Math.random(), 0.6);
+    const height = (t - 0.5) * flameHeight;
+    
+    const heightFactor = 1 - (t * 0.85);
+    const currentRadius = baseRadius * heightFactor;
+    
+    const spiralAngle = t * spiralTurns * Math.PI * 2 + Math.random() * 0.5;
+    const noiseOffset = noise(height * 2, spiralAngle, t * 3) * 0.15;
+    
+    const x = (currentRadius + noiseOffset) * Math.cos(spiralAngle);
+    const z = (currentRadius + noiseOffset) * Math.sin(spiralAngle);
+    const y = height + noise(x, height, z) * 0.1;
+    
+    const flicker = (Math.random() - 0.5) * 0.04 * (1 - t * 0.5);
+    
+    positions[idx * 3] = x + flicker;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z + flicker;
+    
+    const distFromCenter = Math.sqrt(x * x + z * z) / baseRadius;
+    const c = white.clone();
+    c.lerp(lightCyan, distFromCenter * 0.6);
+    c.lerp(cyan, t * 0.5);
+    c.lerp(electricBlue, t * 0.3);
+    
+    const brightness = 1.0 - t * 0.4;
+    c.multiplyScalar(brightness);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+
+  // 2. Spiral Streams - Distinct helical paths
+  const numSpirals = 5;
+  const particlesPerSpiral = Math.floor(spiralCount / numSpirals);
+  
+  for (let spiral = 0; spiral < numSpirals; spiral++) {
+    const spiralOffset = (spiral / numSpirals) * Math.PI * 2;
+    
+    for (let i = 0; i < particlesPerSpiral && idx < coreFlameCount + spiralCount; i++, idx++) {
+      const t = i / particlesPerSpiral;
+      const height = (t - 0.4) * flameHeight;
+      
+      const expansion = Math.sin(t * Math.PI) * 0.3;
+      const heightFactor = 1 - t * 0.8;
+      const currentRadius = (baseRadius * 0.6 + expansion) * heightFactor;
+      
+      const angle = spiralOffset + t * spiralTurns * Math.PI * 2 * 1.5;
+      const noiseVal = noise(t * 5, angle, spiral) * 0.08;
+      
+      const x = (currentRadius + noiseVal) * Math.cos(angle);
+      const z = (currentRadius + noiseVal) * Math.sin(angle);
+      const y = height;
+      
+      const thickness = 0.025 * (1 - t * 0.6);
+      positions[idx * 3] = x + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 1] = y + (Math.random() - 0.5) * thickness;
+      positions[idx * 3 + 2] = z + (Math.random() - 0.5) * thickness;
+      
+      const c = cyan.clone();
+      c.lerp(teal, Math.sin(t * Math.PI) * 0.5);
+      c.lerp(lightCyan, (1 - t) * 0.4);
+      c.lerp(white, Math.random() * 0.15);
+      c.multiplyScalar(0.8 - t * 0.3);
+      
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+
+  // 3. Embers - Rising particles with random trajectories
+  for (let i = 0; i < emberCount && idx < coreFlameCount + spiralCount + emberCount; i++, idx++) {
+    const baseAngle = Math.random() * Math.PI * 2;
+    const baseRadius2 = Math.random() * baseRadius * 0.8;
+    const startHeight = (Math.random() - 0.3) * flameHeight * 0.5;
+    
+    const riseT = Math.pow(Math.random(), 0.4);
+    const riseHeight = startHeight + riseT * flameHeight * 0.8;
+    const driftRadius = baseRadius2 + riseT * 0.4;
+    const driftAngle = baseAngle + riseT * (Math.random() - 0.5) * 2;
+    
+    const flickerX = noise(riseT * 10, driftAngle, i) * 0.1;
+    const flickerZ = noise(driftAngle, riseT * 10, i * 0.5) * 0.1;
+    
+    const x = driftRadius * Math.cos(driftAngle) + flickerX;
+    const z = driftRadius * Math.sin(driftAngle) + flickerZ;
+    const y = riseHeight;
+    
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    
+    const emberBrightness = 0.5 + Math.random() * 0.5;
+    const c = lightCyan.clone();
+    c.lerp(white, emberBrightness * 0.6);
+    c.lerp(violet, riseT * 0.25);
+    c.multiplyScalar((1 - riseT * 0.6) * emberBrightness);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  // 4. Outer Glow - Soft halo around flame
+  for (let i = 0; i < glowCount && idx < coreFlameCount + spiralCount + emberCount + glowCount; i++, idx++) {
+    const t = Math.random();
+    const height = (t - 0.5) * flameHeight * 1.2;
+    
+    const glowRadius = baseRadius * (1.3 + Math.random() * 0.5) * (1 - t * 0.5);
+    const angle = Math.random() * Math.PI * 2;
+    
+    const x = glowRadius * Math.cos(angle);
+    const z = glowRadius * Math.sin(angle);
+    const y = height;
+    
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    
+    const c = electricBlue.clone();
+    c.lerp(deepBlue, Math.random() * 0.4);
+    c.lerp(cyan, 0.3);
+    c.multiplyScalar(0.2 + Math.random() * 0.15);
+    
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 3;
+  }
+
+  // 5. Ambient cosmic particles
+  for (; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 1.1 + Math.pow(Math.random(), 2) * 0.5;
+    
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta) * 0.7;
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 1.3 - 0.1;
+    positions[idx * 3 + 2] = r * Math.cos(phi) * 0.7;
+    
+    const ambientColor = deepBlue.clone().lerp(violet, Math.random());
+    ambientColor.multiplyScalar(0.08 + Math.random() * 0.06);
+    
+    colors[idx * 3] = ambientColor.r;
+    colors[idx * 3 + 1] = ambientColor.g;
+    colors[idx * 3 + 2] = ambientColor.b;
+    groups[idx] = 4;
+  }
+
+  return { positions, colors, groups };
+}
