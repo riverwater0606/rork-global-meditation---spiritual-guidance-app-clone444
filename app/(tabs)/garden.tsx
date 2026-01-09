@@ -1154,6 +1154,9 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenFadeAnim = useRef(new Animated.Value(0)).current;
+  const lastTapRef = useRef<number>(0);
+  const fullscreenOrbOffsetX = useRef(new Animated.Value(0)).current;
+  const fullscreenOrbOffsetY = useRef(new Animated.Value(0)).current;
   const orbShape = currentOrb.shape || 'default';
 
   // Toggle Diffuse
@@ -1182,8 +1185,57 @@ export default function GardenScreen() {
       useNativeDriver: true,
     }).start(() => {
       setIsFullscreen(false);
+      fullscreenOrbOffsetX.setValue(0);
+      fullscreenOrbOffsetY.setValue(0);
     });
   };
+
+  const handleFullscreenDoubleTap = () => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      exitFullscreen();
+    }
+    lastTapRef.current = now;
+  };
+
+  const fullscreenPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        fullscreenOrbOffsetX.setOffset((fullscreenOrbOffsetX as any)._value);
+        fullscreenOrbOffsetY.setOffset((fullscreenOrbOffsetY as any)._value);
+        fullscreenOrbOffsetX.setValue(0);
+        fullscreenOrbOffsetY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        fullscreenOrbOffsetX.setValue(gestureState.dx);
+        fullscreenOrbOffsetY.setValue(gestureState.dy);
+        
+        const newVelocity = -gestureState.vx * 0.5;
+        interactionState.current.spinVelocity = newVelocity;
+        setSharedSpinVelocity(newVelocity);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        fullscreenOrbOffsetX.flattenOffset();
+        fullscreenOrbOffsetY.flattenOffset();
+        
+        if (Math.abs(gestureState.vx) > 0.05) {
+          const newVelocity = -gestureState.vx * 0.5;
+          interactionState.current.spinVelocity = newVelocity;
+          setSharedSpinVelocity(newVelocity);
+        }
+        
+        const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
+        if (isTap) {
+          handleFullscreenDoubleTap();
+        }
+      },
+    })
+  ).current;
 
   // Pan Responder for Gestures
   const panResponder = useRef(
@@ -2361,20 +2413,68 @@ export default function GardenScreen() {
             { opacity: fullscreenFadeAnim }
           ]}
         >
-          <TouchableOpacity 
-            style={styles.fullscreenTouchable}
-            activeOpacity={1}
-            onPress={exitFullscreen}
-          >
-            <Canvas camera={{ position: [0, 0, 4] }} style={styles.fullscreenCanvas}>
-              <ambientLight intensity={0.5} />
-              <pointLight position={[10, 10, 10]} />
-              <OrbParticles 
-                layers={currentOrb.layers} 
-                interactionState={interactionState}
-                shape={orbShape}
-              />
-            </Canvas>
+          <View style={styles.fullscreenTouchable} {...fullscreenPanResponder.panHandlers}>
+            <Animated.View style={[
+              styles.fullscreenCanvasWrapper,
+              {
+                transform: [
+                  { translateX: fullscreenOrbOffsetX },
+                  { translateY: fullscreenOrbOffsetY }
+                ]
+              }
+            ]}>
+              <Canvas camera={{ position: [0, 0, 4] }} style={styles.fullscreenCanvas}>
+                <ambientLight intensity={0.5} />
+                <pointLight position={[10, 10, 10]} />
+                <OrbParticles 
+                  layers={currentOrb.layers} 
+                  interactionState={interactionState}
+                  shape={orbShape}
+                />
+              </Canvas>
+            </Animated.View>
+            
+            {/* Floating Action Buttons */}
+            <View style={styles.fullscreenActionButtons} pointerEvents="box-none">
+              <TouchableOpacity
+                style={styles.fullscreenActionButton}
+                onPress={() => {
+                  if (!currentOrb.isAwakened) {
+                    Alert.alert(
+                      settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
+                      settings.language === 'zh' 
+                        ? '光球需要覺醒後才能選擇形態' 
+                        : 'Orb must be awakened to change shape'
+                    );
+                    return;
+                  }
+                  setShowShapeSelector(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Sparkles size={20} color="white" />
+                <Text style={styles.fullscreenActionText}>
+                  {settings.language === 'zh' ? '形態' : 'MORPH'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.fullscreenActionButton, styles.fullscreenMeditateButton]}
+                onPress={() => {
+                  if (!currentOrb.isAwakened) {
+                    setShowGrowthModal(true);
+                  } else {
+                    setShowAwakenedModal(true);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Sprout size={20} color="white" />
+                <Text style={styles.fullscreenActionText}>
+                  {settings.language === 'zh' ? '冥想' : 'MEDITATE'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             
             {/* Exit Button */}
             <TouchableOpacity
@@ -2390,9 +2490,9 @@ export default function GardenScreen() {
               styles.fullscreenHint,
               { opacity: fullscreenFadeAnim }
             ]}>
-              {settings.language === 'zh' ? '點擊任意處退出' : 'Tap anywhere to exit'}
+              {settings.language === 'zh' ? '雙擊退出 • 拖曳旋轉' : 'Double tap to exit • Drag to rotate'}
             </Animated.Text>
-          </TouchableOpacity>
+          </View>
         </Animated.View>
       )}
 
@@ -3003,9 +3103,47 @@ const styles = StyleSheet.create({
   fullscreenCanvas: {
     flex: 1,
   },
+  fullscreenCanvasWrapper: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenActionButtons: {
+    position: 'absolute',
+    bottom: 100,
+    right: 24,
+    gap: 12,
+  },
+  fullscreenActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.6)',
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fullscreenMeditateButton: {
+    backgroundColor: 'rgba(34, 211, 238, 0.35)',
+    borderColor: 'rgba(34, 211, 238, 0.5)',
+    shadowColor: '#22d3ee',
+  },
+  fullscreenActionText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700' as const,
+    letterSpacing: 0.5,
+  },
   fullscreenExitButton: {
     position: 'absolute',
-    bottom: 40,
+    top: 60,
     right: 24,
     width: 50,
     height: 50,
@@ -3018,12 +3156,12 @@ const styles = StyleSheet.create({
   },
   fullscreenHint: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 40,
     left: 0,
     right: 0,
     textAlign: 'center',
     color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '500' as const,
   },
 });
