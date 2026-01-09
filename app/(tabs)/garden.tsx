@@ -2,6 +2,7 @@
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -881,6 +882,7 @@ const shapes: { id: OrbShape, name: string, nameZh: string, icon: string }[] = [
 export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   
   // Dynamic collapsed height based on safe area
   const collapsedHeight = 90 + insets.bottom;
@@ -1176,6 +1178,8 @@ export default function GardenScreen() {
   const enterFullscreen = () => {
     setIsFullscreen(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Hide tab bar
+    navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
     Animated.timing(fullscreenFadeAnim, {
       toValue: 1,
       duration: 300,
@@ -1185,6 +1189,8 @@ export default function GardenScreen() {
 
   const exitFullscreen = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Show tab bar
+    navigation.getParent()?.setOptions({ tabBarStyle: undefined });
     Animated.timing(fullscreenFadeAnim, {
       toValue: 0,
       duration: 250,
@@ -1222,14 +1228,28 @@ export default function GardenScreen() {
   const fullscreenPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 10;
+      },
       onPanResponderGrant: () => {},
-      onPanResponderMove: () => {},
+      onPanResponderMove: (_, gestureState) => {
+        // Horizontal swipe controls Y-axis rotation (left/right)
+        if (Math.abs(gestureState.dx) > 10) {
+          const newVelocity = -gestureState.vx * 0.5;
+          interactionState.current.spinVelocity = newVelocity;
+          setSharedSpinVelocity(newVelocity);
+        }
+      },
       onPanResponderRelease: (_, gestureState) => {
         const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
         if (isTap) {
           // Single tap - toggle diffuse effect
           triggerFullscreenDiffuse();
+        } else if (Math.abs(gestureState.vx) > 0.05) {
+          // Apply fling velocity for momentum
+          const newVelocity = -gestureState.vx * 0.5;
+          interactionState.current.spinVelocity = newVelocity;
+          setSharedSpinVelocity(newVelocity);
         }
       },
     })
