@@ -1160,7 +1160,7 @@ export default function GardenScreen() {
   const [showShapeSelector, setShowShapeSelector] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenFadeAnim = useRef(new Animated.Value(0)).current;
-  const lastTapRef = useRef<number>(0);
+
   const fullscreenOrbOffsetX = useRef(new Animated.Value(0)).current;
   const fullscreenOrbOffsetY = useRef(new Animated.Value(0)).current;
   const orbShape = currentOrb.shape || 'default';
@@ -1198,9 +1198,10 @@ export default function GardenScreen() {
 
   // Cleanup diffuse timeout on unmount
   useEffect(() => {
+    const timeoutRef = diffuseTimeoutRef;
     return () => {
-      if (diffuseTimeoutRef.current) {
-        clearTimeout(diffuseTimeoutRef.current);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
     };
   }, []);
@@ -1208,47 +1209,27 @@ export default function GardenScreen() {
   const diffuseTimeoutRef = useRef<any>(null);
 
   const triggerFullscreenDiffuse = () => {
-    if (interactionState.current.mode === 'diffused') return;
-    
-    // Clear any existing timeout
-    if (diffuseTimeoutRef.current) {
-      clearTimeout(diffuseTimeoutRef.current);
-    }
-    
-    // Trigger diffuse
-    interactionState.current.mode = 'diffused';
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Auto-reset after 1.5 seconds
-    diffuseTimeoutRef.current = setTimeout(() => {
+    // Toggle between diffused and idle
+    if (interactionState.current.mode === 'diffused') {
       interactionState.current.mode = 'idle';
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }, 1500);
+    } else {
+      interactionState.current.mode = 'diffused';
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
   };
 
   const fullscreenPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => false, // Disable drag movement
-      onPanResponderGrant: () => {
-        // No action on grant - disabled rotation
-      },
-      onPanResponderMove: () => {
-        // Disabled - no rotation on drag
-      },
+      onMoveShouldSetPanResponder: () => false,
+      onPanResponderGrant: () => {},
+      onPanResponderMove: () => {},
       onPanResponderRelease: (_, gestureState) => {
         const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
         if (isTap) {
-          const now = Date.now();
-          const DOUBLE_TAP_DELAY = 300;
-          if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-            // Double tap - exit fullscreen
-            exitFullscreen();
-          } else {
-            // Single tap - trigger diffuse effect
-            triggerFullscreenDiffuse();
-          }
-          lastTapRef.current = now;
+          // Single tap - toggle diffuse effect
+          triggerFullscreenDiffuse();
         }
       },
     })
@@ -2432,7 +2413,7 @@ export default function GardenScreen() {
         >
           <View style={styles.fullscreenTouchable} {...fullscreenPanResponder.panHandlers}>
             <View style={styles.fullscreenCanvasWrapper}>
-              <Canvas camera={{ position: [0, 0, 4] }} style={styles.fullscreenCanvas}>
+              <Canvas camera={{ position: [0, 0, 4.8] }} style={styles.fullscreenCanvas}>
                 <ambientLight intensity={0.5} />
                 <pointLight position={[10, 10, 10]} />
                 <OrbParticles 
@@ -2499,7 +2480,7 @@ export default function GardenScreen() {
               styles.fullscreenHint,
               { opacity: fullscreenFadeAnim }
             ]}>
-              {settings.language === 'zh' ? '點擊擴散 • 雙擊退出' : 'Tap to diffuse • Double tap to exit'}
+              {settings.language === 'zh' ? '點擊切換擴散' : 'Tap to toggle diffuse'}
             </Animated.Text>
           </View>
         </Animated.View>
