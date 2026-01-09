@@ -360,6 +360,12 @@ const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], i
     if (mode === 'meditating') rotationSpeed = 0.005; // Gentle rotation during meditation
     pointsRef.current.rotation.y += rotationSpeed;
     
+    // Apply X rotation (vertical tilt from gestures)
+    const rotationSpeedX = interactionState.current.spinVelocityX || 0;
+    if (shape !== 'merkaba' && shape !== 'earth') {
+      pointsRef.current.rotation.x += rotationSpeedX;
+    }
+    
     // Merkaba needs to stay upright (no Z tilt from gestures if we supported them)
     // Actually standard rotation is only Y.
     // If we want to allow user to tilt earth? 
@@ -1143,7 +1149,7 @@ export default function GardenScreen() {
   
   const collectedCount = collectionProgress.filter(Boolean).length;
 
-  const interactionState = useRef({ mode: 'idle', spinVelocity: 0, progress: 0 });
+  const interactionState = useRef({ mode: 'idle', spinVelocity: 0, spinVelocityX: 0, progress: 0 });
   const progressOverlayRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
   const GATHER_DURATION = 7 * 60 * 1000; 
@@ -1206,27 +1212,30 @@ export default function GardenScreen() {
         return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
       },
       onPanResponderGrant: () => {
-        fullscreenOrbOffsetX.setOffset((fullscreenOrbOffsetX as any)._value);
-        fullscreenOrbOffsetY.setOffset((fullscreenOrbOffsetY as any)._value);
-        fullscreenOrbOffsetX.setValue(0);
-        fullscreenOrbOffsetY.setValue(0);
+        // No offset needed - we only rotate, not translate
       },
       onPanResponderMove: (_, gestureState) => {
-        fullscreenOrbOffsetX.setValue(gestureState.dx);
-        fullscreenOrbOffsetY.setValue(gestureState.dy);
+        // Horizontal swipe -> Y-axis rotation
+        const newVelocityY = -gestureState.vx * 0.5;
+        interactionState.current.spinVelocity = newVelocityY;
+        setSharedSpinVelocity(newVelocityY);
         
-        const newVelocity = -gestureState.vx * 0.5;
-        interactionState.current.spinVelocity = newVelocity;
-        setSharedSpinVelocity(newVelocity);
+        // Vertical swipe -> X-axis rotation (tilt up/down)
+        const newVelocityX = -gestureState.vy * 0.3;
+        interactionState.current.spinVelocityX = newVelocityX;
       },
       onPanResponderRelease: (_, gestureState) => {
-        fullscreenOrbOffsetX.flattenOffset();
-        fullscreenOrbOffsetY.flattenOffset();
-        
+        // Keep momentum for Y rotation
         if (Math.abs(gestureState.vx) > 0.05) {
-          const newVelocity = -gestureState.vx * 0.5;
-          interactionState.current.spinVelocity = newVelocity;
-          setSharedSpinVelocity(newVelocity);
+          const newVelocityY = -gestureState.vx * 0.5;
+          interactionState.current.spinVelocity = newVelocityY;
+          setSharedSpinVelocity(newVelocityY);
+        }
+        
+        // Keep momentum for X rotation
+        if (Math.abs(gestureState.vy) > 0.05) {
+          const newVelocityX = -gestureState.vy * 0.3;
+          interactionState.current.spinVelocityX = newVelocityX;
         }
         
         const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
@@ -2414,15 +2423,7 @@ export default function GardenScreen() {
           ]}
         >
           <View style={styles.fullscreenTouchable} {...fullscreenPanResponder.panHandlers}>
-            <Animated.View style={[
-              styles.fullscreenCanvasWrapper,
-              {
-                transform: [
-                  { translateX: fullscreenOrbOffsetX },
-                  { translateY: fullscreenOrbOffsetY }
-                ]
-              }
-            ]}>
+            <View style={styles.fullscreenCanvasWrapper}>
               <Canvas camera={{ position: [0, 0, 4] }} style={styles.fullscreenCanvas}>
                 <ambientLight intensity={0.5} />
                 <pointLight position={[10, 10, 10]} />
@@ -2432,7 +2433,7 @@ export default function GardenScreen() {
                   shape={orbShape}
                 />
               </Canvas>
-            </Animated.View>
+            </View>
             
             {/* Floating Action Buttons */}
             <View style={styles.fullscreenActionButtons} pointerEvents="box-none">
