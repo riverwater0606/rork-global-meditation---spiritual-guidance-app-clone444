@@ -12,9 +12,78 @@ import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2 } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
+import Slider from "@react-native-community/slider";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
+
+interface AmbientSound {
+  id: string;
+  name: { zh: string; en: string };
+  url: string;
+}
+
+interface SoundCategory {
+  id: string;
+  name: { zh: string; en: string };
+  sounds: AmbientSound[];
+}
+
+const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
+  {
+    id: "bowls",
+    name: { zh: "頌缽與梵唱", en: "Bowls & Chants" },
+    sounds: [
+      { id: "crystal-bowl", name: { zh: "頂級水晶頌缽聲", en: "Crystal Singing Bowl" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%A1%B6%E7%BA%A7%E6%B0%B4%E6%99%B6%E9%92%B5%E9%A2%82%E9%9F%B3.mp3" },
+      { id: "bowl-long", name: { zh: "頌缽長音", en: "Tibetan Bowl Long" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%86%A5%E6%83%B3%E7%91%9C%E4%BC%BD%E9%9F%B3%E4%B9%902.mp3" },
+      { id: "bowl-meditation-1", name: { zh: "頌缽冥想音樂1", en: "Tibetan Bowl Meditation 1" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%86%A5%E6%83%B3%E7%91%9C%E4%BC%BD%E9%9F%B3%E6%A8%82.mp3" },
+      { id: "bowl-meditation-2", name: { zh: "頌缽冥想音樂2", en: "Tibetan Bowl Meditation 2" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%86%A5%E6%83%B3%E7%91%9C%E4%BC%BD%E9%9F%B3%E4%B9%902.mp3" },
+      { id: "bowl-stream-birds", name: { zh: "頌缽聲與流水鳥鳴", en: "Bowl + Stream & Birds" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%92%B5%E5%A3%B0.%E6%95%B2%E4%B8%8E%E7%A3%A8.%E6%BD%AA%E6%BD%AA%E6%B5%81%E6%B0%B4.%E9%B8%9F%E9%B8%A3.mp3" },
+      { id: "bowl-water-birds", name: { zh: "頌缽聲水聲鳥叫", en: "Bowl + Water & Birds" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%92%B5%E9%9F%B3%2B%E6%B0%B4%E5%A3%B0%2B%E9%B8%9F%E5%8F%AB%E8%87%AA%E7%84%B6%E5%A3%B0.mp3" },
+      { id: "bowl-pure", name: { zh: "頌缽聲", en: "Tibetan Bowl Pure" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%92%B5%E9%9F%B3.mp3" },
+      { id: "deep-om", name: { zh: "Deep OM Chants", en: "Deep OM Chants" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/deep-om-chants-with-reverb-229614.mp3" },
+      { id: "wind-chime", name: { zh: "風鈴缽聲清脆", en: "Wind Chime Bowl" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%A3%8E%E9%93%83%E9%93%9B%2C%E6%B8%85%E8%84%86%E6%82%A6%E8%80%B3.mp3" },
+    ],
+  },
+  {
+    id: "nature",
+    name: { zh: "大自然", en: "Nature" },
+    sounds: [
+      { id: "ocean-waves", name: { zh: "海洋浪潮", en: "Ocean Waves" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%A4%8F%E5%A4%A9%E7%9A%84%E6%B8%85%E6%99%A8%2C%E5%B1%B1%E6%9D%91%E9%87%8C%E5%85%AC%E9%B8%A1%E6%89%93%E9%B8%A3%2C%E5%A5%BD%E5%90%AC%E7%9A%84%E9%B8%9F%E5%8F%AB.mp3" },
+      { id: "pure-ocean", name: { zh: "海浪聲", en: "Pure Ocean Waves" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%BA%AF%E6%B5%B7%E6%B5%AA%E7%9A%84%E5%A3%B0%E9%9F%B3.mp3" },
+      { id: "gentle-stream", name: { zh: "緩緩流水", en: "Gentle Stream" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%BC%93%E7%BC%93%E6%B5%81%E6%B0%B4.mp3" },
+      { id: "waterfall", name: { zh: "瀑布聲", en: "Waterfall" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%BC%93%E7%BC%93%E6%B5%81%E6%B0%B4.mp3" },
+      { id: "rain-meditation", name: { zh: "雨聲冥想音樂", en: "Rain Meditation" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%86%A5%E6%83%B3%E7%91%9C%E4%BC%BD%E9%9F%B3%E6%A8%82.mp3" },
+      { id: "thunder-rain", name: { zh: "雷雨夜", en: "Thunder & Rain" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%89%93%E9%9B%B7%E4%B8%8B%E9%9B%A8.mp3" },
+      { id: "forest-insects", name: { zh: "森林蟲鳴鳥叫", en: "Forest Insects & Birds" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%A4%A7%E8%87%AA%E7%84%B6%E5%86%A5%E6%83%B3%E9%9F%B3%E4%B9%90.mp3" },
+      { id: "starry-crickets", name: { zh: "星夜蟲鳴", en: "Starry Night Crickets" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%98%9F%E5%A4%9C%20%E5%8E%9F%E7%94%9F%E6%80%81%E8%87%AA%E7%84%B6%E4%B9%8B%E5%A3%B0.mp3" },
+      { id: "summer-morning", name: { zh: "夏日清晨公雞鳥鳴", en: "Summer Morning Birds" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%A4%8F%E5%A4%A9%E7%9A%84%E6%B8%85%E6%99%A8%2C%E5%B1%B1%E6%9D%91%E9%87%8C%E5%85%AC%E9%B8%A1%E6%89%93%E9%B8%A3%2C%E5%A5%BD%E5%90%AC%E7%9A%84%E9%B8%9F%E5%8F%AB.mp3" },
+      { id: "mountain-birds", name: { zh: "深山清脆鳥叫", en: "Mountain Bird Calls" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%9D%9E%E5%B8%B8%E9%9A%BE%E5%BE%97%E7%9A%84%E6%B8%85%E8%84%96%E9%B8%9F%E5%8F%AB%2C%E6%B7%B1%E5%B1%B1%E9%87%8C%E5%BD%95%E5%88%B6.mp3" },
+      { id: "ethereal-birds", name: { zh: "空靈鳥叫", en: "Ethereal Birds" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E7%A9%BA%E7%81%B5%E7%9A%84%E9%B8%9F%E5%8F%AB.mp3" },
+      { id: "seagulls-waves", name: { zh: "海鷗與海浪", en: "Seagulls & Waves" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%B5%B7%E9%B8%A5%E7%9A%84%E5%8F%AB%E5%A3%B0%2C%E6%B5%B7%E6%B5%AA%E7%9A%84%E5%A3%B0%E9%9F%B3.mp3" },
+      { id: "lakeside-campfire", name: { zh: "湖邊篝火流水鳥鳴", en: "Lakeside Campfire" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%B2%B3%E8%BE%B9%E7%82%B9%E7%87%83%E7%AF%9D%E7%81%AB%20%E6%B0%B4%E5%A3%B0%E5%92%8C%E6%B8%85%E8%84%96%E7%9A%84%E9%B8%9F%E9%B8%A3.mp3" },
+      { id: "underwater-bubbles", name: { zh: "水底冒泡滴答", en: "Underwater Bubbles" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%B0%B4%E5%BA%95%E5%86%92%E6%B3%A1%2C%E5%92%95%E5%98%9F%E5%92%95%E5%98%9F%E5%92%95%E5%98%9F.mp3" },
+    ],
+  },
+  {
+    id: "frequencies",
+    name: { zh: "療癒頻率", en: "Healing Frequencies" },
+    sounds: [
+      { id: "brainwave-1", name: { zh: "極度冥想通靈腦波1", en: "Deep Meditation Brainwave 1" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%9E%81%E5%BA%A6%E5%86%A5%E6%83%B3%2C%E9%80%9A%E7%81%B5%E8%84%91%E7%94%B5%E6%B3%A21.mp3" },
+      { id: "brainwave-2", name: { zh: "極度冥想通靈腦波2", en: "Deep Meditation Brainwave 2" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E6%9E%81%E5%BA%A6%E5%86%A5%E6%83%B3%2C%E9%80%9A%E7%81%B5%E8%84%91%E7%94%B5%E6%B3%A22.mp3" },
+      { id: "hz432", name: { zh: "432Hz 療癒", en: "432Hz Healing" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%86%A5%E6%83%B3%E7%91%9C%E4%BC%BD%E9%9F%B3%E4%B9%902.mp3" },
+    ],
+  },
+  {
+    id: "daily",
+    name: { zh: "生活音", en: "Daily Sounds" },
+    sounds: [
+      { id: "rowing-boat", name: { zh: "划船聲音", en: "Rowing Boat" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E8%8D%A1%E8%B5%B7%E5%8F%8C%E6%A1%A8%2C%E5%88%92%E8%88%B9%E7%9A%84%E5%A3%B0%E9%9F%B3.mp3" },
+      { id: "temple-bell", name: { zh: "寺院鐘聲", en: "Temple Bell" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E5%B9%BD%E9%9D%99%E5%AF%BA%E9%99%A2%E7%9A%84%E9%92%9F%E5%A3%B0.mp3" },
+      { id: "wind-chime-daily", name: { zh: "風鈴缽聲清脆", en: "Wind Chime Bowl" }, url: "https://pub-c6f93b2bc3f54d2c8e44831dcf28a96c.r2.dev/%E9%A3%8E%E9%93%83%E9%93%9B%2C%E6%B8%85%E8%84%86%E6%82%A6%E8%80%B3.mp3" },
+    ],
+  },
+];
 
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
@@ -939,6 +1008,10 @@ export default function GardenScreen() {
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
   const giftSoundRef = useRef<Audio.Sound | null>(null);
+  const ambientSoundRef = useRef<Audio.Sound | null>(null);
+  const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
+  const [ambientVolume, setAmbientVolume] = useState(0.5);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
 
   useEffect(() => {
     console.log("[DEBUG_GIFT] GardenScreen MOUNTED - Checking for pending actions...");
@@ -1001,14 +1074,73 @@ export default function GardenScreen() {
             await giftSoundRef.current.unloadAsync();
             giftSoundRef.current = null;
           }
+          if (ambientSoundRef.current) {
+            await ambientSoundRef.current.unloadAsync();
+            ambientSoundRef.current = null;
+          }
         } catch (e) {
-          console.warn("[DEBUG_GIFT] Failed to unload gift sound:", e);
+          console.warn("[DEBUG_GIFT] Failed to unload sounds:", e);
         }
       };
 
       void cleanup();
     };
   }, []);
+
+  useEffect(() => {
+    const loadAmbientSound = async () => {
+      try {
+        if (ambientSoundRef.current) {
+          await ambientSoundRef.current.unloadAsync();
+          ambientSoundRef.current = null;
+        }
+
+        if (selectedAmbientSound) {
+          let soundUrl: string | null = null;
+          for (const category of AMBIENT_SOUND_CATEGORIES) {
+            const sound = category.sounds.find(s => s.id === selectedAmbientSound);
+            if (sound) {
+              soundUrl = sound.url;
+              break;
+            }
+          }
+
+          if (soundUrl) {
+            const { sound: audioSound } = await Audio.Sound.createAsync(
+              { uri: soundUrl },
+              { shouldPlay: true, isLooping: true, volume: ambientVolume }
+            );
+            ambientSoundRef.current = audioSound;
+            console.log("[GARDEN] Ambient sound loaded and playing:", selectedAmbientSound);
+          }
+        }
+      } catch (error) {
+        console.error('[GARDEN] Error loading ambient sound:', error);
+      }
+    };
+
+    loadAmbientSound();
+  }, [selectedAmbientSound, ambientVolume]);
+
+  useEffect(() => {
+    const updateAmbientVolume = async () => {
+      if (ambientSoundRef.current) {
+        await ambientSoundRef.current.setVolumeAsync(ambientVolume);
+      }
+    };
+    updateAmbientVolume();
+  }, [ambientVolume]);
+
+  useEffect(() => {
+    const controlAmbientPlayback = async () => {
+      if (ambientSoundRef.current) {
+        if (isMeditating) {
+          await ambientSoundRef.current.playAsync();
+        }
+      }
+    };
+    controlAmbientPlayback();
+  }, [isMeditating]);
   
   const panelPanResponder = useRef(
     PanResponder.create({
@@ -1983,6 +2115,97 @@ export default function GardenScreen() {
         </View>
       </Modal>
 
+      {/* Sound Picker Modal */}
+      <Modal
+        visible={showSoundPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSoundPicker(false)}
+      >
+        <View style={styles.soundPickerOverlay}>
+          <View style={[styles.soundPickerModal, { backgroundColor: currentTheme.surface }]}>
+            <View style={styles.soundPickerHeader}>
+              <Text style={[styles.soundPickerTitle, { color: currentTheme.text }]}>
+                {settings.language === 'zh' ? '環境音' : 'Ambient Sound'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowSoundPicker(false)}>
+                <X size={24} color={currentTheme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.soundList}>
+              <TouchableOpacity
+                style={[
+                  styles.soundOption,
+                  selectedAmbientSound === null && styles.soundOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedAmbientSound(null);
+                  setShowSoundPicker(false);
+                }}
+              >
+                <Text style={[
+                  styles.soundOptionText,
+                  { color: currentTheme.text },
+                  selectedAmbientSound === null && styles.soundOptionTextSelected
+                ]}>
+                  {settings.language === 'zh' ? '無' : 'None'}
+                </Text>
+                {selectedAmbientSound === null && (
+                  <View style={[styles.selectedIndicator, { backgroundColor: currentTheme.primary }]} />
+                )}
+              </TouchableOpacity>
+
+              {AMBIENT_SOUND_CATEGORIES.map((category) => (
+                <View key={category.id}>
+                  <Text style={[styles.soundCategoryTitle, { color: currentTheme.primary }]}>
+                    {category.name[settings.language as 'zh' | 'en']}
+                  </Text>
+                  {category.sounds.map((sound) => (
+                    <TouchableOpacity
+                      key={sound.id}
+                      style={[
+                        styles.soundOption,
+                        selectedAmbientSound === sound.id && styles.soundOptionSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedAmbientSound(sound.id);
+                        setShowSoundPicker(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.soundOptionText,
+                        { color: currentTheme.text },
+                        selectedAmbientSound === sound.id && styles.soundOptionTextSelected
+                      ]}>
+                        {sound.name[settings.language as 'zh' | 'en']}
+                      </Text>
+                      {selectedAmbientSound === sound.id && (
+                        <View style={[styles.selectedIndicator, { backgroundColor: currentTheme.primary }]} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.volumeControl}>
+              <VolumeX size={20} color={currentTheme.textSecondary} />
+              <Slider
+                style={styles.volumeSlider}
+                minimumValue={0}
+                maximumValue={1}
+                value={ambientVolume}
+                onValueChange={setAmbientVolume}
+                minimumTrackTintColor={currentTheme.primary}
+                maximumTrackTintColor={currentTheme.border || '#444'}
+              />
+              <Volume2 size={20} color={currentTheme.textSecondary} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Awakened Meditation Modal */}
       <Modal
         visible={showAwakenedModal}
@@ -2176,6 +2399,18 @@ export default function GardenScreen() {
         />
 
         
+        {/* Sound Button */}
+        {!isMeditating && !isFullscreen && (
+          <TouchableOpacity
+            style={styles.soundButton}
+            onPress={() => setShowSoundPicker(true)}
+            activeOpacity={0.7}
+            testID="garden-sound-button"
+          >
+            <Music size={20} color={selectedAmbientSound ? currentTheme.primary : "white"} />
+          </TouchableOpacity>
+        )}
+
         {/* Fullscreen Button */}
         {!isMeditating && !isFullscreen && (
           <TouchableOpacity
@@ -3173,5 +3408,94 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 13,
     fontWeight: '500' as const,
+  },
+  soundButton: {
+    position: 'absolute',
+    bottom: 18,
+    right: 76,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 90,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  soundPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  soundPickerModal: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '70%',
+  },
+  soundPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  soundPickerTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  soundList: {
+    maxHeight: 400,
+  },
+  soundCategoryTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  soundOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  soundOptionSelected: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  soundOptionText: {
+    fontSize: 16,
+  },
+  soundOptionTextSelected: {
+    fontWeight: '600' as const,
+  },
+  selectedIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  volumeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  volumeSlider: {
+    flex: 1,
+    height: 40,
   },
 });
