@@ -11,7 +11,7 @@ import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
-import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout } from "lucide-react-native";
+import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2 } from "lucide-react-native";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import * as Haptics from "expo-haptics";
 
@@ -1152,6 +1152,8 @@ export default function GardenScreen() {
   const isDev = walletAddress === DEV_WALLET_ADDRESS;
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [showShapeSelector, setShowShapeSelector] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenFadeAnim = useRef(new Animated.Value(0)).current;
   const orbShape = currentOrb.shape || 'default';
 
   // Toggle Diffuse
@@ -1159,6 +1161,28 @@ export default function GardenScreen() {
      const nextMode = interactionState.current.mode === 'diffused' ? 'idle' : 'diffused';
      interactionState.current.mode = nextMode;
      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  // Toggle Fullscreen
+  const enterFullscreen = () => {
+    setIsFullscreen(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.timing(fullscreenFadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const exitFullscreen = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.timing(fullscreenFadeAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsFullscreen(false);
+    });
   };
 
   // Pan Responder for Gestures
@@ -2082,6 +2106,18 @@ export default function GardenScreen() {
         />
 
         
+        {/* Fullscreen Button */}
+        {!isMeditating && !isFullscreen && (
+          <TouchableOpacity
+            style={styles.fullscreenButton}
+            onPress={enterFullscreen}
+            activeOpacity={0.7}
+            testID="garden-fullscreen-button"
+          >
+            <Maximize2 size={22} color="white" />
+          </TouchableOpacity>
+        )}
+
         {!isMeditating && (
           <View style={styles.instructions}>
              <View style={styles.instructionRow}>
@@ -2316,6 +2352,49 @@ export default function GardenScreen() {
           </ScrollView>
         )}
       </Animated.View>
+
+      {/* Fullscreen Overlay */}
+      {isFullscreen && (
+        <Animated.View 
+          style={[
+            styles.fullscreenOverlay,
+            { opacity: fullscreenFadeAnim }
+          ]}
+        >
+          <TouchableOpacity 
+            style={styles.fullscreenTouchable}
+            activeOpacity={1}
+            onPress={exitFullscreen}
+          >
+            <Canvas camera={{ position: [0, 0, 4] }} style={styles.fullscreenCanvas}>
+              <ambientLight intensity={0.5} />
+              <pointLight position={[10, 10, 10]} />
+              <OrbParticles 
+                layers={currentOrb.layers} 
+                interactionState={interactionState}
+                shape={orbShape}
+              />
+            </Canvas>
+            
+            {/* Exit Button */}
+            <TouchableOpacity
+              style={styles.fullscreenExitButton}
+              onPress={exitFullscreen}
+              activeOpacity={0.7}
+            >
+              <Minimize2 size={22} color="white" />
+            </TouchableOpacity>
+            
+            {/* Hint Text */}
+            <Animated.Text style={[
+              styles.fullscreenHint,
+              { opacity: fullscreenFadeAnim }
+            ]}>
+              {settings.language === 'zh' ? '點擊任意處退出' : 'Tap anywhere to exit'}
+            </Animated.Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Moved Meditation Overlay to the very end to ensure it is on top of everything */}
       {isMeditating && (
@@ -2890,5 +2969,61 @@ const styles = StyleSheet.create({
   selectFriendText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  fullscreenButton: {
+    position: 'absolute',
+    bottom: 18,
+    right: 18,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 90,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fullscreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 10000,
+    elevation: 50,
+  },
+  fullscreenTouchable: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenCanvas: {
+    flex: 1,
+  },
+  fullscreenExitButton: {
+    position: 'absolute',
+    bottom: 40,
+    right: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  fullscreenHint: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
