@@ -1196,51 +1196,59 @@ export default function GardenScreen() {
     });
   };
 
-  const handleFullscreenDoubleTap = () => {
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      exitFullscreen();
+  // Cleanup diffuse timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (diffuseTimeoutRef.current) {
+        clearTimeout(diffuseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const diffuseTimeoutRef = useRef<any>(null);
+
+  const triggerFullscreenDiffuse = () => {
+    if (interactionState.current.mode === 'diffused') return;
+    
+    // Clear any existing timeout
+    if (diffuseTimeoutRef.current) {
+      clearTimeout(diffuseTimeoutRef.current);
     }
-    lastTapRef.current = now;
+    
+    // Trigger diffuse
+    interactionState.current.mode = 'diffused';
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Auto-reset after 1.5 seconds
+    diffuseTimeoutRef.current = setTimeout(() => {
+      interactionState.current.mode = 'idle';
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 1500);
   };
 
   const fullscreenPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-      },
+      onMoveShouldSetPanResponder: () => false, // Disable drag movement
       onPanResponderGrant: () => {
-        // No offset needed - we only rotate, not translate
+        // No action on grant - disabled rotation
       },
-      onPanResponderMove: (_, gestureState) => {
-        // Horizontal swipe -> Y-axis rotation
-        const newVelocityY = -gestureState.vx * 0.5;
-        interactionState.current.spinVelocity = newVelocityY;
-        setSharedSpinVelocity(newVelocityY);
-        
-        // Vertical swipe -> X-axis rotation (tilt up/down)
-        const newVelocityX = -gestureState.vy * 0.3;
-        interactionState.current.spinVelocityX = newVelocityX;
+      onPanResponderMove: () => {
+        // Disabled - no rotation on drag
       },
       onPanResponderRelease: (_, gestureState) => {
-        // Keep momentum for Y rotation
-        if (Math.abs(gestureState.vx) > 0.05) {
-          const newVelocityY = -gestureState.vx * 0.5;
-          interactionState.current.spinVelocity = newVelocityY;
-          setSharedSpinVelocity(newVelocityY);
-        }
-        
-        // Keep momentum for X rotation
-        if (Math.abs(gestureState.vy) > 0.05) {
-          const newVelocityX = -gestureState.vy * 0.3;
-          interactionState.current.spinVelocityX = newVelocityX;
-        }
-        
         const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
         if (isTap) {
-          handleFullscreenDoubleTap();
+          const now = Date.now();
+          const DOUBLE_TAP_DELAY = 300;
+          if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+            // Double tap - exit fullscreen
+            exitFullscreen();
+          } else {
+            // Single tap - trigger diffuse effect
+            triggerFullscreenDiffuse();
+          }
+          lastTapRef.current = now;
         }
       },
     })
@@ -2491,7 +2499,7 @@ export default function GardenScreen() {
               styles.fullscreenHint,
               { opacity: fullscreenFadeAnim }
             ]}>
-              {settings.language === 'zh' ? '雙擊退出 • 拖曳旋轉' : 'Double tap to exit • Drag to rotate'}
+              {settings.language === 'zh' ? '點擊擴散 • 雙擊退出' : 'Tap to diffuse • Double tap to exit'}
             </Animated.Text>
           </View>
         </Animated.View>
