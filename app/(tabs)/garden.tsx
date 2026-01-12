@@ -3317,8 +3317,8 @@ const styles = StyleSheet.create({
   },
   fullscreenButton: {
     position: 'absolute',
-    bottom: 18,
-    left: 76,
+    bottom: 140,
+    right: 18,
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -3411,8 +3411,8 @@ const styles = StyleSheet.create({
   },
   soundButton: {
     position: 'absolute',
-    bottom: 18,
-    left: 18,
+    bottom: 80,
+    right: 18,
     width: 50,
     height: 50,
     borderRadius: 25,
