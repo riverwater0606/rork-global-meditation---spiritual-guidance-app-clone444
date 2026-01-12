@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchAndConsumeGifts } from "@/lib/firebaseGifts";
+import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
 import { useUser } from "@/providers/UserProvider";
 
 interface MeditationStats {
@@ -156,7 +157,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
-  const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false) => {
+  const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string) => {
     const today = new Date();
     const todayStr = today.toDateString();
     const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
@@ -186,6 +187,20 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     setStats(newStats);
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
+
+    // Upload to Firebase if user is logged in
+    if (walletAddress) {
+      try {
+        await uploadMeditationRecord({
+          userId: walletAddress,
+          courseName: courseName || sessionId,
+          duration,
+        });
+        console.log("[MeditationProvider] Meditation record uploaded to Firebase");
+      } catch (e) {
+        console.error("[MeditationProvider] Failed to upload meditation record:", e);
+      }
+    }
 
     // Orb Logic
     // Only grow if explicitly requested (garden) 

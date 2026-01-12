@@ -1,26 +1,83 @@
-import React from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { TrendingUp, Calendar, Award, Target } from "lucide-react-native";
+import { TrendingUp, Calendar, Award, Target, Clock, BookOpen } from "lucide-react-native";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useUser } from "@/providers/UserProvider";
+import { fetchMeditationHistory, MeditationRecord } from "@/lib/firebaseMeditations";
 
 const { width } = Dimensions.get("window");
 
 export default function ProgressScreen() {
   const { currentTheme, settings } = useSettings();
   const { stats, achievements } = useMeditation();
+  const { walletAddress } = useUser();
   const lang = settings.language;
+
+  const [meditationHistory, setMeditationHistory] = useState<MeditationRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const pollInFlightRef = useRef(false);
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   const currentDay = new Date().getDay();
+
+  const loadHistory = useCallback(async () => {
+    if (!walletAddress || pollInFlightRef.current) return;
+    
+    pollInFlightRef.current = true;
+    console.log("[ProgressScreen] Loading meditation history...");
+    
+    try {
+      const history = await fetchMeditationHistory({ userId: walletAddress, limit: 50 });
+      setMeditationHistory(history);
+      console.log("[ProgressScreen] Loaded history count:", history.length);
+    } catch (e) {
+      console.error("[ProgressScreen] Failed to load history:", e);
+    } finally {
+      pollInFlightRef.current = false;
+      setIsLoadingHistory(false);
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (walletAddress) {
+      setIsLoadingHistory(true);
+      loadHistory();
+
+      const intervalId = setInterval(loadHistory, 30000);
+
+      const subscription = AppState.addEventListener("change", (nextAppState) => {
+        if (nextAppState === "active") {
+          console.log("[ProgressScreen] App became active, refreshing history");
+          loadHistory();
+        }
+      });
+
+      return () => {
+        clearInterval(intervalId);
+        subscription.remove();
+      };
+    }
+  }, [walletAddress, loadHistory]);
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${month}/${day} ${hours}:${minutes}`;
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -87,7 +144,7 @@ export default function ProgressScreen() {
               
               return (
                 <View key={`day-${index}`} style={styles.dayContainer}>
-                  <Text style={[styles.dayLabel, { color: currentTheme.textSecondary }, isToday && { color: currentTheme.primary, fontWeight: "bold" }]}>
+                  <Text style={[styles.dayLabel, { color: currentTheme.textSecondary }, isToday && { color: currentTheme.primary, fontWeight: "bold" as const }]}>
                     {day}
                   </Text>
                   <View
@@ -105,6 +162,55 @@ export default function ProgressScreen() {
             })}
           </View>
         </View>
+
+        {/* Meditation History */}
+        {walletAddress && (
+          <View style={styles.historyContainer}>
+            <View style={styles.historyHeader}>
+              <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
+                {lang === "zh" ? "冥想記錄" : "Meditation History"}
+              </Text>
+              {isLoadingHistory && <ActivityIndicator size="small" color="#8b5cf6" />}
+            </View>
+            
+            {meditationHistory.length === 0 && !isLoadingHistory ? (
+              <View style={[styles.emptyHistory, { backgroundColor: currentTheme.surface }]}>
+                <BookOpen size={32} color={currentTheme.textSecondary} />
+                <Text style={[styles.emptyText, { color: currentTheme.textSecondary }]}>
+                  {lang === "zh" ? "尚無冥想記錄" : "No meditation records yet"}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.historyList}>
+                {meditationHistory.slice(0, 20).map((record) => (
+                  <View 
+                    key={record.id} 
+                    style={[styles.historyItem, { backgroundColor: currentTheme.surface }]}
+                  >
+                    <View style={styles.historyLeft}>
+                      <View style={styles.historyIconContainer}>
+                        <Clock size={18} color="#8b5cf6" />
+                      </View>
+                      <View style={styles.historyInfo}>
+                        <Text style={[styles.historyCourseName, { color: currentTheme.text }]} numberOfLines={1}>
+                          {record.courseName}
+                        </Text>
+                        <Text style={[styles.historyDate, { color: currentTheme.textSecondary }]}>
+                          {formatDate(record.date)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.historyRight}>
+                      <Text style={[styles.historyDuration, { color: currentTheme.text }]}>
+                        {record.duration} {lang === "zh" ? "分鐘" : "min"}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Achievements */}
         <View style={styles.achievementsContainer}>
@@ -228,7 +334,7 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontSize: 12,
     marginBottom: 8,
-    fontWeight: "500",
+    fontWeight: "500" as const,
   },
   dayCircle: {
     width: 36,
@@ -245,7 +351,76 @@ const styles = StyleSheet.create({
   checkmark: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
+  },
+  historyContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  emptyHistory: {
+    padding: 30,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
+    borderColor: '#8b5cf6',
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  historyList: {
+    gap: 10,
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(20,20,40,0.4)',
+    borderWidth: 0.5,
+    borderColor: '#8b5cf6',
+  },
+  historyLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  historyIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  historyInfo: {
+    flex: 1,
+  },
+  historyCourseName: {
+    fontSize: 15,
+    fontWeight: "600" as const,
+    marginBottom: 2,
+  },
+  historyDate: {
+    fontSize: 12,
+  },
+  historyRight: {
+    marginLeft: 12,
+  },
+  historyDuration: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "#8b5cf6",
   },
   achievementsContainer: {
     paddingHorizontal: 20,
