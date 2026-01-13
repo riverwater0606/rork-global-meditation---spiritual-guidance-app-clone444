@@ -8,7 +8,7 @@ import { CheckCircle } from 'lucide-react-native';
 export default function CallbackScreen() {
   const params = useLocalSearchParams<{ result?: string }>();
   const { currentTheme, settings } = useSettings();
-  const { setVerified } = useUser();
+  const { setVerified, connectWallet } = useUser();
   const [error, setError] = useState<string | null>(null);
 
   const hasRunRef = useRef<boolean>(false);
@@ -41,9 +41,19 @@ export default function CallbackScreen() {
 
         if (obj) {
           try {
+            const maybeAddress = (obj as any)?.address as string | undefined;
+            if (typeof maybeAddress === "string" && maybeAddress.trim().length > 0) {
+              console.log("[Callback] Found address in payload, connecting wallet...", {
+                walletPrefix: `${maybeAddress.slice(0, 6)}...`,
+              });
+              await connectWallet(maybeAddress);
+            } else {
+              console.log("[Callback] No address in payload (wallet not connected)");
+            }
+
             await setVerified(obj as any);
-          } catch {
-            console.log('[Callback] setVerified failed');
+          } catch (e) {
+            console.log('[Callback] setVerified failed', e);
           }
           console.log('[Callback] Parsed result', obj);
           setTimeout(() => {
@@ -62,7 +72,7 @@ export default function CallbackScreen() {
     };
 
     void run();
-  }, [params.result, setVerified]);
+  }, [params.result, setVerified, connectWallet]);
 
   const lang = settings.language;
 

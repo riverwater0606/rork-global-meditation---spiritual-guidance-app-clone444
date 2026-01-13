@@ -196,7 +196,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     console.log("[MeditationProvider] duration:", duration);
     
     if (walletAddress) {
-      console.log("[MeditationProvider] User logged in, attempting Firebase upload...");
+      console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
+        walletPrefix: `${walletAddress.slice(0, 6)}...`,
+      });
       try {
         const result = await uploadMeditationRecord({
           userId: walletAddress,
@@ -210,6 +212,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       }
     } else {
       console.log("[MeditationProvider] No walletAddress - skipping Firebase upload");
+      console.log("[MeditationProvider] This is the #1 reason history is empty. If you signed in via web callback, walletAddress might not have been saved.");
     }
 
     // Orb Logic

@@ -1793,6 +1793,10 @@ export default function GardenScreen() {
         try {
           if (!MiniKit || !MiniKit.isInstalled()) {
             console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+            Alert.alert(
+              settings.language === "zh" ? "無法傳送" : "Cannot send",
+              settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
+            );
             return;
           }
 
@@ -1812,12 +1816,21 @@ export default function GardenScreen() {
 
           if (!toWalletAddress) {
             console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
+            Alert.alert(
+              settings.language === "zh" ? "傳送失敗" : "Send failed",
+              settings.language === "zh" ? "沒有拿到對方錢包地址（shareContacts 沒回傳 walletAddress）" : "No recipient walletAddress returned by shareContacts"
+            );
             return;
           }
 
           const fromWalletAddress = walletAddress ?? "unknown";
 
-          console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...");
+          console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
+            hasMiniKit: Boolean(MiniKit),
+            hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
+            toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+            fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+          });
           const uploaded = await uploadGiftOrb({
             toWalletAddress,
             fromWalletAddress,
