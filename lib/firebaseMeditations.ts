@@ -23,17 +23,26 @@ export async function uploadMeditationRecord(params: {
   duration: number;
   energyRating?: number;
 }): Promise<{ recordId: string }> {
+  console.log("[firebaseMeditations] ========== UPLOAD START ==========");
   console.log("[firebaseMeditations] uploadMeditationRecord:start", {
     userId: params.userId,
     courseName: params.courseName,
     duration: params.duration,
+    energyRating: params.energyRating,
   });
 
   try {
+    console.log("[firebaseMeditations] Getting Firebase instance...");
     const { db } = getFirebase();
+    console.log("[firebaseMeditations] Firebase DB obtained");
+    
     const safeUserId = sanitizeUserId(params.userId);
+    console.log("[firebaseMeditations] Sanitized userId:", safeUserId);
 
-    const recordRef = push(ref(db, `meditations/${safeUserId}`));
+    const path = `meditations/${safeUserId}`;
+    console.log("[firebaseMeditations] Writing to path:", path);
+    
+    const recordRef = push(ref(db, path));
     const recordId = recordRef.key;
     if (!recordId) throw new Error("Failed to allocate recordId");
 
@@ -46,13 +55,19 @@ export async function uploadMeditationRecord(params: {
       createdAt: new Date().toISOString(),
     };
 
+    console.log("[firebaseMeditations] Calling set() with record:", JSON.stringify(record));
     await set(recordRef, record);
 
     console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
+    console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
-  } catch (e) {
+  } catch (e: any) {
+    console.error("[firebaseMeditations] ========== UPLOAD FAILED ==========");
     console.error("[firebaseMeditations] uploadMeditationRecord:error", e);
-    Alert.alert("同步失敗，請重試");
+    console.error("[firebaseMeditations] Error message:", e?.message);
+    console.error("[firebaseMeditations] Error code:", e?.code);
+    console.error("[firebaseMeditations] Error stack:", e?.stack);
+    Alert.alert("上傳失敗，請檢查網路或重試");
     throw e;
   }
 }

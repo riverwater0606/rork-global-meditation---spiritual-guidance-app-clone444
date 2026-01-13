@@ -35,17 +35,28 @@ export async function uploadGiftOrb(params: {
   blessing?: string;
   orb: GiftOrbPayloadV1["orb"];
 }): Promise<{ giftId: string }> {
+  console.log("[firebaseGifts] ========== GIFT UPLOAD START ==========");
   console.log("[firebaseGifts] uploadGiftOrb:start", {
     toWalletAddress: params.toWalletAddress,
     fromWalletAddress: params.fromWalletAddress,
+    fromDisplayName: params.fromDisplayName,
+    blessing: params.blessing,
     orbId: params.orb?.id,
+    orbLevel: params.orb?.level,
   });
 
   try {
+    console.log("[firebaseGifts] Getting Firebase instance...");
     const { db } = getFirebase();
+    console.log("[firebaseGifts] Firebase DB obtained");
+    
     const toId = sanitizeWalletId(params.toWalletAddress);
+    console.log("[firebaseGifts] Sanitized toId:", toId);
 
-    const giftRef = push(ref(db, `gifts/${toId}`));
+    const path = `gifts/${toId}`;
+    console.log("[firebaseGifts] Writing to path:", path);
+    
+    const giftRef = push(ref(db, path));
     const giftId = giftRef.key;
     if (!giftId) throw new Error("Failed to allocate giftId");
 
@@ -60,13 +71,19 @@ export async function uploadGiftOrb(params: {
       orb: params.orb,
     };
 
+    console.log("[firebaseGifts] Calling set() with payload:", JSON.stringify(payload));
     await set(giftRef, payload);
 
     console.log("[firebaseGifts] uploadGiftOrb:success", { giftId, toId });
+    console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
-  } catch (e) {
+  } catch (e: any) {
+    console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
-    Alert.alert("傳送失敗，請重試");
+    console.error("[firebaseGifts] Error message:", e?.message);
+    console.error("[firebaseGifts] Error code:", e?.code);
+    console.error("[firebaseGifts] Error stack:", e?.stack);
+    Alert.alert("上傳失敗，請檢查網路或重試");
     throw e;
   }
 }

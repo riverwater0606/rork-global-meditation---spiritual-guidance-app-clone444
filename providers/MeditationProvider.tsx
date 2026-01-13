@@ -189,17 +189,27 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Upload to Firebase if user is logged in
+    console.log("[MeditationProvider] completeMeditation: checking walletAddress for Firebase upload");
+    console.log("[MeditationProvider] walletAddress:", walletAddress);
+    console.log("[MeditationProvider] sessionId:", sessionId);
+    console.log("[MeditationProvider] courseName:", courseName);
+    console.log("[MeditationProvider] duration:", duration);
+    
     if (walletAddress) {
+      console.log("[MeditationProvider] User logged in, attempting Firebase upload...");
       try {
-        await uploadMeditationRecord({
+        const result = await uploadMeditationRecord({
           userId: walletAddress,
           courseName: courseName || sessionId,
           duration,
         });
-        console.log("[MeditationProvider] Meditation record uploaded to Firebase");
-      } catch (e) {
+        console.log("[MeditationProvider] Meditation record uploaded to Firebase, recordId:", result.recordId);
+      } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
+        console.error("[MeditationProvider] Error message:", e?.message);
       }
+    } else {
+      console.log("[MeditationProvider] No walletAddress - skipping Firebase upload");
     }
 
     // Orb Logic
