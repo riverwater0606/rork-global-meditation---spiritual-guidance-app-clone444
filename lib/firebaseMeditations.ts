@@ -1,6 +1,6 @@
 import { Alert } from "react-native";
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
-import { getFirebase, getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
+import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export interface MeditationRecord {
@@ -20,7 +20,9 @@ export function sanitizeUserId(input: string): string {
 
 async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
   try {
-    const { auth } = getFirebase();
+    const fb = getFirebaseMaybe();
+    const auth = fb?.auth;
+    if (!auth) return;
     if (auth.currentUser) return;
 
     await new Promise<void>((resolve) => {

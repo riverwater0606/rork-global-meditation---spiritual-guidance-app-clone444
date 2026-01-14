@@ -1,6 +1,6 @@
 import { Alert } from "react-native";
 import { child, get, push, ref, remove, set } from "firebase/database";
-import { getFirebase, getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
+import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export type GiftOrbPayloadV1 = {
@@ -31,7 +31,9 @@ export function sanitizeWalletId(input: string): string {
 
 async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
   try {
-    const { auth } = getFirebase();
+    const fb = getFirebaseMaybe();
+    const auth = fb?.auth;
+    if (!auth) return;
     if (auth.currentUser) return;
 
     await new Promise<void>((resolve) => {
