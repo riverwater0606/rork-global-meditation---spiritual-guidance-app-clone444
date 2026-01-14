@@ -1,6 +1,7 @@
 import { Alert } from "react-native";
 import { child, get, push, ref, remove, set } from "firebase/database";
 import { getFirebase } from "@/constants/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export type GiftOrbPayloadV1 = {
   v: 1;
@@ -28,6 +29,27 @@ export function sanitizeWalletId(input: string): string {
   return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
+  try {
+    const { auth } = getFirebase();
+    if (auth.currentUser) return;
+
+    await new Promise<void>((resolve) => {
+      const timeoutId = setTimeout(() => {
+        resolve();
+      }, timeoutMs);
+
+      const unsub = onAuthStateChanged(auth, () => {
+        clearTimeout(timeoutId);
+        unsub();
+        resolve();
+      });
+    });
+  } catch (e) {
+    console.error("[firebaseGifts] waitForAuthReady failed (non-fatal):", e);
+  }
+}
+
 export async function uploadGiftOrb(params: {
   toWalletAddress: string;
   fromWalletAddress: string;
@@ -47,8 +69,22 @@ export async function uploadGiftOrb(params: {
 
   try {
     console.log("[firebaseGifts] Getting Firebase instance...");
-    const { db } = getFirebase();
+    const { db, auth } = getFirebase();
     console.log("[firebaseGifts] Firebase DB obtained");
+
+    console.log("[firebaseGifts] Auth currentUser before wait:", {
+      hasUser: Boolean(auth.currentUser),
+      uid: auth.currentUser?.uid,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    });
+
+    await waitForAuthReady(5000);
+
+    console.log("[firebaseGifts] Auth currentUser after wait:", {
+      hasUser: Boolean(auth.currentUser),
+      uid: auth.currentUser?.uid,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    });
     
     const toId = sanitizeWalletId(params.toWalletAddress);
     console.log("[firebaseGifts] Sanitized toId:", toId);

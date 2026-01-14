@@ -1,9 +1,18 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getDatabase, type Database } from "firebase/database";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+  type Auth,
+  type User,
+} from "firebase/auth";
 
 export type FirebaseRuntime = {
   app: FirebaseApp;
   db: Database;
+  auth: Auth;
+  user: User | null;
 };
 
 function requireEnv(name: string, value: string | undefined): string {
@@ -52,6 +61,42 @@ console.log("[Firebase] Config loaded:", {
 });
 
 let cached: FirebaseRuntime | null = null;
+let authInitPromise: Promise<void> | null = null;
+
+async function ensureAnonymousAuth(auth: Auth): Promise<void> {
+  if (auth.currentUser) return;
+
+  if (!authInitPromise) {
+    authInitPromise = new Promise<void>((resolve) => {
+      const unsub = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          console.log("[Firebase][Auth] existing user:", { uid: user.uid, isAnonymous: user.isAnonymous });
+          unsub();
+          resolve();
+          return;
+        }
+
+        try {
+          console.log("[Firebase][Auth] signing in anonymously...");
+          const cred = await signInAnonymously(auth);
+          console.log("[Firebase][Auth] anonymous sign-in success:", {
+            uid: cred.user.uid,
+            isAnonymous: cred.user.isAnonymous,
+          });
+        } catch (e: any) {
+          console.error("[Firebase][Auth] anonymous sign-in failed:", e);
+          console.error("[Firebase][Auth] Error message:", e?.message);
+          console.error("[Firebase][Auth] Error code:", e?.code);
+        } finally {
+          unsub();
+          resolve();
+        }
+      });
+    });
+  }
+
+  await authInitPromise;
+}
 
 export function getFirebase(): FirebaseRuntime {
   if (cached) {
@@ -62,13 +107,16 @@ export function getFirebase(): FirebaseRuntime {
   console.log("[Firebase] getFirebase: initializing new instance...");
   const apps = getApps();
   console.log("[Firebase] Existing apps:", apps.length);
-  
+
   const app = apps.length > 0 ? apps[0]! : initializeApp(firebaseConfig);
   console.log("[Firebase] App initialized:", app.name);
-  
+
   const db = getDatabase(app);
   console.log("[Firebase] Database instance created, URL:", firebaseConfig.databaseURL);
 
-  cached = { app, db };
+  const auth = getAuth(app);
+  void ensureAnonymousAuth(auth);
+
+  cached = { app, db, auth, user: auth.currentUser };
   return cached;
 }

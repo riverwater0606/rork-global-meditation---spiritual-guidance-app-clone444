@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchAndConsumeGifts } from "@/lib/firebaseGifts";
 import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
 import { useUser } from "@/providers/UserProvider";
+import { Alert } from "react-native";
 
 interface MeditationStats {
   totalSessions: number;
@@ -209,6 +210,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
+        Alert.alert("同步失敗，請重試");
       }
     } else {
       console.log("[MeditationProvider] No walletAddress - skipping Firebase upload");

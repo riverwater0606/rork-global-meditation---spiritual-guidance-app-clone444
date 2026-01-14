@@ -1823,7 +1823,18 @@ export default function GardenScreen() {
             return;
           }
 
-          const fromWalletAddress = walletAddress ?? "unknown";
+          if (!walletAddress) {
+            console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
+            Alert.alert(
+              settings.language === "zh" ? "傳送失敗" : "Send failed",
+              settings.language === "zh"
+                ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
+                : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
+            );
+            return;
+          }
+
+          const fromWalletAddress = walletAddress;
 
           console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
             hasMiniKit: Boolean(MiniKit),
@@ -1831,6 +1842,12 @@ export default function GardenScreen() {
             toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
             fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
           });
+          console.log("[DEBUG_GIFT_CLOUD] Calling uploadGiftOrb...", {
+            toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+            fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+            orbSnapshotId: orbSnapshot.id,
+          });
+
           const uploaded = await uploadGiftOrb({
             toWalletAddress,
             fromWalletAddress,
@@ -1849,6 +1866,10 @@ export default function GardenScreen() {
           });
 
           console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
+          Alert.alert(
+            settings.language === "zh" ? "已傳送" : "Sent",
+            settings.language === "zh" ? "光球已成功上傳並傳送" : "Gift orb uploaded and sent successfully."
+          );
         } catch (e) {
           console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
           Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");

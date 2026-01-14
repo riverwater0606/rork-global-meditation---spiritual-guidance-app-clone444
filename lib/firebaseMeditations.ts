@@ -1,6 +1,7 @@
 import { Alert } from "react-native";
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
 import { getFirebase } from "@/constants/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export interface MeditationRecord {
   id?: string;
@@ -15,6 +16,27 @@ export function sanitizeUserId(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "unknown";
   return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
+  try {
+    const { auth } = getFirebase();
+    if (auth.currentUser) return;
+
+    await new Promise<void>((resolve) => {
+      const timeoutId = setTimeout(() => {
+        resolve();
+      }, timeoutMs);
+
+      const unsub = onAuthStateChanged(auth, () => {
+        clearTimeout(timeoutId);
+        unsub();
+        resolve();
+      });
+    });
+  } catch (e) {
+    console.error("[firebaseMeditations] waitForAuthReady failed (non-fatal):", e);
+  }
 }
 
 export async function uploadMeditationRecord(params: {
@@ -33,8 +55,22 @@ export async function uploadMeditationRecord(params: {
 
   try {
     console.log("[firebaseMeditations] Getting Firebase instance...");
-    const { db } = getFirebase();
+    const { db, auth } = getFirebase();
     console.log("[firebaseMeditations] Firebase DB obtained");
+
+    console.log("[firebaseMeditations] Auth currentUser before wait:", {
+      hasUser: Boolean(auth.currentUser),
+      uid: auth.currentUser?.uid,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    });
+
+    await waitForAuthReady(5000);
+
+    console.log("[firebaseMeditations] Auth currentUser after wait:", {
+      hasUser: Boolean(auth.currentUser),
+      uid: auth.currentUser?.uid,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    });
     
     const safeUserId = sanitizeUserId(params.userId);
     console.log("[firebaseMeditations] Sanitized userId:", safeUserId);
