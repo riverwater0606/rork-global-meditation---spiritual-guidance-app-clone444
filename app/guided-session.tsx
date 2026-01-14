@@ -21,6 +21,7 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDED_MEDITATIONS } from "@/constants/meditationGuidance";
+import { useMeditation } from "@/providers/MeditationProvider";
 
 type Language = 'en' | 'zh';
 
@@ -45,6 +46,7 @@ export default function GuidedSessionScreen() {
   const insets = useSafeAreaInsets();
   
   const meditation = GUIDED_MEDITATIONS.find((m) => m.id === id);
+  const { completeMeditation } = useMeditation();
   const [language, setLanguage] = useState<Language>('en');
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -66,6 +68,26 @@ export default function GuidedSessionScreen() {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
             setIsPlaying(false);
+            try {
+              const durationMin = meditation?.duration ?? 0;
+              if (durationMin > 0) {
+                console.log("[GuidedSession] completed - recording meditation", {
+                  id,
+                  durationMin,
+                  language,
+                });
+                void completeMeditation(
+                  String(id ?? "guided"),
+                  durationMin,
+                  false,
+                  meditation?.title?.[language] ?? "Guided Session"
+                );
+              } else {
+                console.log("[GuidedSession] completed but duration missing - skip record", { id, durationMin });
+              }
+            } catch (e) {
+              console.error("[GuidedSession] completeMeditation failed", e);
+            }
             return 0;
           }
           return prev - 1;
@@ -82,7 +104,7 @@ export default function GuidedSessionScreen() {
         clearInterval(timerRef.current);
       }
     };
-  }, [isPlaying, timeRemaining]);
+  }, [completeMeditation, id, isPlaying, language, meditation?.duration, meditation?.title, timeRemaining]);
 
   useEffect(() => {
     if (isPlaying) {

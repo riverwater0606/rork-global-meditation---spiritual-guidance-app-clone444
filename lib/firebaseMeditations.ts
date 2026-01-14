@@ -1,6 +1,6 @@
 import { Alert } from "react-native";
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
-import { getFirebase } from "@/constants/firebase";
+import { getFirebase, getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export interface MeditationRecord {
@@ -45,6 +45,12 @@ export async function uploadMeditationRecord(params: {
   duration: number;
   energyRating?: number;
 }): Promise<{ recordId: string }> {
+  if (!isFirebaseEnabled()) {
+    const missing = getFirebaseMissingEnv();
+    console.error("[firebaseMeditations] Firebase disabled - cannot upload", { missing });
+    Alert.alert("同步失敗，請重試");
+    throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
+  }
   console.log("[firebaseMeditations] ========== UPLOAD START ==========");
   console.log("[firebaseMeditations] uploadMeditationRecord:start", {
     userId: params.userId,
@@ -55,7 +61,13 @@ export async function uploadMeditationRecord(params: {
 
   try {
     console.log("[firebaseMeditations] Getting Firebase instance...");
-    const { db, auth } = getFirebase();
+    const fb = getFirebaseMaybe();
+    if (!fb) {
+      const missing = getFirebaseMissingEnv();
+      console.error("[firebaseMeditations] getFirebaseMaybe returned null", { missing });
+      throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
+    }
+    const { db, auth } = fb;
     console.log("[firebaseMeditations] Firebase DB obtained");
 
     console.log("[firebaseMeditations] Auth currentUser before wait:", {
@@ -112,13 +124,24 @@ export async function fetchMeditationHistory(params: {
   userId: string;
   limit?: number;
 }): Promise<MeditationRecord[]> {
+  if (!isFirebaseEnabled()) {
+    const missing = getFirebaseMissingEnv();
+    console.error("[firebaseMeditations] Firebase disabled - returning empty history", { missing });
+    return [];
+  }
   console.log("[firebaseMeditations] fetchMeditationHistory:start", {
     userId: params.userId,
     limit: params.limit,
   });
 
   try {
-    const { db } = getFirebase();
+    const fb = getFirebaseMaybe();
+    if (!fb) {
+      const missing = getFirebaseMissingEnv();
+      console.error("[firebaseMeditations] getFirebaseMaybe returned null (history)", { missing });
+      return [];
+    }
+    const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
     

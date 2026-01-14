@@ -1,6 +1,6 @@
 import { Alert } from "react-native";
 import { child, get, push, ref, remove, set } from "firebase/database";
-import { getFirebase } from "@/constants/firebase";
+import { getFirebase, getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export type GiftOrbPayloadV1 = {
@@ -57,6 +57,12 @@ export async function uploadGiftOrb(params: {
   blessing?: string;
   orb: GiftOrbPayloadV1["orb"];
 }): Promise<{ giftId: string }> {
+  if (!isFirebaseEnabled()) {
+    const missing = getFirebaseMissingEnv();
+    console.error("[firebaseGifts] Firebase disabled - cannot upload gift", { missing });
+    Alert.alert("上傳失敗，請檢查網路或重試");
+    throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
+  }
   console.log("[firebaseGifts] ========== GIFT UPLOAD START ==========");
   console.log("[firebaseGifts] uploadGiftOrb:start", {
     toWalletAddress: params.toWalletAddress,
@@ -69,7 +75,13 @@ export async function uploadGiftOrb(params: {
 
   try {
     console.log("[firebaseGifts] Getting Firebase instance...");
-    const { db, auth } = getFirebase();
+    const fb = getFirebaseMaybe();
+    if (!fb) {
+      const missing = getFirebaseMissingEnv();
+      console.error("[firebaseGifts] getFirebaseMaybe returned null", { missing });
+      throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
+    }
+    const { db, auth } = fb;
     console.log("[firebaseGifts] Firebase DB obtained");
 
     console.log("[firebaseGifts] Auth currentUser before wait:", {
@@ -128,13 +140,24 @@ export async function fetchAndConsumeGifts(params: {
   myWalletAddress: string;
   max?: number;
 }): Promise<GiftOrbPayloadV1[]> {
+  if (!isFirebaseEnabled()) {
+    const missing = getFirebaseMissingEnv();
+    console.error("[firebaseGifts] Firebase disabled - returning empty gifts", { missing });
+    return [];
+  }
   console.log("[firebaseGifts] fetchAndConsumeGifts:start", {
     myWalletAddress: params.myWalletAddress,
     max: params.max,
   });
 
   try {
-    const { db } = getFirebase();
+    const fb = getFirebaseMaybe();
+    if (!fb) {
+      const missing = getFirebaseMissingEnv();
+      console.error("[firebaseGifts] getFirebaseMaybe returned null (fetch)", { missing });
+      return [];
+    }
+    const { db } = fb;
     const myId = sanitizeWalletId(params.myWalletAddress);
     const giftsRoot = ref(db, `gifts/${myId}`);
 

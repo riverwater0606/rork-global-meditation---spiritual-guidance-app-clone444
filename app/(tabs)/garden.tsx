@@ -1713,11 +1713,8 @@ export default function GardenScreen() {
       setTimeout(async () => {
            console.log("[DEBUG_GIFT] Fly-away animation phase 1 (2000ms)");
            try {
-             // Call sendOrb to archive and reset the orb
              await sendOrbRef.current(friendName, savedGiftMessage);
              console.log("[DEBUG_GIFT] sendOrbRef.current completed - orb should be reset now");
-             
-             // Additional haptic to confirm send
              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
            } catch (sendError) {
               console.error("[DEBUG_GIFT] sendOrb error:", sendError);
@@ -1727,10 +1724,7 @@ export default function GardenScreen() {
       // 4. Reset all states after animation completes
       setTimeout(() => {
            console.log("[DEBUG_GIFT] Animation complete (3000ms), resetting all states");
-           
-           // Reset ALL states
            setGiftMessage("");
-           setIsGiftingUI(false);
            isGifting.current = false;
            hasAttemptedGift.current = false;
            interactionState.current.mode = 'idle';
@@ -1788,96 +1782,98 @@ export default function GardenScreen() {
     console.log("[DEBUG_GIFT] IMMEDIATE SUCCESS UI (no dependency on shareContacts)");
     finishGifting(genericFriendName);
 
-    setTimeout(() => {
-      const run = async () => {
-        try {
-          if (!MiniKit || !MiniKit.isInstalled()) {
-            console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
-            Alert.alert(
-              settings.language === "zh" ? "無法傳送" : "Cannot send",
-              settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
-            );
-            return;
-          }
-
-          if (!MiniKit.commandsAsync?.shareContacts) {
-            console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
-            return;
-          }
-
-          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts in background...");
-          const result: any = await MiniKit.commandsAsync.shareContacts({
-            isMultiSelectEnabled: false,
-          });
-          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
-
-          const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-          const toWalletAddress: string | undefined = contact?.walletAddress;
-
-          if (!toWalletAddress) {
-            console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
-            Alert.alert(
-              settings.language === "zh" ? "傳送失敗" : "Send failed",
-              settings.language === "zh" ? "沒有拿到對方錢包地址（shareContacts 沒回傳 walletAddress）" : "No recipient walletAddress returned by shareContacts"
-            );
-            return;
-          }
-
-          if (!walletAddress) {
-            console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-            Alert.alert(
-              settings.language === "zh" ? "傳送失敗" : "Send failed",
-              settings.language === "zh"
-                ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
-                : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
-            );
-            return;
-          }
-
-          const fromWalletAddress = walletAddress;
-
-          console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
-            hasMiniKit: Boolean(MiniKit),
-            hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
-            toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-            fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-          });
-          console.log("[DEBUG_GIFT_CLOUD] Calling uploadGiftOrb...", {
-            toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-            fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-            orbSnapshotId: orbSnapshot.id,
-          });
-
-          const uploaded = await uploadGiftOrb({
-            toWalletAddress,
-            fromWalletAddress,
-            fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
-            blessing: giftMessage || (settings.language === "zh" ? "願愛與能量永流" : "May love and energy flow forever."),
-            orb: {
-              id: orbSnapshot.id,
-              level: orbSnapshot.level,
-              layers: orbSnapshot.layers,
-              isAwakened: orbSnapshot.isAwakened,
-              createdAt: orbSnapshot.createdAt,
-              completedAt: orbSnapshot.completedAt,
-              shape: orbSnapshot.shape,
-              rotationSpeed: orbSnapshot.rotationSpeed,
-            },
-          });
-
-          console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
+    const run = async () => {
+      try {
+        if (!MiniKit || !MiniKit.isInstalled()) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
           Alert.alert(
-            settings.language === "zh" ? "已傳送" : "Sent",
-            settings.language === "zh" ? "光球已成功上傳並傳送" : "Gift orb uploaded and sent successfully."
+            settings.language === "zh" ? "無法傳送" : "Cannot send",
+            settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
           );
-        } catch (e) {
-          console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+          return;
         }
-      };
 
-      void run();
-    }, 200);
+        if (!MiniKit.commandsAsync?.shareContacts) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+          return;
+        }
+
+        if (!walletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
+          Alert.alert(
+            settings.language === "zh" ? "傳送失敗" : "Send failed",
+            settings.language === "zh"
+              ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
+              : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
+          );
+          return;
+        }
+
+        setIsGiftingUI(true);
+
+        console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
+        const result: any = await MiniKit.commandsAsync.shareContacts({
+          isMultiSelectEnabled: false,
+        });
+        console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+
+        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
+        const toWalletAddress: string | undefined = contact?.walletAddress;
+
+        if (!toWalletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
+          Alert.alert(
+            settings.language === "zh" ? "傳送失敗" : "Send failed",
+            settings.language === "zh" ? "沒有拿到對方錢包地址（shareContacts 沒回傳 walletAddress）" : "No recipient walletAddress returned by shareContacts"
+          );
+          return;
+        }
+
+        const fromWalletAddress = walletAddress;
+
+        console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
+          hasMiniKit: Boolean(MiniKit),
+          hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+        });
+        console.log("[DEBUG_GIFT_CLOUD] Calling uploadGiftOrb...", {
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+          orbSnapshotId: orbSnapshot.id,
+        });
+
+        const uploaded = await uploadGiftOrb({
+          toWalletAddress,
+          fromWalletAddress,
+          fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
+          blessing: giftMessage || (settings.language === "zh" ? "願愛與能量永流" : "May love and energy flow forever."),
+          orb: {
+            id: orbSnapshot.id,
+            level: orbSnapshot.level,
+            layers: orbSnapshot.layers,
+            isAwakened: orbSnapshot.isAwakened,
+            createdAt: orbSnapshot.createdAt,
+            completedAt: orbSnapshot.completedAt,
+            shape: orbSnapshot.shape,
+            rotationSpeed: orbSnapshot.rotationSpeed,
+          },
+        });
+
+        console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
+        Alert.alert(
+          settings.language === "zh" ? "已傳送" : "Sent",
+          settings.language === "zh" ? "光球已成功上傳並傳送" : "Gift orb uploaded and sent successfully."
+        );
+      } catch (e) {
+        console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+        Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+      } finally {
+        setIsGiftingUI(false);
+      }
+    };
+
+    void run();
   };
 
   const handleCancelGift = () => {
