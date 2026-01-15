@@ -38,22 +38,33 @@ type FirebaseEnvName =
   | "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
   | "EXPO_PUBLIC_FIREBASE_APP_ID";
 
+// Hardcoded defaults to ensure it works even if env vars fail to load in preview
+const DEFAULTS = {
+  apiKey: "AIzaSyB3UgfHijCISL5ttb_fui37KM0OJr895fs",
+  authDomain: "psi-g-fad57.firebaseapp.com",
+  databaseURL: "https://psi-g-fad57-default-rtdb.firebaseio.com",
+  projectId: "psi-g-fad57",
+  storageBucket: "psi-g-fad57.firebasestorage.app",
+  messagingSenderId: "2645596524",
+  appId: "1:2645596524:web:cf0172a516747b0aa8fb49",
+};
+
 function readStringEnv(name: FirebaseEnvName): string | undefined {
   try {
     const v =
       name === "EXPO_PUBLIC_FIREBASE_API_KEY"
-        ? process.env.EXPO_PUBLIC_FIREBASE_API_KEY
+        ? (process.env.EXPO_PUBLIC_FIREBASE_API_KEY || DEFAULTS.apiKey)
         : name === "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"
-          ? process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+          ? (process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || DEFAULTS.authDomain)
           : name === "EXPO_PUBLIC_FIREBASE_DATABASE_URL"
-            ? process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL
+            ? (process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || DEFAULTS.databaseURL)
             : name === "EXPO_PUBLIC_FIREBASE_PROJECT_ID"
-              ? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
+              ? (process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || DEFAULTS.projectId)
               : name === "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"
-                ? process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+                ? (process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || DEFAULTS.storageBucket)
                 : name === "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
-                  ? process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-                  : process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
+                  ? (process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || DEFAULTS.messagingSenderId)
+                  : (process.env.EXPO_PUBLIC_FIREBASE_APP_ID || DEFAULTS.appId);
 
     if (typeof v !== "string") return undefined;
     const trimmed = v.trim();
@@ -223,5 +234,3 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
 export function getFirebase(): FirebaseRuntime | null {
   return getFirebaseMaybe();
 }
-
-
