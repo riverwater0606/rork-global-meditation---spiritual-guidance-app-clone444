@@ -39,25 +39,30 @@ type FirebaseEnvName =
   | "EXPO_PUBLIC_FIREBASE_APP_ID";
 
 function readStringEnv(name: FirebaseEnvName): string | undefined {
-  const v =
-    name === "EXPO_PUBLIC_FIREBASE_API_KEY"
-      ? process.env.EXPO_PUBLIC_FIREBASE_API_KEY
-      : name === "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"
-        ? process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
-        : name === "EXPO_PUBLIC_FIREBASE_DATABASE_URL"
-          ? process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL
-          : name === "EXPO_PUBLIC_FIREBASE_PROJECT_ID"
-            ? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
-            : name === "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"
-              ? process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
-              : name === "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
-                ? process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-                : process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
+  try {
+    const v =
+      name === "EXPO_PUBLIC_FIREBASE_API_KEY"
+        ? process.env.EXPO_PUBLIC_FIREBASE_API_KEY
+        : name === "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"
+          ? process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+          : name === "EXPO_PUBLIC_FIREBASE_DATABASE_URL"
+            ? process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL
+            : name === "EXPO_PUBLIC_FIREBASE_PROJECT_ID"
+              ? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
+              : name === "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"
+                ? process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+                : name === "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
+                  ? process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+                  : process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
 
-  if (typeof v !== "string") return undefined;
-  const trimmed = v.trim();
-  if (!trimmed) return undefined;
-  return trimmed;
+    if (typeof v !== "string") return undefined;
+    const trimmed = v.trim();
+    if (!trimmed) return undefined;
+    return trimmed;
+  } catch (e) {
+    console.warn(`[Firebase] Failed to read env ${name}:`, e);
+    return undefined;
+  }
 }
 
 function getEnvCheck(): FirebaseEnvCheck {

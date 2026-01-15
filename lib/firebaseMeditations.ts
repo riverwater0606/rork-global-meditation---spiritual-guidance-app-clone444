@@ -1,4 +1,3 @@
-import { Alert } from "react-native";
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
 import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -50,7 +49,6 @@ export async function uploadMeditationRecord(params: {
   if (!isFirebaseEnabled()) {
     const missing = getFirebaseMissingEnv();
     console.error("[firebaseMeditations] Firebase disabled - cannot upload", { missing });
-    Alert.alert("同步失敗，請重試");
     throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
   }
   console.log("[firebaseMeditations] ========== UPLOAD START ==========");
@@ -117,7 +115,6 @@ export async function uploadMeditationRecord(params: {
     console.error("[firebaseMeditations] Error message:", e?.message);
     console.error("[firebaseMeditations] Error code:", e?.code);
     console.error("[firebaseMeditations] Error stack:", e?.stack);
-    Alert.alert("上傳失敗，請檢查網路或重試");
     throw e;
   }
 }
@@ -172,7 +169,6 @@ export async function fetchMeditationHistory(params: {
     return list;
   } catch (e) {
     console.error("[firebaseMeditations] fetchMeditationHistory:error", e);
-    Alert.alert("同步失敗，請重試");
     throw e;
   }
 }

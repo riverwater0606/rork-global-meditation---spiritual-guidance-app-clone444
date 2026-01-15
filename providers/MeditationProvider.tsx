@@ -210,11 +210,14 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
-        Alert.alert("同步失敗，請重試");
+        Alert.alert("同步失敗", "無法上傳冥想記錄到雲端，請檢查網路連線。");
       }
     } else {
-      console.log("[MeditationProvider] No walletAddress - skipping Firebase upload");
-      console.log("[MeditationProvider] This is the #1 reason history is empty. If you signed in via web callback, walletAddress might not have been saved.");
+      console.log("[MeditationProvider] ========================================");
+      console.log("[MeditationProvider] WARNING: No walletAddress - skipping Firebase upload");
+      console.log("[MeditationProvider] This is why meditation history is empty!");
+      console.log("[MeditationProvider] Please sign in with World ID to enable cloud sync.");
+      console.log("[MeditationProvider] ========================================");
     }
 
     // Orb Logic

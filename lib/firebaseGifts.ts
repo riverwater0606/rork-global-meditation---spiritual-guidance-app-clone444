@@ -1,4 +1,3 @@
-import { Alert } from "react-native";
 import { child, get, push, ref, remove, set } from "firebase/database";
 import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -62,7 +61,6 @@ export async function uploadGiftOrb(params: {
   if (!isFirebaseEnabled()) {
     const missing = getFirebaseMissingEnv();
     console.error("[firebaseGifts] Firebase disabled - cannot upload gift", { missing });
-    Alert.alert("上傳失敗，請檢查網路或重試");
     throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
   }
   console.log("[firebaseGifts] ========== GIFT UPLOAD START ==========");
@@ -133,7 +131,6 @@ export async function uploadGiftOrb(params: {
     console.error("[firebaseGifts] Error message:", e?.message);
     console.error("[firebaseGifts] Error code:", e?.code);
     console.error("[firebaseGifts] Error stack:", e?.stack);
-    Alert.alert("上傳失敗，請檢查網路或重試");
     throw e;
   }
 }
@@ -192,7 +189,6 @@ export async function fetchAndConsumeGifts(params: {
     return selected;
   } catch (e) {
     console.error("[firebaseGifts] fetchAndConsumeGifts:error", e);
-    Alert.alert("傳送失敗，請重試");
     throw e;
   }
 }
