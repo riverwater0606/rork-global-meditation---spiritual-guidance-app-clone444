@@ -1530,7 +1530,7 @@ export default function GardenScreen() {
           settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
        );
      } else {
-       await completeMeditation("awakened-session", durationMinutes, false);
+       await completeMeditation("awakened-session", durationMinutes, false, "Garden Meditation (Awakened)");
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
           settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."

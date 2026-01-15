@@ -37,7 +37,7 @@ export default function TimerScreen() {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
             setIsActive(false);
-            completeMeditation("timer", duration);
+            completeMeditation("timer", duration, false, "Meditation Timer");
             return 0;
           }
           return prev - 1;

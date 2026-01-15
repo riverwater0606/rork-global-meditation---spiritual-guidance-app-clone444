@@ -219,11 +219,4 @@ export function getFirebase(): FirebaseRuntime | null {
   return getFirebaseMaybe();
 }
 
-export function requireEnv(name: FirebaseEnvName): string {
-  const v = readStringEnv(name);
-  if (!v) {
-    console.error(`[Firebase] Missing Firebase env: ${name}`);
-    return "";
-  }
-  return v;
-}
+

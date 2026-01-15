@@ -400,7 +400,9 @@ export default function MeditationPlayerScreen() {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
             setIsPlaying(false);
-            completeMeditation(session?.id || "", session?.duration || 10);
+            const courseName = session?.title || session?.id || "Meditation Session";
+            console.log('[meditation/[id]] Completing meditation:', { sessionId: session?.id, duration: session?.duration, courseName });
+            completeMeditation(session?.id || "", session?.duration || 10, false, courseName);
             return 0;
           }
           return prev - 1;
@@ -416,7 +418,7 @@ export default function MeditationPlayerScreen() {
       breathAnimation.setValue(1.0);
       setBreathingPhase('inhale');
     }
-  }, [breathAnimation, breathingMethod, completeMeditation, isCustom, isPlaying, session?.duration, session?.id]);
+  }, [breathAnimation, breathingMethod, completeMeditation, isCustom, isPlaying, session?.duration, session?.id, session?.title]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
