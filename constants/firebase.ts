@@ -169,11 +169,16 @@ let cached: FirebaseRuntime | null = null;
 let authInitPromise: Promise<User | null> | null = null;
 let authReady = false;
 let authUser: User | null = null;
+let lastAuthError: { code?: string; message?: string } | null = null;
 
 function syncCachedUser(user: User | null) {
   if (cached) {
     cached.user = user;
   }
+}
+
+export function getFirebaseLastAuthError(): { code?: string; message?: string } | null {
+  return lastAuthError;
 }
 
 async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
@@ -212,6 +217,7 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
           console.error("[Firebase][Auth] anonymous sign-in failed:", e);
           console.error("[Firebase][Auth] Error message:", e?.message);
           console.error("[Firebase][Auth] Error code:", e?.code);
+          lastAuthError = { code: e?.code, message: e?.message };
           if (e?.code === "auth/operation-not-allowed" || e?.code === "auth/admin-restricted-operation") {
             console.error(
               "[Firebase][Auth] Anonymous auth is disabled in Firebase Console. Enable: Authentication -> Sign-in method -> Anonymous"
@@ -271,7 +277,7 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
   const db = getDatabase(app);
   console.log("[Firebase] Database instance created, URL:", firebaseConfig.databaseURL);
 
-  const auth = getAuth(app);
+  const auth: Auth = getAuth(app);
   console.log("[Firebase][Auth] Using getAuth() (default)");
 
   ensureAnonymousAuth(auth).catch((e) => {

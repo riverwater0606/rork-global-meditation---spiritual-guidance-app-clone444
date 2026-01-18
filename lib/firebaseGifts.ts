@@ -1,5 +1,11 @@
 import { child, get, push, ref, remove, set } from "firebase/database";
-import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled, waitForFirebaseAuth } from "@/constants/firebase";
+import {
+  getFirebaseLastAuthError,
+  getFirebaseMaybe,
+  getFirebaseMissingEnv,
+  isFirebaseEnabled,
+  waitForFirebaseAuth,
+} from "@/constants/firebase";
 
 export type GiftOrbPayloadV1 = {
   v: 1;
@@ -56,8 +62,12 @@ export async function uploadGiftOrb(params: {
     const authUser = await waitForFirebaseAuth();
     
     if (!authUser) {
-      console.error("[firebaseGifts] Firebase auth failed - no user");
-      throw new Error("Firebase auth failed - please try again");
+      const last = getFirebaseLastAuthError();
+      console.error("[firebaseGifts] Firebase auth failed - no user", last);
+      const code = last?.code ? ` (${last.code})` : "";
+      throw new Error(
+        `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
+      );
     }
     
     console.log("[firebaseGifts] Auth ready:", {

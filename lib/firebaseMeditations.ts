@@ -1,5 +1,11 @@
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
-import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled, waitForFirebaseAuth } from "@/constants/firebase";
+import {
+  getFirebaseLastAuthError,
+  getFirebaseMaybe,
+  getFirebaseMissingEnv,
+  isFirebaseEnabled,
+  waitForFirebaseAuth,
+} from "@/constants/firebase";
 
 export interface MeditationRecord {
   id?: string;
@@ -42,8 +48,12 @@ export async function uploadMeditationRecord(params: {
     const authUser = await waitForFirebaseAuth();
     
     if (!authUser) {
-      console.error("[firebaseMeditations] Firebase auth failed - no user");
-      throw new Error("Firebase auth failed - please try again");
+      const last = getFirebaseLastAuthError();
+      console.error("[firebaseMeditations] Firebase auth failed - no user", last);
+      const code = last?.code ? ` (${last.code})` : "";
+      throw new Error(
+        `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
+      );
     }
     
     console.log("[firebaseMeditations] Auth ready:", {
