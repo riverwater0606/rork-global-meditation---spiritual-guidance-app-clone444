@@ -126,6 +126,17 @@ export async function fetchAndConsumeGifts(params: {
   });
 
   try {
+    console.log("[firebaseGifts] Waiting for Firebase auth (fetch)...");
+    const authUser = await waitForFirebaseAuth();
+    if (!authUser) {
+      console.error("[firebaseGifts] Firebase auth failed - no user (fetch)");
+      return [];
+    }
+    console.log("[firebaseGifts] Auth ready (fetch):", {
+      uid: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+    });
+
     const fb = getFirebaseMaybe();
     if (!fb) {
       const missing = getFirebaseMissingEnv();

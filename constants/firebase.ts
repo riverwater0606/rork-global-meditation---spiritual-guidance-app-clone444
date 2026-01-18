@@ -212,6 +212,11 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
           console.error("[Firebase][Auth] anonymous sign-in failed:", e);
           console.error("[Firebase][Auth] Error message:", e?.message);
           console.error("[Firebase][Auth] Error code:", e?.code);
+          if (e?.code === "auth/operation-not-allowed" || e?.code === "auth/admin-restricted-operation") {
+            console.error(
+              "[Firebase][Auth] Anonymous auth is disabled in Firebase Console. Enable: Authentication -> Sign-in method -> Anonymous"
+            );
+          }
           authReady = true;
           authUser = null;
           syncCachedUser(null);
@@ -267,8 +272,8 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
   console.log("[Firebase] Database instance created, URL:", firebaseConfig.databaseURL);
 
   const auth = getAuth(app);
-  
-  // Start auth but don't block - callers should use waitForFirebaseAuth()
+  console.log("[Firebase][Auth] Using getAuth() (default)");
+
   ensureAnonymousAuth(auth).catch((e) => {
     console.error("[Firebase] Auth initialization failed:", e);
   });

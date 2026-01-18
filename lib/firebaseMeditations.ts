@@ -110,6 +110,17 @@ export async function fetchMeditationHistory(params: {
   });
 
   try {
+    console.log("[firebaseMeditations] Waiting for Firebase auth (history)...");
+    const authUser = await waitForFirebaseAuth();
+    if (!authUser) {
+      console.error("[firebaseMeditations] Firebase auth failed - no user (history)");
+      return [];
+    }
+    console.log("[firebaseMeditations] Auth ready (history):", {
+      uid: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+    });
+
     const fb = getFirebaseMaybe();
     if (!fb) {
       const missing = getFirebaseMissingEnv();
