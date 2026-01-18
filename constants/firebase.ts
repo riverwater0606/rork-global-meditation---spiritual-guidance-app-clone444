@@ -170,6 +170,12 @@ let authInitPromise: Promise<User | null> | null = null;
 let authReady = false;
 let authUser: User | null = null;
 
+function syncCachedUser(user: User | null) {
+  if (cached) {
+    cached.user = user;
+  }
+}
+
 async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
   if (auth.currentUser) {
     authReady = true;
@@ -184,6 +190,7 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
           console.log("[Firebase][Auth] existing user:", { uid: user.uid, isAnonymous: user.isAnonymous });
           authReady = true;
           authUser = user;
+          syncCachedUser(user);
           unsub();
           resolve(user);
           return;
@@ -198,6 +205,7 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
           });
           authReady = true;
           authUser = cred.user;
+          syncCachedUser(cred.user);
           unsub();
           resolve(cred.user);
         } catch (e: any) {
@@ -206,6 +214,7 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
           console.error("[Firebase][Auth] Error code:", e?.code);
           authReady = true;
           authUser = null;
+          syncCachedUser(null);
           unsub();
           resolve(null);
         }
@@ -218,13 +227,15 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
 
 export async function waitForFirebaseAuth(): Promise<User | null> {
   if (!firebaseConfig) return null;
-  
+
   if (authReady) return authUser;
-  
+
   const fb = getFirebaseMaybe();
   if (!fb) return null;
-  
-  return ensureAnonymousAuth(fb.auth);
+
+  const user = await ensureAnonymousAuth(fb.auth);
+  syncCachedUser(user);
+  return user;
 }
 
 export function isFirebaseAuthReady(): boolean {
