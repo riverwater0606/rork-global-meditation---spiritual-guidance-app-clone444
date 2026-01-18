@@ -18,10 +18,17 @@ import {
   LogOut,
   ChevronRight,
   Edit2,
-  Crown
+  Crown,
+  Wifi,
+  WifiOff,
+  Database,
+  AlertCircle,
+  CheckCircle
 } from "lucide-react-native";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useMeditation } from "@/providers/MeditationProvider";
+import { isFirebaseEnabled } from "@/constants/firebase";
 import { router } from "expo-router";
 import { ensureMiniKitLoaded, getMiniKit } from "@/components/worldcoin/IDKitWeb";
 import CustomModal from "@/components/CustomModal";
@@ -29,8 +36,10 @@ import CustomModal from "@/components/CustomModal";
 
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, logout, isVIP, unlockVIP } = useUser();
+  const { profile, updateProfile, logout, isVIP, unlockVIP, walletAddress, isVerified } = useUser();
   const { settings, currentTheme, isDarkMode } = useSettings();
+  const { stats } = useMeditation();
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profile.name);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -393,6 +402,121 @@ export default function ProfileScreen() {
           })}
         </View>
 
+        {/* Debug Info Section */}
+        <TouchableOpacity 
+          style={[styles.debugToggle, { backgroundColor: currentTheme.card }]}
+          onPress={() => setShowDebugInfo(!showDebugInfo)}
+        >
+          <Database size={18} color={currentTheme.textSecondary} />
+          <Text style={[styles.debugToggleText, { color: currentTheme.textSecondary }]}>
+            {lang === "zh" ? "同步狀態" : "Sync Status"}
+          </Text>
+          <ChevronRight 
+            size={18} 
+            color={currentTheme.textSecondary} 
+            style={{ transform: [{ rotate: showDebugInfo ? '90deg' : '0deg' }] }}
+          />
+        </TouchableOpacity>
+
+        {showDebugInfo && (
+          <View style={[styles.debugContainer, { backgroundColor: currentTheme.card }]}>
+            {/* Wallet Status */}
+            <View style={styles.debugRow}>
+              {walletAddress ? (
+                <CheckCircle size={16} color="#10B981" />
+              ) : (
+                <AlertCircle size={16} color="#F59E0B" />
+              )}
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                {lang === "zh" ? "錢包" : "Wallet"}:
+              </Text>
+              <Text style={[styles.debugValue, { color: walletAddress ? "#10B981" : "#F59E0B" }]}>
+                {walletAddress 
+                  ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` 
+                  : (lang === "zh" ? "未連接" : "Not connected")}
+              </Text>
+            </View>
+
+            {/* Verification Status */}
+            <View style={styles.debugRow}>
+              {isVerified ? (
+                <CheckCircle size={16} color="#10B981" />
+              ) : (
+                <AlertCircle size={16} color="#F59E0B" />
+              )}
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                {lang === "zh" ? "驗證" : "Verified"}:
+              </Text>
+              <Text style={[styles.debugValue, { color: isVerified ? "#10B981" : "#F59E0B" }]}>
+                {isVerified 
+                  ? (lang === "zh" ? "已驗證" : "Yes") 
+                  : (lang === "zh" ? "未驗證" : "No")}
+              </Text>
+            </View>
+
+            {/* Firebase Status */}
+            <View style={styles.debugRow}>
+              {isFirebaseEnabled() ? (
+                <CheckCircle size={16} color="#10B981" />
+              ) : (
+                <WifiOff size={16} color="#EF4444" />
+              )}
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                Firebase:
+              </Text>
+              <Text style={[styles.debugValue, { color: isFirebaseEnabled() ? "#10B981" : "#EF4444" }]}>
+                {isFirebaseEnabled() 
+                  ? (lang === "zh" ? "已連接" : "Connected") 
+                  : (lang === "zh" ? "未連接" : "Disconnected")}
+              </Text>
+            </View>
+
+            {/* Cloud Sync Status */}
+            <View style={styles.debugRow}>
+              {walletAddress && isFirebaseEnabled() ? (
+                <Wifi size={16} color="#10B981" />
+              ) : (
+                <WifiOff size={16} color="#F59E0B" />
+              )}
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                {lang === "zh" ? "雲端同步" : "Cloud Sync"}:
+              </Text>
+              <Text style={[styles.debugValue, { color: (walletAddress && isFirebaseEnabled()) ? "#10B981" : "#F59E0B" }]}>
+                {walletAddress && isFirebaseEnabled()
+                  ? (lang === "zh" ? "已啟用" : "Enabled")
+                  : (lang === "zh" ? "未啟用" : "Disabled")}
+              </Text>
+            </View>
+
+            {/* Local Stats */}
+            <View style={styles.debugRow}>
+              <Database size={16} color={currentTheme.textSecondary} />
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                {lang === "zh" ? "本地記錄" : "Local Records"}:
+              </Text>
+              <Text style={[styles.debugValue, { color: currentTheme.textSecondary }]}>
+                {stats.totalSessions} {lang === "zh" ? "次冥想" : "sessions"}
+              </Text>
+            </View>
+
+            {/* Warning if not syncing */}
+            {(!walletAddress || !isFirebaseEnabled()) && (
+              <View style={styles.debugWarning}>
+                <AlertCircle size={14} color="#F59E0B" />
+                <Text style={styles.debugWarningText}>
+                  {!walletAddress 
+                    ? (lang === "zh" 
+                        ? "請登入 World ID 以啟用雲端同步" 
+                        : "Sign in with World ID to enable cloud sync")
+                    : (lang === "zh"
+                        ? "Firebase 未連接，無法同步"
+                        : "Firebase not connected, sync disabled")}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Sign Out */}
         <TouchableOpacity
           style={[styles.signOutButton, { backgroundColor: isDarkMode ? "#7F1D1D" : "#FEE2E2" }]}
@@ -612,6 +736,55 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   worldIDContent: {
+    flex: 1,
+  },
+  debugToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  debugToggleText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  debugContainer: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 12,
+  },
+  debugRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    gap: 8,
+  },
+  debugLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  debugValue: {
+    fontSize: 14,
+    flex: 1,
+    textAlign: "right",
+  },
+  debugWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  debugWarningText: {
+    fontSize: 12,
+    color: "#F59E0B",
     flex: 1,
   },
 });

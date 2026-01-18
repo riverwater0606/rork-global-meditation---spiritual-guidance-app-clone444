@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchAndConsumeGifts } from "@/lib/firebaseGifts";
+import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
 import { useUser } from "@/providers/UserProvider";
 import { Alert } from "react-native";
@@ -158,7 +158,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
-  const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string) => {
+  const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string): Promise<{ uploaded: boolean; error?: string }> => {
     const today = new Date();
     const todayStr = today.toDateString();
     const lastSession = stats.lastSessionDate ? new Date(stats.lastSessionDate) : null;
@@ -207,42 +207,75 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
           duration,
         });
         console.log("[MeditationProvider] Meditation record uploaded to Firebase, recordId:", result.recordId);
+        // Orb Logic after successful upload
+        if (growOrb && !currentOrb.isAwakened) {
+          const nextLevel = currentOrb.level + 1;
+          if (nextLevel <= 7) {
+            const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+            const updatedOrb = {
+              ...currentOrb,
+              level: nextLevel,
+              layers: [...currentOrb.layers, newLayer],
+              isAwakened: nextLevel === 7,
+              completedAt: nextLevel === 7 ? new Date().toISOString() : undefined,
+              lastLayerAddedAt: new Date().toISOString()
+            };
+            setCurrentOrb(updatedOrb);
+            await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+          }
+        }
+
+        // Check achievements
+        await checkAndUpdateAchievements(newStats);
+        return { uploaded: true };
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
-        Alert.alert("同步失敗", "無法上傳冥想記錄到雲端，請檢查網路連線。");
+        // Still do orb and achievements even if upload failed
+        if (growOrb && !currentOrb.isAwakened) {
+          const nextLevel = currentOrb.level + 1;
+          if (nextLevel <= 7) {
+            const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+            const updatedOrb = {
+              ...currentOrb,
+              level: nextLevel,
+              layers: [...currentOrb.layers, newLayer],
+              isAwakened: nextLevel === 7,
+              completedAt: nextLevel === 7 ? new Date().toISOString() : undefined,
+              lastLayerAddedAt: new Date().toISOString()
+            };
+            setCurrentOrb(updatedOrb);
+            await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+          }
+        }
+        await checkAndUpdateAchievements(newStats);
+        return { uploaded: false, error: e?.message || "Upload failed" };
       }
     } else {
-      console.log("[MeditationProvider] ========================================");
       console.log("[MeditationProvider] WARNING: No walletAddress - skipping Firebase upload");
-      console.log("[MeditationProvider] This is why meditation history is empty!");
-      console.log("[MeditationProvider] Please sign in with World ID to enable cloud sync.");
-      console.log("[MeditationProvider] ========================================");
+      // Still do orb and achievements even without wallet
+      if (growOrb && !currentOrb.isAwakened) {
+        const nextLevel = currentOrb.level + 1;
+        if (nextLevel <= 7) {
+          const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
+          const updatedOrb = {
+            ...currentOrb,
+            level: nextLevel,
+            layers: [...currentOrb.layers, newLayer],
+            isAwakened: nextLevel === 7,
+            completedAt: nextLevel === 7 ? new Date().toISOString() : undefined,
+            lastLayerAddedAt: new Date().toISOString()
+          };
+          setCurrentOrb(updatedOrb);
+          await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
+        }
+      }
+      await checkAndUpdateAchievements(newStats);
+      return { uploaded: false, error: "NO_WALLET" };
     }
+  };
 
-    // Orb Logic
-    // Only grow if explicitly requested (garden) 
-    // FOR TESTING: Removed "AND not grown today" check
-    // const alreadyGrownToday = currentOrb.lastLayerAddedAt && new Date(currentOrb.lastLayerAddedAt).toDateString() === todayStr;
-    
-    // if (growOrb && !alreadyGrownToday && !currentOrb.isAwakened) {
-    if (growOrb && !currentOrb.isAwakened) {
-       const nextLevel = currentOrb.level + 1;
-       if (nextLevel <= 7) {
-         const newLayer = CHAKRA_COLORS[currentOrb.level % 7];
-         const updatedOrb = {
-           ...currentOrb,
-           level: nextLevel,
-           layers: [...currentOrb.layers, newLayer],
-           isAwakened: nextLevel === 7,
-           completedAt: nextLevel === 7 ? new Date().toISOString() : undefined,
-           lastLayerAddedAt: new Date().toISOString()
-         };
-         setCurrentOrb(updatedOrb);
-         await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
-       }
-    }
-
+  const checkAndUpdateAchievements = async (newStats: MeditationStats) => {
     // Check achievements
     const newAchievements = [...achievements];
     let updated = false;
@@ -299,11 +332,44 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     return newMeditation;
   };
 
-  const sendOrb = async (friendId: string, message: string) => {
+  const sendOrb = async (friendId: string, message: string, toWalletAddress?: string) => {
+    console.log("[MeditationProvider] sendOrb called:", { friendId, message, toWalletAddress, walletAddress });
+    
     const archivedOrb = { ...currentOrb, sender: "Me", message };
     const newHistory = [archivedOrb, ...orbHistory];
     setOrbHistory(newHistory);
     await AsyncStorage.setItem("orbHistory", JSON.stringify(newHistory));
+
+    // Upload to Firebase if we have both sender and recipient wallet addresses
+    if (walletAddress && toWalletAddress) {
+      try {
+        console.log("[MeditationProvider] Uploading gift orb to Firebase...");
+        const result = await uploadGiftOrb({
+          toWalletAddress,
+          fromWalletAddress: walletAddress,
+          fromDisplayName: `0x${walletAddress.slice(2, 6)}…`,
+          blessing: message,
+          orb: {
+            id: currentOrb.id,
+            level: currentOrb.level,
+            layers: currentOrb.layers,
+            isAwakened: currentOrb.isAwakened,
+            createdAt: currentOrb.createdAt,
+            completedAt: currentOrb.completedAt,
+            shape: currentOrb.shape,
+          },
+        });
+        console.log("[MeditationProvider] Gift orb uploaded successfully:", result.giftId);
+      } catch (e: any) {
+        console.error("[MeditationProvider] Failed to upload gift orb:", e?.message);
+        Alert.alert("傳送失敗 / Send Failed", "無法上傳光球到雲端 / Failed to upload orb to cloud");
+      }
+    } else {
+      console.log("[MeditationProvider] Skipping Firebase upload - missing wallet:", { 
+        hasMyWallet: Boolean(walletAddress), 
+        hasRecipientWallet: Boolean(toWalletAddress) 
+      });
+    }
 
     const nextOrb: Orb = {
       ...INITIAL_ORB,
