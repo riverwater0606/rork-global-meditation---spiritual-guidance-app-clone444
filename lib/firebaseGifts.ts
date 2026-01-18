@@ -1,6 +1,5 @@
 import { child, get, push, ref, remove, set } from "firebase/database";
-import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled, waitForFirebaseAuth } from "@/constants/firebase";
 
 export type GiftOrbPayloadV1 = {
   v: 1;
@@ -28,28 +27,7 @@ export function sanitizeWalletId(input: string): string {
   return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
-  try {
-    const fb = getFirebaseMaybe();
-    const auth = fb?.auth;
-    if (!auth) return;
-    if (auth.currentUser) return;
 
-    await new Promise<void>((resolve) => {
-      const timeoutId = setTimeout(() => {
-        resolve();
-      }, timeoutMs);
-
-      const unsub = onAuthStateChanged(auth, () => {
-        clearTimeout(timeoutId);
-        unsub();
-        resolve();
-      });
-    });
-  } catch (e) {
-    console.error("[firebaseGifts] waitForAuthReady failed (non-fatal):", e);
-  }
-}
 
 export async function uploadGiftOrb(params: {
   toWalletAddress: string;
@@ -74,29 +52,27 @@ export async function uploadGiftOrb(params: {
   });
 
   try {
-    console.log("[firebaseGifts] Getting Firebase instance...");
+    console.log("[firebaseGifts] Waiting for Firebase auth...");
+    const authUser = await waitForFirebaseAuth();
+    
+    if (!authUser) {
+      console.error("[firebaseGifts] Firebase auth failed - no user");
+      throw new Error("Firebase auth failed - please try again");
+    }
+    
+    console.log("[firebaseGifts] Auth ready:", {
+      uid: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+    });
+
     const fb = getFirebaseMaybe();
     if (!fb) {
       const missing = getFirebaseMissingEnv();
       console.error("[firebaseGifts] getFirebaseMaybe returned null", { missing });
       throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
     }
-    const { db, auth } = fb;
+    const { db } = fb;
     console.log("[firebaseGifts] Firebase DB obtained");
-
-    console.log("[firebaseGifts] Auth currentUser before wait:", {
-      hasUser: Boolean(auth.currentUser),
-      uid: auth.currentUser?.uid,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    });
-
-    await waitForAuthReady(5000);
-
-    console.log("[firebaseGifts] Auth currentUser after wait:", {
-      hasUser: Boolean(auth.currentUser),
-      uid: auth.currentUser?.uid,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    });
     
     const toId = sanitizeWalletId(params.toWalletAddress);
     console.log("[firebaseGifts] Sanitized toId:", toId);

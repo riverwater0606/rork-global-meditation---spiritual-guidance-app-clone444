@@ -28,7 +28,7 @@ import {
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
-import { isFirebaseEnabled } from "@/constants/firebase";
+import { isFirebaseEnabled, isFirebaseAuthReady, getFirebaseAuthUser } from "@/constants/firebase";
 import { router } from "expo-router";
 import { ensureMiniKitLoaded, getMiniKit } from "@/components/worldcoin/IDKitWeb";
 import CustomModal from "@/components/CustomModal";
@@ -466,8 +466,33 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.debugValue, { color: isFirebaseEnabled() ? "#10B981" : "#EF4444" }]}>
                 {isFirebaseEnabled() 
-                  ? (lang === "zh" ? "已連接" : "Connected") 
-                  : (lang === "zh" ? "未連接" : "Disconnected")}
+                  ? (lang === "zh" ? "已啟用" : "Enabled") 
+                  : (lang === "zh" ? "未啟用" : "Disabled")}
+              </Text>
+            </View>
+
+            {/* Firebase Auth Status */}
+            <View style={styles.debugRow}>
+              {isFirebaseAuthReady() && getFirebaseAuthUser() ? (
+                <CheckCircle size={16} color="#10B981" />
+              ) : isFirebaseAuthReady() ? (
+                <AlertCircle size={16} color="#EF4444" />
+              ) : (
+                <AlertCircle size={16} color="#F59E0B" />
+              )}
+              <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                {lang === "zh" ? "Firebase 認證" : "Firebase Auth"}:
+              </Text>
+              <Text style={[styles.debugValue, { 
+                color: isFirebaseAuthReady() && getFirebaseAuthUser() 
+                  ? "#10B981" 
+                  : isFirebaseAuthReady() ? "#EF4444" : "#F59E0B" 
+              }]}>
+                {isFirebaseAuthReady() && getFirebaseAuthUser()
+                  ? (lang === "zh" ? "已認證" : "Authenticated")
+                  : isFirebaseAuthReady()
+                    ? (lang === "zh" ? "認證失敗" : "Auth Failed")
+                    : (lang === "zh" ? "等待中..." : "Waiting...")}
               </Text>
             </View>
 
@@ -500,7 +525,7 @@ export default function ProfileScreen() {
             </View>
 
             {/* Warning if not syncing */}
-            {(!walletAddress || !isFirebaseEnabled()) && (
+            {(!walletAddress || !isFirebaseEnabled() || !getFirebaseAuthUser()) && (
               <View style={styles.debugWarning}>
                 <AlertCircle size={14} color="#F59E0B" />
                 <Text style={styles.debugWarningText}>
@@ -508,9 +533,15 @@ export default function ProfileScreen() {
                     ? (lang === "zh" 
                         ? "請登入 World ID 以啟用雲端同步" 
                         : "Sign in with World ID to enable cloud sync")
-                    : (lang === "zh"
-                        ? "Firebase 未連接，無法同步"
-                        : "Firebase not connected, sync disabled")}
+                    : !isFirebaseEnabled()
+                      ? (lang === "zh"
+                          ? "Firebase 未啟用，無法同步"
+                          : "Firebase not enabled, sync disabled")
+                      : !getFirebaseAuthUser()
+                        ? (lang === "zh"
+                            ? "Firebase 認證失敗，請檢查網絡連接"
+                            : "Firebase auth failed, check network")
+                        : null}
                 </Text>
               </View>
             )}

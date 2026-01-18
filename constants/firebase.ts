@@ -166,18 +166,26 @@ export function getFirebaseMissingEnv(): string[] {
 }
 
 let cached: FirebaseRuntime | null = null;
-let authInitPromise: Promise<void> | null = null;
+let authInitPromise: Promise<User | null> | null = null;
+let authReady = false;
+let authUser: User | null = null;
 
-async function ensureAnonymousAuth(auth: Auth): Promise<void> {
-  if (auth.currentUser) return;
+async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
+  if (auth.currentUser) {
+    authReady = true;
+    authUser = auth.currentUser;
+    return auth.currentUser;
+  }
 
   if (!authInitPromise) {
-    authInitPromise = new Promise<void>((resolve) => {
+    authInitPromise = new Promise<User | null>((resolve) => {
       const unsub = onAuthStateChanged(auth, async (user) => {
         if (user) {
           console.log("[Firebase][Auth] existing user:", { uid: user.uid, isAnonymous: user.isAnonymous });
+          authReady = true;
+          authUser = user;
           unsub();
-          resolve();
+          resolve(user);
           return;
         }
 
@@ -188,19 +196,43 @@ async function ensureAnonymousAuth(auth: Auth): Promise<void> {
             uid: cred.user.uid,
             isAnonymous: cred.user.isAnonymous,
           });
+          authReady = true;
+          authUser = cred.user;
+          unsub();
+          resolve(cred.user);
         } catch (e: any) {
           console.error("[Firebase][Auth] anonymous sign-in failed:", e);
           console.error("[Firebase][Auth] Error message:", e?.message);
           console.error("[Firebase][Auth] Error code:", e?.code);
-        } finally {
+          authReady = true;
+          authUser = null;
           unsub();
-          resolve();
+          resolve(null);
         }
       });
     });
   }
 
-  await authInitPromise;
+  return authInitPromise;
+}
+
+export async function waitForFirebaseAuth(): Promise<User | null> {
+  if (!firebaseConfig) return null;
+  
+  if (authReady) return authUser;
+  
+  const fb = getFirebaseMaybe();
+  if (!fb) return null;
+  
+  return ensureAnonymousAuth(fb.auth);
+}
+
+export function isFirebaseAuthReady(): boolean {
+  return authReady;
+}
+
+export function getFirebaseAuthUser(): User | null {
+  return authUser;
 }
 
 export function getFirebaseMaybe(): FirebaseRuntime | null {
@@ -210,7 +242,6 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
   }
 
   if (cached) {
-    console.log("[Firebase] getFirebaseMaybe: returning cached instance");
     return cached;
   }
 
@@ -225,7 +256,11 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
   console.log("[Firebase] Database instance created, URL:", firebaseConfig.databaseURL);
 
   const auth = getAuth(app);
-  void ensureAnonymousAuth(auth);
+  
+  // Start auth but don't block - callers should use waitForFirebaseAuth()
+  ensureAnonymousAuth(auth).catch((e) => {
+    console.error("[Firebase] Auth initialization failed:", e);
+  });
 
   cached = { app, db, auth, user: auth.currentUser };
   return cached;

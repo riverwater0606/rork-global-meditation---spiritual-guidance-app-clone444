@@ -10,6 +10,7 @@ import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
+import { waitForFirebaseAuth, isFirebaseEnabled } from "@/constants/firebase";
 
 const queryClient = new QueryClient();
 
@@ -127,6 +128,21 @@ export default function RootLayout() {
     SplashScreen.hideAsync().catch((error) => {
       console.log('[RootLayout] SplashScreen.hideAsync failed', error);
     });
+  }, []);
+
+  useEffect(() => {
+    if (isFirebaseEnabled()) {
+      console.log('[RootLayout] Initializing Firebase auth...');
+      waitForFirebaseAuth().then((user) => {
+        if (user) {
+          console.log('[RootLayout] Firebase auth ready:', { uid: user.uid, isAnonymous: user.isAnonymous });
+        } else {
+          console.error('[RootLayout] Firebase auth failed - no user');
+        }
+      }).catch((e) => {
+        console.error('[RootLayout] Firebase auth error:', e);
+      });
+    }
   }, []);
 
   useEffect(() => {

@@ -1,6 +1,5 @@
 import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
-import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { getFirebaseMaybe, getFirebaseMissingEnv, isFirebaseEnabled, waitForFirebaseAuth } from "@/constants/firebase";
 
 export interface MeditationRecord {
   id?: string;
@@ -17,28 +16,7 @@ export function sanitizeUserId(input: string): string {
   return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-async function waitForAuthReady(timeoutMs: number = 5000): Promise<void> {
-  try {
-    const fb = getFirebaseMaybe();
-    const auth = fb?.auth;
-    if (!auth) return;
-    if (auth.currentUser) return;
 
-    await new Promise<void>((resolve) => {
-      const timeoutId = setTimeout(() => {
-        resolve();
-      }, timeoutMs);
-
-      const unsub = onAuthStateChanged(auth, () => {
-        clearTimeout(timeoutId);
-        unsub();
-        resolve();
-      });
-    });
-  } catch (e) {
-    console.error("[firebaseMeditations] waitForAuthReady failed (non-fatal):", e);
-  }
-}
 
 export async function uploadMeditationRecord(params: {
   userId: string;
@@ -60,29 +38,27 @@ export async function uploadMeditationRecord(params: {
   });
 
   try {
-    console.log("[firebaseMeditations] Getting Firebase instance...");
+    console.log("[firebaseMeditations] Waiting for Firebase auth...");
+    const authUser = await waitForFirebaseAuth();
+    
+    if (!authUser) {
+      console.error("[firebaseMeditations] Firebase auth failed - no user");
+      throw new Error("Firebase auth failed - please try again");
+    }
+    
+    console.log("[firebaseMeditations] Auth ready:", {
+      uid: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+    });
+
     const fb = getFirebaseMaybe();
     if (!fb) {
       const missing = getFirebaseMissingEnv();
       console.error("[firebaseMeditations] getFirebaseMaybe returned null", { missing });
       throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
     }
-    const { db, auth } = fb;
+    const { db } = fb;
     console.log("[firebaseMeditations] Firebase DB obtained");
-
-    console.log("[firebaseMeditations] Auth currentUser before wait:", {
-      hasUser: Boolean(auth.currentUser),
-      uid: auth.currentUser?.uid,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    });
-
-    await waitForAuthReady(5000);
-
-    console.log("[firebaseMeditations] Auth currentUser after wait:", {
-      hasUser: Boolean(auth.currentUser),
-      uid: auth.currentUser?.uid,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    });
     
     const safeUserId = sanitizeUserId(params.userId);
     console.log("[firebaseMeditations] Sanitized userId:", safeUserId);
