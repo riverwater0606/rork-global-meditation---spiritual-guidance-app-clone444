@@ -1,12 +1,16 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getDatabase, type Database } from "firebase/database";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   getAuth,
+  initializeAuth,
   onAuthStateChanged,
   signInAnonymously,
   type Auth,
   type User,
 } from "firebase/auth";
+import { getReactNativePersistence } from "firebase/auth/react-native";
 
 export type FirebaseRuntime = {
   app: FirebaseApp;
@@ -181,6 +185,26 @@ export function getFirebaseLastAuthError(): { code?: string; message?: string } 
   return lastAuthError;
 }
 
+export function getFirebaseDiagnostics(): {
+  enabled: boolean;
+  missingEnv: string[];
+  authReady: boolean;
+  authUid: string | null;
+  authIsAnonymous: boolean | null;
+  lastAuthError: { code?: string; message?: string } | null;
+  databaseURL: string | null;
+} {
+  return {
+    enabled: isFirebaseEnabled(),
+    missingEnv: getFirebaseMissingEnv(),
+    authReady,
+    authUid: authUser?.uid ?? null,
+    authIsAnonymous: typeof authUser?.isAnonymous === "boolean" ? authUser.isAnonymous : null,
+    lastAuthError,
+    databaseURL: firebaseConfig?.databaseURL ?? null,
+  };
+}
+
 async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
   if (auth.currentUser) {
     authReady = true;
@@ -277,8 +301,22 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
   const db = getDatabase(app);
   console.log("[Firebase] Database instance created, URL:", firebaseConfig.databaseURL);
 
-  const auth: Auth = getAuth(app);
-  console.log("[Firebase][Auth] Using getAuth() (default)");
+  const auth: Auth = (() => {
+    if (Platform.OS === "web") {
+      console.log("[Firebase][Auth] Using getAuth() (web)");
+      return getAuth(app);
+    }
+
+    try {
+      console.log("[Firebase][Auth] Using initializeAuth() with ReactNative persistence");
+      return initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } catch (e) {
+      console.log("[Firebase][Auth] initializeAuth() failed or already initialized, falling back to getAuth()", e);
+      return getAuth(app);
+    }
+  })();
 
   ensureAnonymousAuth(auth).catch((e) => {
     console.error("[Firebase] Auth initialization failed:", e);

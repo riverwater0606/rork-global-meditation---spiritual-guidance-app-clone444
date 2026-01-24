@@ -9,11 +9,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { 
-  User, 
-  Bell, 
-  Moon, 
-  Globe, 
+import {
+  User,
+  Bell,
+  Moon,
+  Globe,
   Shield,
   LogOut,
   ChevronRight,
@@ -23,12 +23,18 @@ import {
   WifiOff,
   Database,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react-native";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
-import { isFirebaseEnabled, isFirebaseAuthReady, getFirebaseAuthUser } from "@/constants/firebase";
+import {
+  getFirebaseAuthUser,
+  getFirebaseDiagnostics,
+  isFirebaseAuthReady,
+  isFirebaseEnabled,
+} from "@/constants/firebase";
+import { firebaseDebugPing } from "@/lib/firebaseDebug";
 import { router } from "expo-router";
 import { ensureMiniKitLoaded, getMiniKit } from "@/components/worldcoin/IDKitWeb";
 import CustomModal from "@/components/CustomModal";
@@ -45,6 +51,7 @@ export default function ProfileScreen() {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [vipModalVisible, setVipModalVisible] = useState(false);
   const [vipModalMessage, setVipModalMessage] = useState("");
+  const [firebaseTestRunning, setFirebaseTestRunning] = useState<boolean>(false);
   const lang = settings.language;
 
 
@@ -524,6 +531,73 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
+            {/* Firebase Diagnostics */}
+            {(() => {
+              const diag = getFirebaseDiagnostics();
+              const err = diag.lastAuthError;
+              if (!err?.code && !err?.message) return null;
+              return (
+                <View style={styles.debugRow}>
+                  <AlertCircle size={16} color="#F59E0B" />
+                  <Text style={[styles.debugLabel, { color: currentTheme.text }]}>Auth Error:</Text>
+                  <Text
+                    style={[
+                      styles.debugValue,
+                      { color: "#F59E0B", flex: 1 },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {(err.code ?? "unknown") + ": " + (err.message ?? "")}
+                  </Text>
+                </View>
+              );
+            })()}
+
+            {/* Firebase Test */}
+            <TouchableOpacity
+              disabled={firebaseTestRunning}
+              onPress={async () => {
+                if (firebaseTestRunning) return;
+
+                if (!walletAddress) {
+                  setVipModalMessage(lang === "zh" ? "需要先有錢包地址才能測試" : "Wallet address required to test");
+                  setVipModalVisible(true);
+                  return;
+                }
+
+                setFirebaseTestRunning(true);
+                try {
+                  const res = await firebaseDebugPing({ walletAddress });
+                  setVipModalMessage(
+                    lang === "zh"
+                      ? `雲端寫入測試成功\npath: ${res.path}\nkey: ${res.key}`
+                      : `Cloud write OK\npath: ${res.path}\nkey: ${res.key}`
+                  );
+                  setVipModalVisible(true);
+                } catch (e: any) {
+                  const msg = typeof e?.message === "string" ? e.message : "Test failed";
+                  setVipModalMessage(
+                    lang === "zh" ? `雲端寫入測試失敗\n${msg}` : `Cloud write failed\n${msg}`
+                  );
+                  setVipModalVisible(true);
+                } finally {
+                  setFirebaseTestRunning(false);
+                }
+              }}
+              style={[
+                styles.firebaseTestButton,
+                { backgroundColor: currentTheme.surface, opacity: firebaseTestRunning ? 0.6 : 1 },
+              ]}
+              testID="firebase-test-write"
+            >
+              <Database size={16} color={currentTheme.textSecondary} />
+              <Text style={[styles.firebaseTestText, { color: currentTheme.textSecondary }]}>
+                {firebaseTestRunning
+                  ? (lang === "zh" ? "測試中…" : "Testing…")
+                  : (lang === "zh" ? "測試雲端寫入" : "Test cloud write")}
+              </Text>
+            </TouchableOpacity>
+
             {/* Warning if not syncing */}
             {(!walletAddress || !isFirebaseEnabled() || !getFirebaseAuthUser()) && (
               <View style={styles.debugWarning}>
@@ -671,6 +745,21 @@ const styles = StyleSheet.create({
 
   settingsContainer: {
     paddingHorizontal: 20,
+  },
+  firebaseTestButton: {
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.25)",
+  },
+  firebaseTestText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   sectionTitle: {
     fontSize: 18,
