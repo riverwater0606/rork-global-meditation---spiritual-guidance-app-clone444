@@ -1,16 +1,15 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getDatabase, type Database } from "firebase/database";
 import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   getAuth,
   initializeAuth,
+  inMemoryPersistence,
   onAuthStateChanged,
   signInAnonymously,
   type Auth,
   type User,
 } from "firebase/auth";
-import { getReactNativePersistence } from "firebase/auth/react-native";
 
 export type FirebaseRuntime = {
   app: FirebaseApp;
@@ -308,9 +307,9 @@ export function getFirebaseMaybe(): FirebaseRuntime | null {
     }
 
     try {
-      console.log("[Firebase][Auth] Using initializeAuth() with ReactNative persistence");
+      console.log("[Firebase][Auth] Using initializeAuth() with in-memory persistence (native)");
       return initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
+        persistence: inMemoryPersistence,
       });
     } catch (e) {
       console.log("[Firebase][Auth] initializeAuth() failed or already initialized, falling back to getAuth()", e);
