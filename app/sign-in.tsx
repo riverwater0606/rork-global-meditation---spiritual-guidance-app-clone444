@@ -7,7 +7,7 @@ import { MiniKit } from '@/constants/minikit';
 import { useUser } from '@/providers/UserProvider';
 import { useRouter } from 'expo-router';
 
-const MINIKIT_TIMEOUT_MS = 8000;
+const MINIKIT_TIMEOUT_MS = 20000;
 
 export default function SignInScreen() {
   const { setVerified, connectWallet } = useUser();
