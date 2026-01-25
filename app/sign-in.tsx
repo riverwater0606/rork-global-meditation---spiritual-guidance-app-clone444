@@ -14,20 +14,32 @@ export default function SignInScreen() {
   const router = useRouter();
 
   const handleSignIn = useCallback(async () => {
+    let step = 'init';
+    let authTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
+      step = 'start';
+      console.log('[SignIn][step1] Pressed sign-in');
       let mk = await Promise.race([
-        ensureMiniKitLoaded(),
+        ensureMiniKitLoaded().then((loaded) => {
+          console.log('[SignIn][step2] ensureMiniKitLoaded resolved', { hasMiniKit: Boolean(loaded) });
+          return loaded;
+        }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
       ]);
       if (!mk && MiniKit) {
+        console.log('[SignIn][step3] Fallback to static MiniKit');
         mk = MiniKit;
       }
       if (!mk) {
+        console.log('[SignIn][step4] MiniKit missing');
         Alert.alert('World App SDK 未載入', '請確認在 World App 內開啟或稍後再試。');
         return;
       }
+      console.log('[SignIn][step5] MiniKit available');
       if (typeof mk?.install === 'function') {
         try {
+          step = 'install';
+          console.log('[SignIn][step6] Calling MiniKit.install');
           const installResult = await mk.install();
           if (installResult?.success === false) {
             console.log('[SignIn] MiniKit.install returned error', installResult?.errorMessage);
@@ -37,13 +49,20 @@ export default function SignInScreen() {
         }
       }
 
+      step = 'check-installed';
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
+        console.log('[SignIn][step7] MiniKit not installed');
         Alert.alert('World App SDK 未就緒', '請確認在 World App 內開啟或稍後再試。');
         return;
       }
 
-      console.log('[SignIn] Calling walletAuth');
+      step = 'wallet-auth';
+      console.log('[SignIn][step8] Calling walletAuth');
+      authTimeout = setTimeout(() => {
+        console.log('[SignIn][timeout] Wallet auth drawer not shown within 10s', { step });
+        Alert.alert('授權未彈出', '請確認在 World App 內開啟並允許授權。');
+      }, 10000);
 
       const result = await runWalletAuth({
         mk,
@@ -52,21 +71,36 @@ export default function SignInScreen() {
         requestId: `wallet-auth-${Date.now()}`,
       });
 
+      console.log('[SignIn][step9] walletAuth result', { status: result?.status });
       if (result?.status === 'success') {
         console.log('[SignIn] WalletAuth success', result);
 
         if (result.address) {
+          console.log('[SignIn][step10] Connecting wallet', { hasAddress: true });
           await connectWallet(result.address);
         }
 
+        console.log('[SignIn][step11] Setting verified');
         await setVerified(result);
 
+        console.log('[SignIn][step12] Redirect to tabs');
         router.replace('/(tabs)');
       } else if (result?.status === 'error') {
+        console.log('[SignIn][step9b] WalletAuth error', { errorCode: result?.error_code });
         Alert.alert('登入失敗', result?.error_code ?? '請稍後再試。');
       }
     } catch (err) {
-      console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
+      console.log('[SignIn] walletAuth cancelled or failed', err);
+      const message = err instanceof Error ? err.message : '登入失敗，請稍後再試。';
+      if (message.toLowerCase().includes('cancel')) {
+        console.log('[SignIn] WalletAuth cancelled by user');
+      } else {
+        Alert.alert('登入失敗', message);
+      }
+    } finally {
+      if (authTimeout) {
+        clearTimeout(authTimeout);
+      }
     }
   }, [setVerified, connectWallet, router]);
 
