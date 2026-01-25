@@ -13,11 +13,27 @@ export default function SignInScreen() {
   const router = useRouter();
 
   const handleSignIn = useCallback(async () => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let didTimeout = false;
+
     try {
       await Promise.race([
         ensureMiniKitLoaded(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
+        new Promise<void>((resolve) => {
+          timeoutId = setTimeout(() => {
+            didTimeout = true;
+            resolve();
+          }, MINIKIT_TIMEOUT_MS);
+        }),
       ]);
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      if (didTimeout) {
+        return;
+      }
 
       const mk = getMiniKit();
       if (!mk?.isInstalled?.()) {
@@ -45,6 +61,10 @@ export default function SignInScreen() {
       }
     } catch (err) {
       console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }, [setVerified, connectWallet, router]);
 
