@@ -102,7 +102,7 @@ function RootLayoutNav() {
   const { isVerified, verification } = useUser();
   const pathname = usePathname();
   const onAuthScreen = pathname === "/sign-in" || pathname === "/callback";
-  const canAccess = isVerified === true && Boolean(verification);
+  const canAccess = isVerified && Boolean(verification);
   if (!canAccess && !onAuthScreen) {
     return <Redirect href="/sign-in" />;
   }
