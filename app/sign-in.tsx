@@ -13,15 +13,29 @@ export default function SignInScreen() {
   const router = useRouter();
 
   const handleSignIn = useCallback(async () => {
-    try {
-      await Promise.race([
-        ensureMiniKitLoaded(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
-      ]);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let didTimeout = false;
 
-      const mk = getMiniKit();
-      if (!mk?.isInstalled?.()) {
+    try {
+      timeoutId = setTimeout(() => {
+        didTimeout = true;
+        console.log('[SignIn] ensureMiniKitLoaded taking too long (soft-timeout)…');
+      }, MINIKIT_TIMEOUT_MS);
+
+      const mkLoaded = await ensureMiniKitLoaded();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      const mk = mkLoaded ?? getMiniKit();
+      if (!mk) {
+        console.log('[SignIn] MiniKit not available after ensureMiniKitLoaded', { didTimeout });
         return;
+      }
+
+      if (typeof mk?.isInstalled === 'function' && !mk.isInstalled()) {
+        console.log('[SignIn] MiniKit not installed');
       }
 
       console.log('[SignIn] Calling walletAuth');
@@ -32,6 +46,7 @@ export default function SignInScreen() {
         statement: 'Sign in to PSI-G',
       });
 
+      console.log('[SignIn] walletAuth result', result?.status);
       if (result?.status === 'success') {
         console.log('[SignIn] WalletAuth success', result);
 
@@ -44,7 +59,11 @@ export default function SignInScreen() {
         router.replace('/(tabs)');
       }
     } catch (err) {
-      console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
+      console.log('[SignIn] walletAuth error', err);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }, [setVerified, connectWallet, router]);
 
