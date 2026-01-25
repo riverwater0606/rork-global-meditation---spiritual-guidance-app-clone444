@@ -1,6 +1,8 @@
 import React, { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ensureMiniKitLoaded, getMiniKit, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ensureMiniKitLoaded, isMiniKitInstalled, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
 import { MiniKit } from '@/constants/minikit';
@@ -17,6 +19,8 @@ export default function SignInScreen() {
     let step = 'init';
     let authTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
+      await Promise.race([
+        ensureMiniKitLoaded(),
       step = 'start';
       console.log('[SignIn][step1] Pressed sign-in');
       let mk = await Promise.race([
@@ -49,6 +53,8 @@ export default function SignInScreen() {
         }
       }
 
+      const mk = getMiniKit();
+      if (!mk?.isInstalled?.()) {
       step = 'check-installed';
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
@@ -57,6 +63,7 @@ export default function SignInScreen() {
         return;
       }
 
+      console.log('[SignIn] Calling walletAuth');
       step = 'wallet-auth';
       console.log('[SignIn][step8] Calling walletAuth');
       authTimeout = setTimeout(() => {
@@ -90,6 +97,7 @@ export default function SignInScreen() {
         Alert.alert('登入失敗', result?.error_code ?? '請稍後再試。');
       }
     } catch (err) {
+      console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
       console.log('[SignIn] walletAuth cancelled or failed', err);
       const message = err instanceof Error ? err.message : '登入失敗，請稍後再試。';
       if (message.toLowerCase().includes('cancel')) {
@@ -126,46 +134,3 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#030712',
   },
-  background: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  safe: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  subtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  description: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.72)',
-    lineHeight: 22,
-  },
-  button: {
-    marginTop: 24,
-    backgroundColor: '#22C55E',
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#022C22',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-});
