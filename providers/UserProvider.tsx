@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import { router } from "expo-router";
 
 interface UserProfile {
   name: string;
@@ -88,18 +90,6 @@ export const [UserProvider, useUser] = createContextHook(() => {
     setVerification(payload);
     await AsyncStorage.setItem('isVerified', 'true');
     await AsyncStorage.setItem('verificationPayload', JSON.stringify(payload));
-
-    const maybeAddress = (payload as any)?.address as string | undefined;
-    if (typeof maybeAddress === "string" && maybeAddress.trim().length > 0) {
-      console.log("[UserProvider] setVerified: setting walletAddress from payload.address", {
-        hasWallet: true,
-        walletPrefix: `${maybeAddress.slice(0, 6)}...`,
-      });
-      setWalletAddress(maybeAddress);
-      await AsyncStorage.setItem("walletAddress", maybeAddress);
-    } else {
-      console.log("[UserProvider] setVerified: payload.address missing, walletAddress unchanged");
-    }
   };
 
   const logout = async () => {
@@ -107,9 +97,38 @@ export const [UserProvider, useUser] = createContextHook(() => {
     setIsVerified(false);
     setVerification(null);
     setWalletAddress(null);
-    await AsyncStorage.removeItem('isVerified');
-    await AsyncStorage.removeItem('verificationPayload');
-    await AsyncStorage.removeItem('walletAddress');
+    await AsyncStorage.multiRemove([
+      'isVerified',
+      'verificationPayload',
+      'walletAddress',
+      'userProfile',
+      'isVIP',
+    ]);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        window.sessionStorage?.removeItem('worldid:result');
+        window.sessionStorage?.removeItem('wallet-auth');
+        window.sessionStorage?.removeItem('verificationPayload');
+        window.sessionStorage?.removeItem('isVerified');
+        window.sessionStorage?.removeItem('walletAddress');
+      } catch (error) {
+        console.log('[UserProvider] Failed to clear sessionStorage', error);
+      }
+      try {
+        window.localStorage?.removeItem('worldid:result');
+        window.localStorage?.removeItem('wallet-auth');
+        window.localStorage?.removeItem('verificationPayload');
+        window.localStorage?.removeItem('isVerified');
+        window.localStorage?.removeItem('walletAddress');
+      } catch (error) {
+        console.log('[UserProvider] Failed to clear localStorage', error);
+      }
+    }
+    try {
+      router.replace('/sign-in');
+    } catch (error) {
+      console.log('[UserProvider] router.replace failed during logout', error);
+    }
     console.log('[UserProvider] Logout complete');
   };
 
