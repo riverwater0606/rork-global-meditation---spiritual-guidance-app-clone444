@@ -90,18 +90,6 @@ export const [UserProvider, useUser] = createContextHook(() => {
     setVerification(payload);
     await AsyncStorage.setItem('isVerified', 'true');
     await AsyncStorage.setItem('verificationPayload', JSON.stringify(payload));
-
-    const maybeAddress = (payload as any)?.address as string | undefined;
-    if (typeof maybeAddress === "string" && maybeAddress.trim().length > 0) {
-      console.log("[UserProvider] setVerified: setting walletAddress from payload.address", {
-        hasWallet: true,
-        walletPrefix: `${maybeAddress.slice(0, 6)}...`,
-      });
-      setWalletAddress(maybeAddress);
-      await AsyncStorage.setItem("walletAddress", maybeAddress);
-    } else {
-      console.log("[UserProvider] setVerified: payload.address missing, walletAddress unchanged");
-    }
   };
 
   const logout = async () => {
