@@ -100,10 +100,11 @@ const errorStyles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
-  const { isVerified } = useUser();
+  const { isVerified, verification } = useUser();
   const pathname = usePathname();
   const onAuthScreen = pathname === "/sign-in" || pathname === "/callback";
-  if (!isVerified && !onAuthScreen) {
+  const canAccess = isVerified && Boolean(verification);
+  if (!canAccess && !onAuthScreen) {
     return <Redirect href="/sign-in" />;
   }
   return (
