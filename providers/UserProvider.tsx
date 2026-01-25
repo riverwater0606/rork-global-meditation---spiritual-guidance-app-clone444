@@ -101,25 +101,40 @@ export const [UserProvider, useUser] = createContextHook(() => {
       'isVerified',
       'verificationPayload',
       'walletAddress',
+      'wallet-auth',
+      'worldid:result',
       'userProfile',
       'isVIP',
     ]);
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const sensitiveKeys = allKeys.filter((key) =>
+        /verify|world|wallet|auth|token|session|user/i.test(key),
+      );
+      if (sensitiveKeys.length > 0) {
+        await AsyncStorage.multiRemove(sensitiveKeys);
+      }
+    } catch (error) {
+      console.log('[UserProvider] Failed to clear sensitive AsyncStorage keys', error);
+    }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
-        window.sessionStorage?.removeItem('worldid:result');
-        window.sessionStorage?.removeItem('wallet-auth');
-        window.sessionStorage?.removeItem('verificationPayload');
-        window.sessionStorage?.removeItem('isVerified');
-        window.sessionStorage?.removeItem('walletAddress');
+        const sessionKeys = Object.keys(window.sessionStorage ?? {});
+        sessionKeys.forEach((key) => {
+          if (/verify|world|wallet|auth|token|session|user/i.test(key)) {
+            window.sessionStorage?.removeItem(key);
+          }
+        });
       } catch (error) {
         console.log('[UserProvider] Failed to clear sessionStorage', error);
       }
       try {
-        window.localStorage?.removeItem('worldid:result');
-        window.localStorage?.removeItem('wallet-auth');
-        window.localStorage?.removeItem('verificationPayload');
-        window.localStorage?.removeItem('isVerified');
-        window.localStorage?.removeItem('walletAddress');
+        const localKeys = Object.keys(window.localStorage ?? {});
+        localKeys.forEach((key) => {
+          if (/verify|world|wallet|auth|token|session|user/i.test(key)) {
+            window.localStorage?.removeItem(key);
+          }
+        });
       } catch (error) {
         console.log('[UserProvider] Failed to clear localStorage', error);
       }
@@ -129,6 +144,13 @@ export const [UserProvider, useUser] = createContextHook(() => {
     } catch (error) {
       console.log('[UserProvider] router.replace failed during logout', error);
     }
+    setTimeout(() => {
+      try {
+        router.replace('/sign-in');
+      } catch (error) {
+        console.log('[UserProvider] router.replace retry failed during logout', error);
+      }
+    }, 0);
     console.log('[UserProvider] Logout complete');
   };
 
