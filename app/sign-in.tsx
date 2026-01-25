@@ -13,6 +13,12 @@ export default function SignInScreen() {
   const { setVerified, connectWallet } = useUser();
   const router = useRouter();
   const [debugText, setDebugText] = useState<string>('idle');
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent ?? '' : '';
+  const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(userAgent);
+  const uaPreview = userAgent ? userAgent.slice(0, 80) : '';
+  const appendDebug = useCallback((line: string) => {
+    setDebugText((prev) => (prev ? `${prev}\n${line}` : line));
+  }, []);
 
   const handleSignIn = useCallback(async () => {
     let step = 'init';
@@ -21,27 +27,26 @@ export default function SignInScreen() {
       step = 'start';
       setDebugText('pressed');
       console.log('[SignIn][step1]', 'Pressed sign-in');
-      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-      const isWorldAppUA = /(WorldApp|World App|WorldAppWebView|WorldCoin|Worldcoin)/i.test(userAgent ?? '');
-      setDebugText('load-minikit');
+      appendDebug(`ua:${isWorldAppUA}`);
       let didTimeout = false;
+      appendDebug('ensureMiniKitLoaded start');
       let mk = await Promise.race([
         ensureMiniKitLoaded().then((loaded) => {
-          setDebugText('ensureMiniKitLoaded resolved');
+          appendDebug('ensureMiniKitLoaded resolved');
           console.log('[SignIn][step2]', 'ensureMiniKitLoaded resolved', { hasMiniKit: Boolean(loaded) });
           return loaded;
         }),
         new Promise<undefined>((resolve) =>
           setTimeout(() => {
             didTimeout = true;
-            setDebugText('ensureMiniKitLoaded timeout');
+            appendDebug('ensureMiniKitLoaded timeout');
             console.log('[SignIn][step2b]', 'ensureMiniKitLoaded timeout');
             resolve(undefined);
           }, MINIKIT_TIMEOUT_MS),
         ),
       ]);
       if (!mk && isWorldAppUA) {
-        setDebugText('polling injected MiniKit');
+        appendDebug('polling injected MiniKit');
         console.log('[SignIn][step2c]', 'Polling for injected MiniKit after timeout');
         for (let i = 0; i < 50; i += 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -55,7 +60,7 @@ export default function SignInScreen() {
         mk = MiniKit;
       }
       if (!mk) {
-        setDebugText('load-minikit failed');
+        appendDebug('load-minikit failed');
         console.log('[SignIn][step4]', 'MiniKit missing');
         const baseMessage = didTimeout
           ? 'World App SDK 載入逾時，請重新開啟或稍後再試。'
@@ -67,7 +72,7 @@ export default function SignInScreen() {
       if (typeof mk?.install === 'function') {
         try {
           step = 'install';
-          setDebugText('install');
+          appendDebug('install');
           console.log('[SignIn][step6]', 'Calling MiniKit.install');
           const installResult = await mk.install();
           if (installResult?.success === false) {
@@ -83,7 +88,7 @@ export default function SignInScreen() {
       }
 
       step = 'check-installed';
-      setDebugText('isInstalled');
+      appendDebug('isInstalled');
       const installed = await isMiniKitInstalled(mk);
       if (!installed) {
         console.log('[SignIn][step7]', 'MiniKit not installed');
@@ -95,10 +100,10 @@ export default function SignInScreen() {
       }
 
       step = 'wallet-auth';
-      setDebugText('walletAuth called');
+      appendDebug('walletAuth called');
       console.log('[SignIn][step8]', 'Calling walletAuth');
       authTimeout = setTimeout(() => {
-        setDebugText('walletAuth timeout');
+        appendDebug('walletAuth timeout');
         console.log('[SignIn][timeout]', 'Wallet auth drawer not shown within 10s', { step });
         Alert.alert('授權未彈出', '請確認在 World App 內開啟並允許授權。 (step: walletAuth timeout)');
       }, 10000);
@@ -113,7 +118,7 @@ export default function SignInScreen() {
         });
       } catch (walletAuthError) {
         const message = walletAuthError instanceof Error ? walletAuthError.message : '登入失敗，請稍後再試。';
-        setDebugText('walletAuth error');
+        appendDebug('walletAuth error');
         if (authTimeout) {
           clearTimeout(authTimeout);
           authTimeout = null;
@@ -126,7 +131,7 @@ export default function SignInScreen() {
         clearTimeout(authTimeout);
         authTimeout = null;
       }
-      setDebugText('walletAuth result');
+      appendDebug('walletAuth result');
 
       console.log('[SignIn][step9]', 'walletAuth result', { status: result?.status });
       if (result?.status === 'success') {
@@ -141,7 +146,7 @@ export default function SignInScreen() {
         await setVerified(result);
 
         console.log('[SignIn][step12]', 'Redirect to tabs');
-        setDebugText('navigation');
+        appendDebug('navigation');
         router.replace('/(tabs)');
       } else if (result?.status === 'error') {
         console.log('[SignIn][step9b]', 'WalletAuth error', { errorCode: result?.error_code });
@@ -164,7 +169,7 @@ export default function SignInScreen() {
         clearTimeout(authTimeout);
       }
     }
-  }, [setVerified, connectWallet, router]);
+  }, [appendDebug, isWorldAppUA, setVerified, connectWallet, router]);
 
   return (
     <View style={styles.root}>
@@ -180,6 +185,8 @@ export default function SignInScreen() {
         </View>
         <View style={styles.debugPanel}>
           <Text style={styles.debugLabel}>Debug</Text>
+          <Text style={styles.debugInfo}>isWorldAppUA: {String(isWorldAppUA)}</Text>
+          <Text style={styles.debugInfo}>UA: {uaPreview || 'n/a'}</Text>
           <Text style={styles.debugText}>{debugText}</Text>
         </View>
       </SafeAreaView>
@@ -246,6 +253,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  debugInfo: {
+    color: 'rgba(226, 232, 240, 0.8)',
+    fontSize: 12,
+    marginTop: 4,
   },
   debugText: {
     color: '#E2E8F0',
