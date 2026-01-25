@@ -10,7 +10,6 @@ import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
-import { waitForFirebaseAuth, isFirebaseEnabled } from "@/constants/firebase";
 
 const queryClient = new QueryClient();
 
@@ -100,10 +99,11 @@ const errorStyles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
-  const { isVerified } = useUser();
+  const { isVerified, verification } = useUser();
   const pathname = usePathname();
   const onAuthScreen = pathname === "/sign-in" || pathname === "/callback";
-  if (!isVerified && !onAuthScreen) {
+  const canAccess = isVerified === true && Boolean(verification);
+  if (!canAccess && !onAuthScreen) {
     return <Redirect href="/sign-in" />;
   }
   return (
@@ -128,21 +128,6 @@ export default function RootLayout() {
     SplashScreen.hideAsync().catch((error) => {
       console.log('[RootLayout] SplashScreen.hideAsync failed', error);
     });
-  }, []);
-
-  useEffect(() => {
-    if (isFirebaseEnabled()) {
-      console.log('[RootLayout] Initializing Firebase auth...');
-      waitForFirebaseAuth().then((user) => {
-        if (user) {
-          console.log('[RootLayout] Firebase auth ready:', { uid: user.uid, isAnonymous: user.isAnonymous });
-        } else {
-          console.error('[RootLayout] Firebase auth failed - no user');
-        }
-      }).catch((e) => {
-        console.error('[RootLayout] Firebase auth error:', e);
-      });
-    }
   }, []);
 
   useEffect(() => {
