@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ensureMiniKitLoaded, isMiniKitInstalled, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
+import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
 import { MiniKit } from '@/constants/minikit';
 import { useUser } from '@/providers/UserProvider';
 import { useRouter } from 'expo-router';
@@ -45,6 +45,16 @@ export default function SignInScreen() {
           }, MINIKIT_TIMEOUT_MS),
         ),
       ]);
+      if (!mk && isWorldAppUA) {
+        appendDebug('polling injected MiniKit');
+        console.log('[SignIn][step2c]', 'Polling for injected MiniKit after timeout');
+        for (let i = 0; i < 50; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          mk = getMiniKit();
+          if (mk) break;
+        }
+        console.log('[SignIn][step2d]', 'Polling result', { hasMiniKit: Boolean(mk) });
+      }
       if (!mk && MiniKit) {
         console.log('[SignIn][step3]', 'Fallback to static MiniKit');
         mk = MiniKit;
