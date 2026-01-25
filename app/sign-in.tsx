@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ensureMiniKitLoaded, getMiniKit, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ensureMiniKitLoaded, isMiniKitInstalled, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
 import { useUser } from '@/providers/UserProvider';
 import { useRouter } from 'expo-router';
 
@@ -14,13 +14,29 @@ export default function SignInScreen() {
 
   const handleSignIn = useCallback(async () => {
     try {
-      await Promise.race([
+      const mk = await Promise.race([
         ensureMiniKitLoaded(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),
       ]);
+      if (!mk) {
+        Alert.alert('World App SDK 未載入', '請確認在 World App 內開啟或稍後再試。');
+        return;
+      }
+      if (typeof mk?.install === 'function') {
+        try {
+          const installResult = await mk.install();
+          if (installResult?.success === false) {
+            Alert.alert('World App SDK 初始化失敗', installResult?.errorMessage ?? '請稍後再試。');
+            return;
+          }
+        } catch (installError) {
+          console.log('[SignIn] MiniKit.install failed', installError);
+        }
+      }
 
-      const mk = getMiniKit();
-      if (!mk?.isInstalled?.()) {
+      const installed = await isMiniKitInstalled(mk);
+      if (!installed) {
+        Alert.alert('World App SDK 未就緒', '請確認在 World App 內開啟或稍後再試。');
         return;
       }
 
@@ -30,6 +46,7 @@ export default function SignInScreen() {
         mk,
         nonce: `psig-${Date.now()}`,
         statement: 'Sign in to PSI-G',
+        requestId: `wallet-auth-${Date.now()}`,
       });
 
       if (result?.status === 'success') {
@@ -42,6 +59,8 @@ export default function SignInScreen() {
         await setVerified(result);
 
         router.replace('/(tabs)');
+      } else if (result?.status === 'error') {
+        Alert.alert('登入失敗', result?.error_code ?? '請稍後再試。');
       }
     } catch (err) {
       console.log('[SignIn] walletAuth cancelled or failed (silent)', err);
