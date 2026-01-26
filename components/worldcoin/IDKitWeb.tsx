@@ -279,17 +279,7 @@ export async function runWorldVerify({ mk, action, signal }: { mk: any; action: 
   }
 }
 
-export async function runWalletAuth({
-  mk,
-  nonce,
-  statement,
-  requestId,
-}: {
-  mk: any;
-  nonce: string;
-  statement: string;
-  requestId?: string;
-}) {
+export async function runWalletAuth({ mk, nonce, statement }: { mk: any; nonce: string; statement: string }) {
   const fn = (
     mk?.commandsAsync?.walletAuth ||
     mk?.commands?.walletAuth ||
@@ -297,7 +287,7 @@ export async function runWalletAuth({
     mk?.walletAuth
   ) as undefined | ((args: any) => Promise<any>);
   if (!fn) throw new Error('WalletAuth API unavailable');
-  const args = { nonce, statement, requestId } as const;
+  const args = { nonce, statement } as const;
   try {
     const res: any = await fn(args);
     return res?.finalPayload ?? res;
