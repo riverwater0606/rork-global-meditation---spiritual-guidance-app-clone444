@@ -75,6 +75,7 @@ export async function uploadMeditationRecord(params: {
 
     const path = `meditations/${safeUserId}`;
     console.log("[firebaseMeditations] Writing to path:", path);
+    console.log("[firebaseMeditations] Upload attempt to", path);
     
     const recordRef = push(ref(db, path));
     const recordId = recordRef.key;
@@ -93,11 +94,13 @@ export async function uploadMeditationRecord(params: {
     await set(recordRef, record);
 
     console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
+    console.log("[firebaseMeditations] Upload success", { path, recordId });
     console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
   } catch (e: any) {
     console.error("[firebaseMeditations] ========== UPLOAD FAILED ==========");
     console.error("[firebaseMeditations] uploadMeditationRecord:error", e);
+    console.error("[firebaseMeditations] Upload failed", { code: e?.code, message: e?.message, path });
     console.error("[firebaseMeditations] Error message:", e?.message);
     console.error("[firebaseMeditations] Error code:", e?.code);
     console.error("[firebaseMeditations] Error stack:", e?.stack);

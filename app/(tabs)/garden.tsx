@@ -1004,6 +1004,7 @@ export default function GardenScreen() {
   const isGifting = useRef(false); // Ref for lock to prevent double execution
   const hasAttemptedGift = useRef(false); // Ref to track if user tried to gift
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
+  const giftUploadAttemptRef = useRef(false);
   const modeResetTimeoutRef = useRef<any>(null); // Safety timeout for mode reset
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
@@ -1638,7 +1639,51 @@ export default function GardenScreen() {
     }, 2000);
   };
 
-  const handleGiftSuccess = (contact: any) => {
+  const attemptGiftUpload = async (params: {
+    fromWalletAddress: string;
+    toWalletAddress: string;
+    source: "event" | "shareContacts";
+  }) => {
+    if (giftUploadAttemptRef.current) {
+      console.log("[DEBUG_GIFT_CLOUD] Upload already attempted, skipping duplicate.", params);
+      return;
+    }
+    giftUploadAttemptRef.current = true;
+
+    Alert.alert("Gift send called");
+    console.log("[Garden] Gift send payload:", {
+      fromWalletAddress: params.fromWalletAddress,
+      toWalletAddress: params.toWalletAddress,
+      source: params.source,
+    });
+    Alert.alert(`from: ${params.fromWalletAddress}\nto: ${params.toWalletAddress}`);
+
+    try {
+      const uploaded = await uploadGiftOrb({
+        toWalletAddress: params.toWalletAddress,
+        fromWalletAddress: params.fromWalletAddress,
+        fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
+        blessing: giftMessage || (settings.language === "zh" ? "願愛與能量永流" : "May love and energy flow forever."),
+        orb: {
+          id: currentOrbRef.current.id || `orb-${Date.now()}`,
+          level: currentOrbRef.current.level,
+          layers: [...(currentOrbRef.current.layers ?? [])],
+          isAwakened: Boolean(currentOrbRef.current.isAwakened),
+          createdAt: currentOrbRef.current.createdAt || new Date().toISOString(),
+          completedAt: currentOrbRef.current.completedAt,
+          shape: currentOrbRef.current.shape,
+          rotationSpeed: interactionState.current.spinVelocity,
+        },
+      });
+      console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
+      Alert.alert("光球上傳成功");
+    } catch (e: any) {
+      console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+      Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+    }
+  };
+
+  const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
     if (isGifting.current) {
@@ -1656,6 +1701,14 @@ export default function GardenScreen() {
     // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
     // We only record the gift locally via finishGifting -> sendOrb
     console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
+
+    const toWalletAddress = contact?.walletAddress || "test_unknown";
+    const fromWalletAddress = walletAddress || "missing";
+    await attemptGiftUpload({
+      fromWalletAddress,
+      toWalletAddress,
+      source: "event",
+    });
   };
 
   useEffect(() => {
@@ -1776,6 +1829,7 @@ export default function GardenScreen() {
 
     isGifting.current = true;
     setIsGiftingUI(true);
+    giftUploadAttemptRef.current = false;
 
     const genericFriendName = settings.language === "zh" ? "朋友" : "Friend";
 
@@ -1790,84 +1844,37 @@ export default function GardenScreen() {
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
           );
-          return;
-        }
-
-        if (!MiniKit.commandsAsync?.shareContacts) {
-          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
-          return;
-        }
-
-        if (!walletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert(
-            settings.language === "zh" ? "傳送失敗" : "Send failed",
-            settings.language === "zh"
-              ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
-              : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
-          );
-          return;
         }
 
         setIsGiftingUI(true);
 
-        console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-        const result: any = await MiniKit.commandsAsync.shareContacts({
-          isMultiSelectEnabled: false,
-        });
-        console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
-
-        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string | undefined = contact?.walletAddress;
-
-        if (!toWalletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
-          Alert.alert(
-            settings.language === "zh" ? "傳送失敗" : "Send failed",
-            settings.language === "zh" ? "沒有拿到對方錢包地址（shareContacts 沒回傳 walletAddress）" : "No recipient walletAddress returned by shareContacts"
-          );
-          return;
+        let result: any;
+        if (MiniKit?.commandsAsync?.shareContacts) {
+          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
+          result = await MiniKit.commandsAsync.shareContacts({
+            isMultiSelectEnabled: false,
+          });
+          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+        } else {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
         }
 
-        const fromWalletAddress = walletAddress;
+        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
+        const toWalletAddress: string = contact?.walletAddress || "test_unknown";
 
-        console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
-          hasMiniKit: Boolean(MiniKit),
-          hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
-          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-        });
-        console.log("[DEBUG_GIFT_CLOUD] Calling uploadGiftOrb...", {
-          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-          orbSnapshotId: orbSnapshot.id,
-        });
+        if (toWalletAddress === "test_unknown") {
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
+        }
 
-        const uploaded = await uploadGiftOrb({
-          toWalletAddress,
+        const fromWalletAddress = walletAddress || "missing";
+        await attemptGiftUpload({
           fromWalletAddress,
-          fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
-          blessing: giftMessage || (settings.language === "zh" ? "願愛與能量永流" : "May love and energy flow forever."),
-          orb: {
-            id: orbSnapshot.id,
-            level: orbSnapshot.level,
-            layers: orbSnapshot.layers,
-            isAwakened: orbSnapshot.isAwakened,
-            createdAt: orbSnapshot.createdAt,
-            completedAt: orbSnapshot.completedAt,
-            shape: orbSnapshot.shape,
-            rotationSpeed: orbSnapshot.rotationSpeed,
-          },
+          toWalletAddress,
+          source: "shareContacts",
         });
-
-        console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
-        Alert.alert(
-          settings.language === "zh" ? "已傳送" : "Sent",
-          settings.language === "zh" ? "光球已成功上傳並傳送" : "Gift orb uploaded and sent successfully."
-        );
-      } catch (e) {
+      } catch (e: any) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+        Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
       } finally {
         setIsGiftingUI(false);
       }

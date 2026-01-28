@@ -26,6 +26,7 @@ export default function ProgressScreen() {
 
   const [meditationHistory, setMeditationHistory] = useState<MeditationRecord[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"success" | "failed" | "missing">("missing");
   const pollInFlightRef = useRef(false);
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
@@ -40,9 +41,11 @@ export default function ProgressScreen() {
     try {
       const history = await fetchMeditationHistory({ userId: walletAddress, limit: 50 });
       setMeditationHistory(history);
+      setSyncStatus("success");
       console.log("[ProgressScreen] Loaded history count:", history.length);
     } catch (e) {
       console.error("[ProgressScreen] Failed to load history:", e);
+      setSyncStatus("failed");
     } finally {
       pollInFlightRef.current = false;
       setIsLoadingHistory(false);
@@ -50,6 +53,10 @@ export default function ProgressScreen() {
   }, [walletAddress]);
 
   useEffect(() => {
+    if (!walletAddress) {
+      setSyncStatus("missing");
+    }
+
     if (walletAddress) {
       setIsLoadingHistory(true);
       loadHistory();
@@ -98,6 +105,11 @@ export default function ProgressScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Stats Overview */}
+        <View style={[styles.syncBanner, { backgroundColor: currentTheme.surface }]}>
+          <Text style={[styles.syncBannerText, { color: currentTheme.textSecondary }]}>
+            Firebase Sync: {syncStatus === "success" ? "Success" : syncStatus === "failed" ? "Failed" : "Missing wallet"}
+          </Text>
+        </View>
         <View style={styles.statsContainer}>
           <View style={styles.statRow}>
             <View style={[styles.statCard, { backgroundColor: currentTheme.surface }]}>
@@ -267,6 +279,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+  syncBanner: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 0.5,
+    borderColor: "#8b5cf6",
+    backgroundColor: "rgba(20,20,40,0.4)",
+  },
+  syncBannerText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
   },
   statsContainer: {
     paddingHorizontal: 20,
