@@ -200,12 +200,15 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
         walletPrefix: `${walletAddress.slice(0, 6)}...`,
       });
+      const recordData = {
+        userId: walletAddress,
+        courseName: courseName || sessionId,
+        duration,
+      };
       try {
-        const result = await uploadMeditationRecord({
-          userId: walletAddress,
-          courseName: courseName || sessionId,
-          duration,
-        });
+        console.log("[Meditation] Uploading record: " + JSON.stringify(recordData));
+        const result = await uploadMeditationRecord(recordData);
+        console.log("[Meditation] Uploading record: " + JSON.stringify(recordData));
         console.log("[MeditationProvider] Meditation record uploaded to Firebase, recordId:", result.recordId);
         // Orb Logic after successful upload
         if (growOrb && !currentOrb.isAwakened) {
@@ -231,15 +234,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
-        const msg = typeof e?.message === "string" ? e.message : "Upload failed";
-        if (msg.toLowerCase().includes("anonymous") || msg.toLowerCase().includes("auth")) {
-          Alert.alert(
-            "雲端同步失敗 / Cloud Sync Failed",
-            "Firebase 認證失敗。請到 Firebase Console 啟用 Authentication → Sign-in method → Anonymous，並確認 Realtime Database rules 允許 auth != null。"
-          );
-        } else {
-          Alert.alert("雲端同步失敗 / Cloud Sync Failed", msg);
-        }
+        Alert.alert("冥想記錄雲端同步失敗");
         // Still do orb and achievements even if upload failed
         if (growOrb && !currentOrb.isAwakened) {
           const nextLevel = currentOrb.level + 1;
