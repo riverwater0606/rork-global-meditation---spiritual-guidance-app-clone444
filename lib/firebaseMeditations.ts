@@ -94,6 +94,7 @@ export async function uploadMeditationRecord(params: {
     await set(recordRef, record);
 
     console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
+    console.log("[firebaseMeditations] Upload success", { path, recordId });
     console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
   } catch (e: any) {

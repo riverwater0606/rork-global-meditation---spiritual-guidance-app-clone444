@@ -110,6 +110,7 @@ export async function uploadGiftOrb(params: {
     await set(giftRef, payload);
 
     console.log("[firebaseGifts] uploadGiftOrb:success", { giftId, toId });
+    console.log("[firebaseGifts] Upload success", { path, giftId });
     console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
   } catch (e: any) {

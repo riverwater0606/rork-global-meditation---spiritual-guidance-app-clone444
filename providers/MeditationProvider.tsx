@@ -256,8 +256,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
             await AsyncStorage.setItem("currentOrb", JSON.stringify(updatedOrb));
           }
         }
-        await checkAndUpdateAchievements(newStats);
-        return { uploaded: false, error: e?.message || "Upload failed" };
       }
     } else {
       console.log("[MeditationProvider] WARNING: No walletAddress - skipping Firebase upload");
@@ -280,7 +278,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         }
       }
       await checkAndUpdateAchievements(newStats);
-      return { uploaded: false, error: "NO_WALLET" };
+      return { uploaded: false, error: e?.message || "Upload failed" };
     }
   };
 

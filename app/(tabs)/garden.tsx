@@ -1809,11 +1809,16 @@ export default function GardenScreen() {
 
         setIsGiftingUI(true);
 
-        console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-        const result: any = await MiniKit.commandsAsync.shareContacts({
-          isMultiSelectEnabled: false,
-        });
-        console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+        let result: any;
+        if (MiniKit?.commandsAsync?.shareContacts) {
+          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
+          result = await MiniKit.commandsAsync.shareContacts({
+            isMultiSelectEnabled: false,
+          });
+          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+        } else {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
+        }
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
         const toWalletAddress: string = contact?.walletAddress || "unknown";
