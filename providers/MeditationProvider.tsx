@@ -196,6 +196,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     console.log("[MeditationProvider] courseName:", courseName);
     console.log("[MeditationProvider] duration:", duration);
     
+    Alert.alert(`walletAddress: ${walletAddress || "missing"}`);
+    Alert.alert("Attempting upload...");
+
     if (walletAddress) {
       console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
         walletPrefix: `${walletAddress.slice(0, 6)}...`,
@@ -210,6 +213,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         const result = await uploadMeditationRecord(recordData);
         console.log("[Meditation] Uploading record: " + JSON.stringify(recordData));
         console.log("[MeditationProvider] Meditation record uploaded to Firebase, recordId:", result.recordId);
+        Alert.alert("記錄已上傳");
         // Orb Logic after successful upload
         if (growOrb && !currentOrb.isAwakened) {
           const nextLevel = currentOrb.level + 1;
@@ -257,6 +261,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       }
     } else {
       console.log("[MeditationProvider] WARNING: No walletAddress - skipping Firebase upload");
+      Alert.alert("上傳失敗: walletAddress missing");
       // Still do orb and achievements even without wallet
       if (growOrb && !currentOrb.isAwakened) {
         const nextLevel = currentOrb.level + 1;

@@ -1786,6 +1786,7 @@ export default function GardenScreen() {
       try {
         if (!MiniKit || !MiniKit.isInstalled()) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
@@ -1795,17 +1796,14 @@ export default function GardenScreen() {
 
         if (!MiniKit.commandsAsync?.shareContacts) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           return;
         }
 
         if (!walletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert(
-            settings.language === "zh" ? "傳送失敗" : "Send failed",
-            settings.language === "zh"
-              ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
-              : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
-          );
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          Alert.alert("傳送失敗: walletAddress missing");
           return;
         }
 
