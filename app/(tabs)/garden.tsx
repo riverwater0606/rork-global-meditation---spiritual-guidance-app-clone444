@@ -1786,10 +1786,25 @@ export default function GardenScreen() {
       try {
         if (!MiniKit || !MiniKit.isInstalled()) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
           );
+          return;
+        }
+
+        if (!MiniKit.commandsAsync?.shareContacts) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          return;
+        }
+
+        if (!walletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          Alert.alert("傳送失敗: walletAddress missing");
+          return;
         }
 
         setIsGiftingUI(true);
@@ -1806,19 +1821,14 @@ export default function GardenScreen() {
         }
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || "test_unknown";
+        const toWalletAddress: string = contact?.walletAddress || "unknown";
 
-        if (toWalletAddress === "test_unknown") {
+        if (toWalletAddress === "unknown") {
           console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
         }
 
-        const fromWalletAddress = walletAddress || "missing";
-        Alert.alert("Gift send called");
-        console.log("[Garden] Gift send payload:", {
-          fromWalletAddress,
-          toWalletAddress,
-        });
-        Alert.alert(`from: ${fromWalletAddress}\nto: ${toWalletAddress}`);
+        const fromWalletAddress = walletAddress;
+        console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
           hasMiniKit: Boolean(MiniKit),
@@ -1850,10 +1860,10 @@ export default function GardenScreen() {
         });
 
         console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
-        Alert.alert("光球上傳成功");
+        Alert.alert("光球已傳送！");
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+        Alert.alert("傳送失敗，請檢查網路或錢包");
       } finally {
         setIsGiftingUI(false);
       }
