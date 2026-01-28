@@ -209,7 +209,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         duration,
       };
       try {
+        console.log("[Meditation] Uploading record: " + JSON.stringify(recordData));
         const result = await uploadMeditationRecord(recordData);
+        console.log("[Meditation] Uploading record: " + JSON.stringify(recordData));
         console.log("[MeditationProvider] Meditation record uploaded to Firebase, recordId:", result.recordId);
         Alert.alert("記錄已上傳");
         // Orb Logic after successful upload
@@ -236,7 +238,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
-        Alert.alert(`上傳失敗: ${e?.message || "unknown"}`);
+        Alert.alert("冥想記錄雲端同步失敗");
         // Still do orb and achievements even if upload failed
         if (growOrb && !currentOrb.isAwakened) {
           const nextLevel = currentOrb.level + 1;

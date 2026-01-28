@@ -1823,7 +1823,7 @@ export default function GardenScreen() {
         }
 
         const fromWalletAddress = walletAddress;
-        Alert.alert(`from: ${fromWalletAddress || "missing"}\nto: ${toWalletAddress || "unknown"}`);
+        console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
           hasMiniKit: Boolean(MiniKit),
@@ -1855,10 +1855,10 @@ export default function GardenScreen() {
         });
 
         console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
-        Alert.alert("光球已傳送");
+        Alert.alert("光球已傳送！");
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+        Alert.alert("傳送失敗，請檢查網路或錢包");
       } finally {
         setIsGiftingUI(false);
       }
