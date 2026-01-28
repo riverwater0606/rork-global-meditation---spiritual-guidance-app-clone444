@@ -1786,6 +1786,7 @@ export default function GardenScreen() {
       try {
         if (!MiniKit || !MiniKit.isInstalled()) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
@@ -1795,17 +1796,14 @@ export default function GardenScreen() {
 
         if (!MiniKit.commandsAsync?.shareContacts) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           return;
         }
 
         if (!walletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert(
-            settings.language === "zh" ? "傳送失敗" : "Send failed",
-            settings.language === "zh"
-              ? "你的錢包尚未連結（walletAddress 為空），請先登入/驗證後再傳送"
-              : "Your wallet is not connected (walletAddress is empty). Please sign in/verify first."
-          );
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          Alert.alert("傳送失敗: walletAddress missing");
           return;
         }
 
@@ -1818,18 +1816,14 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string | undefined = contact?.walletAddress;
+        const toWalletAddress: string = contact?.walletAddress || "unknown";
 
-        if (!toWalletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - cannot upload gift");
-          Alert.alert(
-            settings.language === "zh" ? "傳送失敗" : "Send failed",
-            settings.language === "zh" ? "沒有拿到對方錢包地址（shareContacts 沒回傳 walletAddress）" : "No recipient walletAddress returned by shareContacts"
-          );
-          return;
+        if (toWalletAddress === "unknown") {
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
         }
 
         const fromWalletAddress = walletAddress;
+        Alert.alert(`from: ${fromWalletAddress || "missing"}\nto: ${toWalletAddress || "unknown"}`);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
           hasMiniKit: Boolean(MiniKit),
@@ -1861,13 +1855,10 @@ export default function GardenScreen() {
         });
 
         console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
-        Alert.alert(
-          settings.language === "zh" ? "已傳送" : "Sent",
-          settings.language === "zh" ? "光球已成功上傳並傳送" : "Gift orb uploaded and sent successfully."
-        );
+        Alert.alert("光球已傳送");
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+        Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
       } finally {
         setIsGiftingUI(false);
       }
