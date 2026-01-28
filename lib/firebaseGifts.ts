@@ -89,7 +89,7 @@ export async function uploadGiftOrb(params: {
 
     const path = `gifts/${toId}`;
     console.log("[firebaseGifts] Writing to path:", path);
-    console.log("[firebaseGifts] Upload attempt to", path);
+    console.log("[Firebase] Writing to /gifts: " + path);
     
     const giftRef = push(ref(db, path));
     const giftId = giftRef.key;
@@ -116,7 +116,7 @@ export async function uploadGiftOrb(params: {
   } catch (e: any) {
     console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
-    console.error("[firebaseGifts] Upload failed", { code: e?.code, message: e?.message, path });
+    console.error("[Firebase] Write failed:", { code: e?.code, message: e?.message });
     console.error("[firebaseGifts] Error message:", e?.message);
     console.error("[firebaseGifts] Error code:", e?.code);
     console.error("[firebaseGifts] Error stack:", e?.stack);
