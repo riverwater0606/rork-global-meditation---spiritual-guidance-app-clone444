@@ -153,7 +153,7 @@ export default function MeditationPlayerScreen() {
       durationMinutesRef.current = durationMinutes;
       setTimeRemaining(durationMinutes * 60);
     }
-  }, [session?.duration, session?.id]);
+  }, [session]);
 
   useEffect(() => {
     if (isCustom && customSession?.breathingMethod) {

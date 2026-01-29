@@ -1026,15 +1026,24 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
         
-        // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
-        const contacts = payload?.contacts || payload?.response?.contacts || payload?.finalPayload?.contacts;
+        const status = payload?.status;
+        if (status === "error") {
+          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+          Alert.alert(
+            settings.language === "zh" ? "贈送失敗" : "Gift Failed",
+            settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
+          );
+          return;
+        }
+
+        const contacts = payload?.contacts;
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
-        if (contacts && contacts.length > 0) {
-           console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
-           handleGiftSuccessRef.current(contacts[0]);
+        if (status === "success" && contacts && contacts.length > 0) {
+          console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+          handleGiftSuccessRef.current(contacts[0]);
         } else {
-           console.log("[DEBUG_GIFT] Event triggered but no contacts found in payload");
+          console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
         }
       });
 
@@ -1042,9 +1051,9 @@ export default function GardenScreen() {
         MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
       };
     } else {
-        console.log("[DEBUG] MiniKit not installed or not available for subscription");
+      console.log("[DEBUG] MiniKit not installed or not available for subscription");
     }
-  }, []);
+  }, [settings.language]);
 
   // Update ref when insets change
   useEffect(() => {
@@ -1698,9 +1707,9 @@ export default function GardenScreen() {
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
-    if (isGifting.current) {
-        console.log("[DEBUG_GIFT] isGifting.current is true, ignoring duplicate call");
-        return;
+    if (giftUploadAttemptRef.current) {
+      console.log("[DEBUG_GIFT] giftUploadAttemptRef.current is true, ignoring duplicate call");
+      return;
     }
     isGifting.current = true;
 
@@ -1902,20 +1911,19 @@ export default function GardenScreen() {
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
         });
-        console.log("[DEBUG_GIFT_CLOUD] Calling uploadGiftOrb...", {
+        console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
           orbSnapshotId: orbSnapshot.id,
         });
 
-        const uploaded = await uploadGiftOrb({
+        await attemptGiftUpload({
           toWalletAddress,
           fromWalletAddress,
-          toWalletAddress,
           source: "shareContacts",
         });
 
-        console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
+        console.log("[DEBUG_GIFT_CLOUD] Gift uploaded via attemptGiftUpload");
         Alert.alert("光球已傳送！");
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
