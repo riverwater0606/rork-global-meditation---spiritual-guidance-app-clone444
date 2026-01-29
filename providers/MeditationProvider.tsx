@@ -159,7 +159,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
-  const resolveMeditationAuthUid = async () => {
+  const resolveMeditationUserId = async () => {
     const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
     if (authUser?.uid) {
       return { authUid: authUser.uid, source: "auth" as const };
