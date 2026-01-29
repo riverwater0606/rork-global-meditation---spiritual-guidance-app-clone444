@@ -14,6 +14,7 @@ export interface MeditationRecord {
   duration: number;
   energyRating?: number;
   createdAt: string;
+  walletAddress?: string;
 }
 
 export function sanitizeUserId(input: string): string {
@@ -25,7 +26,7 @@ export function sanitizeUserId(input: string): string {
 
 
 export async function uploadMeditationRecord(params: {
-  userId: string;
+  walletAddress?: string;
   courseName: string;
   duration: number;
   energyRating?: number;
@@ -37,7 +38,7 @@ export async function uploadMeditationRecord(params: {
   }
   console.log("[firebaseMeditations] ========== UPLOAD START ==========");
   console.log("[firebaseMeditations] uploadMeditationRecord:start", {
-    userId: params.userId,
+    walletAddress: params.walletAddress,
     courseName: params.courseName,
     duration: params.duration,
     energyRating: params.energyRating,
@@ -70,10 +71,7 @@ export async function uploadMeditationRecord(params: {
     const { db } = fb;
     console.log("[firebaseMeditations] Firebase DB obtained");
     
-    const safeUserId = sanitizeUserId(params.userId);
-    console.log("[firebaseMeditations] Sanitized userId:", safeUserId);
-
-    const path = `meditations/${safeUserId}`;
+    const path = `meditations/${authUser.uid}`;
     console.log("[firebaseMeditations] Writing to path:", path);
     console.log("[Firebase] Writing to /meditations: " + path);
     
@@ -88,12 +86,13 @@ export async function uploadMeditationRecord(params: {
       duration: params.duration,
       energyRating: params.energyRating,
       createdAt: new Date().toISOString(),
+      walletAddress: params.walletAddress,
     };
 
     console.log("[firebaseMeditations] Calling set() with record:", JSON.stringify(record));
     await set(recordRef, record);
 
-    console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
+    console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, uid: authUser.uid });
     console.log("[firebaseMeditations] Upload success", { path, recordId });
     console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
@@ -109,7 +108,7 @@ export async function uploadMeditationRecord(params: {
 }
 
 export async function fetchMeditationHistory(params: {
-  userId: string;
+  walletAddress?: string;
   limit?: number;
 }): Promise<MeditationRecord[]> {
   if (!isFirebaseEnabled()) {
@@ -118,7 +117,7 @@ export async function fetchMeditationHistory(params: {
     return [];
   }
   console.log("[firebaseMeditations] fetchMeditationHistory:start", {
-    userId: params.userId,
+    walletAddress: params.walletAddress,
     limit: params.limit,
   });
 
@@ -141,18 +140,31 @@ export async function fetchMeditationHistory(params: {
       return [];
     }
     const { db } = fb;
-    const safeUserId = sanitizeUserId(params.userId);
-    const meditationsRef = ref(db, `meditations/${safeUserId}`);
-    
-    const meditationsQuery = query(
-      meditationsRef,
+    const authMeditationsRef = ref(db, `meditations/${authUser.uid}`);
+    const authMeditationsQuery = query(
+      authMeditationsRef,
       orderByChild("createdAt"),
       limitToLast(params.limit ?? 50)
     );
 
-    const snap = await get(meditationsQuery);
+    let snap = await get(authMeditationsQuery);
+    if (!snap.exists() && params.walletAddress) {
+      const safeWalletId = sanitizeUserId(params.walletAddress);
+      console.log("[firebaseMeditations] fetchMeditationHistory:auth-empty, trying legacy wallet path", {
+        uid: authUser.uid,
+        safeWalletId,
+      });
+      const legacyRef = ref(db, `meditations/${safeWalletId}`);
+      const legacyQuery = query(
+        legacyRef,
+        orderByChild("createdAt"),
+        limitToLast(params.limit ?? 50)
+      );
+      snap = await get(legacyQuery);
+    }
+
     if (!snap.exists()) {
-      console.log("[firebaseMeditations] fetchMeditationHistory:empty", { safeUserId });
+      console.log("[firebaseMeditations] fetchMeditationHistory:empty", { uid: authUser.uid });
       return [];
     }
 
@@ -162,7 +174,7 @@ export async function fetchMeditationHistory(params: {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     console.log("[firebaseMeditations] fetchMeditationHistory:success", {
-      safeUserId,
+      uid: authUser.uid,
       count: list.length,
     });
 

@@ -162,10 +162,10 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   const resolveMeditationUserId = async () => {
     const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
     if (authUser?.uid) {
-      return { userId: authUser.uid, source: "auth" as const };
+      return { authUid: authUser.uid, source: "auth" as const };
     }
 
-    return { userId: null, source: "none" as const };
+    return { authUid: null, source: "none" as const };
   };
 
   const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string): Promise<{ uploaded: boolean; error?: string }> => {
@@ -200,26 +200,26 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Upload to Firebase if user is logged in
-    const { userId, source } = await resolveMeditationUserId();
+    const { authUid, source } = await resolveMeditationAuthUid();
 
     console.log("[MeditationProvider] completeMeditation: checking userId for Firebase upload");
     console.log("[MeditationProvider] walletAddress:", walletAddress);
-    console.log("[MeditationProvider] resolved userId:", userId);
+    console.log("[MeditationProvider] resolved auth uid:", authUid);
     console.log("[MeditationProvider] userId source:", source);
     console.log("[MeditationProvider] sessionId:", sessionId);
     console.log("[MeditationProvider] courseName:", courseName);
     console.log("[MeditationProvider] duration:", duration);
     
-    Alert.alert(`Upload userId (${source}): ${userId || "missing"}`);
+    Alert.alert(`Upload userId (${source}): ${authUid || "missing"}`);
     Alert.alert("Attempting upload...");
 
-    if (userId) {
+    if (authUid) {
       console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
-        userIdPrefix: `${userId.slice(0, 6)}...`,
+        userIdPrefix: `${authUid.slice(0, 6)}...`,
         source,
       });
       const recordData = {
-        userId,
+        walletAddress,
         courseName: courseName || sessionId,
         duration,
       };
