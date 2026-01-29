@@ -173,6 +173,7 @@ let authInitPromise: Promise<User | null> | null = null;
 let authReady = false;
 let authUser: User | null = null;
 let lastAuthError: { code?: string; message?: string } | null = null;
+let lastWriteError: { code?: string; message?: string } | null = null;
 
 function syncCachedUser(user: User | null) {
   if (cached) {
@@ -184,6 +185,10 @@ export function getFirebaseLastAuthError(): { code?: string; message?: string } 
   return lastAuthError;
 }
 
+export function setFirebaseLastWriteError(error: { code?: string; message?: string } | null) {
+  lastWriteError = error;
+}
+
 export function getFirebaseDiagnostics(): {
   enabled: boolean;
   missingEnv: string[];
@@ -191,6 +196,7 @@ export function getFirebaseDiagnostics(): {
   authUid: string | null;
   authIsAnonymous: boolean | null;
   lastAuthError: { code?: string; message?: string } | null;
+  lastWriteError: { code?: string; message?: string } | null;
   databaseURL: string | null;
 } {
   return {
@@ -200,6 +206,7 @@ export function getFirebaseDiagnostics(): {
     authUid: authUser?.uid ?? null,
     authIsAnonymous: typeof authUser?.isAnonymous === "boolean" ? authUser.isAnonymous : null,
     lastAuthError,
+    lastWriteError,
     databaseURL: firebaseConfig?.databaseURL ?? null,
   };
 }
