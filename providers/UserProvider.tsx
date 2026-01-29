@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import { router } from "expo-router";
 
 interface UserProfile {
   name: string;
@@ -95,9 +97,60 @@ export const [UserProvider, useUser] = createContextHook(() => {
     setIsVerified(false);
     setVerification(null);
     setWalletAddress(null);
-    await AsyncStorage.removeItem('isVerified');
-    await AsyncStorage.removeItem('verificationPayload');
-    await AsyncStorage.removeItem('walletAddress');
+    await AsyncStorage.multiRemove([
+      'isVerified',
+      'verificationPayload',
+      'walletAddress',
+      'wallet-auth',
+      'worldid:result',
+      'userProfile',
+      'isVIP',
+    ]);
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const sensitiveKeys = allKeys.filter((key) =>
+        /verify|world|wallet|auth|token|session|user/i.test(key),
+      );
+      if (sensitiveKeys.length > 0) {
+        await AsyncStorage.multiRemove(sensitiveKeys);
+      }
+    } catch (error) {
+      console.log('[UserProvider] Failed to clear sensitive AsyncStorage keys', error);
+    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        const sessionKeys = Object.keys(window.sessionStorage ?? {});
+        sessionKeys.forEach((key) => {
+          if (/verify|world|wallet|auth|token|session|user/i.test(key)) {
+            window.sessionStorage?.removeItem(key);
+          }
+        });
+      } catch (error) {
+        console.log('[UserProvider] Failed to clear sessionStorage', error);
+      }
+      try {
+        const localKeys = Object.keys(window.localStorage ?? {});
+        localKeys.forEach((key) => {
+          if (/verify|world|wallet|auth|token|session|user/i.test(key)) {
+            window.localStorage?.removeItem(key);
+          }
+        });
+      } catch (error) {
+        console.log('[UserProvider] Failed to clear localStorage', error);
+      }
+    }
+    try {
+      router.replace('/sign-in');
+    } catch (error) {
+      console.log('[UserProvider] router.replace failed during logout', error);
+    }
+    setTimeout(() => {
+      try {
+        router.replace('/sign-in');
+      } catch (error) {
+        console.log('[UserProvider] router.replace retry failed during logout', error);
+      }
+    }, 0);
     console.log('[UserProvider] Logout complete');
   };
 
