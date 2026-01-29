@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -100,15 +100,21 @@ export default function MeditationPlayerScreen() {
   
   const customSession = customMeditations.find(m => m.id === id);
   const isCustom = !!customSession;
-  const session = isCustom ? {
-    id: customSession.id,
-    title: customSession.title,
-    description: customSession.script.substring(0, 100) + '...',
-    duration: customSession.duration,
-    narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
-    category: 'custom',
-    gradient: customSession.gradient || ['#8B5CF6', '#6366F1'],
-  } : sessionFromLibrary;
+  const session = useMemo(() => {
+    if (isCustom && customSession) {
+      return {
+        id: customSession.id,
+        title: customSession.title,
+        description: customSession.script.substring(0, 100) + "...",
+        duration: customSession.duration,
+        narrator: lang === "zh" ? "AI 生成" : "AI Generated",
+        category: "custom",
+        gradient: customSession.gradient || ["#8B5CF6", "#6366F1"],
+      };
+    }
+
+    return sessionFromLibrary;
+  }, [customSession, isCustom, lang, sessionFromLibrary]);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
