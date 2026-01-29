@@ -82,14 +82,17 @@ export async function uploadMeditationRecord(params: {
     const recordId = recordRef.key;
     if (!recordId) throw new Error("Failed to allocate recordId");
 
-    const record: MeditationRecord = {
-      id: recordId,
-      date: new Date().toISOString(),
-      courseName: params.courseName,
-      duration: params.duration,
-      energyRating: params.energyRating,
-      createdAt: new Date().toISOString(),
-    };
+    const now = new Date().toISOString();
+    const record: MeditationRecord = Object.fromEntries(
+      Object.entries({
+        id: recordId,
+        date: now,
+        courseName: params.courseName,
+        duration: params.duration,
+        energyRating: params.energyRating,
+        createdAt: now,
+      }).filter(([, value]) => value !== undefined)
+    ) as MeditationRecord;
 
     console.log("[firebaseMeditations] Calling set() with record:", JSON.stringify(record));
     await set(recordRef, record);
