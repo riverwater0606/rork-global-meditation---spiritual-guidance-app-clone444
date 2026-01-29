@@ -42,7 +42,7 @@ export default function ProgressScreen() {
     console.log("[ProgressScreen] Loading meditation history...");
     
     try {
-      const history = await fetchMeditationHistory({ userId: resolvedUserId, limit: 50 });
+      const history = await fetchMeditationHistory({ walletAddress, limit: 50 });
       setMeditationHistory(history);
       setSyncStatus("success");
       console.log("[ProgressScreen] Loaded history count:", history.length);
@@ -53,24 +53,19 @@ export default function ProgressScreen() {
       pollInFlightRef.current = false;
       setIsLoadingHistory(false);
     }
-  }, [resolvedUserId]);
+  }, [resolvedUserId, walletAddress]);
 
   useEffect(() => {
     let isActive = true;
     const resolveUser = async () => {
-      if (walletAddress) {
-        if (isActive) {
-          setResolvedUserId(walletAddress);
-          setUserIdSource("wallet");
-        }
-        return;
-      }
-
       const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
       if (isActive) {
         if (authUser?.uid) {
           setResolvedUserId(authUser.uid);
           setUserIdSource("auth");
+        } else if (walletAddress) {
+          setResolvedUserId(walletAddress);
+          setUserIdSource("wallet");
         } else {
           setResolvedUserId(null);
           setUserIdSource("none");
