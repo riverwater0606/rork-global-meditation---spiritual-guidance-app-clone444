@@ -63,13 +63,17 @@ export async function uploadGiftOrb(params: {
     
     if (!authUser) {
       const last = getFirebaseLastAuthError();
-      console.warn("[firebaseGifts] Firebase auth missing - continuing with open rules", last);
-    } else {
-      console.log("[firebaseGifts] Auth ready:", {
-        uid: authUser.uid,
-        isAnonymous: authUser.isAnonymous,
-      });
+      console.error("[firebaseGifts] Firebase auth failed - no user", last);
+      const code = last?.code ? ` (${last.code})` : "";
+      throw new Error(
+        `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
+      );
     }
+    
+    console.log("[firebaseGifts] Auth ready:", {
+      uid: authUser.uid,
+      isAnonymous: authUser.isAnonymous,
+    });
 
     const fb = getFirebaseMaybe();
     if (!fb) {
