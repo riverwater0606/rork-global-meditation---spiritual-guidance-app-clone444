@@ -51,6 +51,7 @@ export default function GuidedSessionScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const durationMinutesRef = useRef(10);
   const breathAnimation = useRef(new Animated.Value(0)).current;
   const progressAnimation = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -58,7 +59,9 @@ export default function GuidedSessionScreen() {
 
   useEffect(() => {
     if (meditation) {
-      setTimeRemaining(meditation.duration * 60);
+      const durationMinutes = Math.max(1, meditation.duration ?? 0);
+      durationMinutesRef.current = durationMinutes;
+      setTimeRemaining(durationMinutes * 60);
     }
   }, [meditation]);
 
@@ -69,22 +72,20 @@ export default function GuidedSessionScreen() {
           if (prev <= 1) {
             setIsPlaying(false);
             try {
-              const durationMin = meditation?.duration ?? 0;
-              if (durationMin > 0) {
-                console.log("[GuidedSession] completed - recording meditation", {
-                  id,
-                  durationMin,
-                  language,
-                });
-                void completeMeditation(
-                  String(id ?? "guided"),
-                  durationMin,
-                  false,
-                  meditation?.title?.[language] ?? "Guided Session"
-                );
-              } else {
-                console.log("[GuidedSession] completed but duration missing - skip record", { id, durationMin });
-              }
+              const durationMin = Math.max(1, durationMinutesRef.current || 0);
+              const courseName = `Guided: ${meditation?.title?.[language] ?? "Guided Session"}`;
+              console.log("[GuidedSession] completed - recording meditation", {
+                id,
+                durationMin,
+                language,
+                courseName,
+              });
+              void completeMeditation(
+                String(id ?? "guided"),
+                durationMin,
+                false,
+                courseName
+              );
             } catch (e) {
               console.error("[GuidedSession] completeMeditation failed", e);
             }

@@ -112,6 +112,7 @@ export default function MeditationPlayerScreen() {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(session?.duration ? session.duration * 60 : 600);
+  const durationMinutesRef = useRef(10);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
@@ -139,6 +140,14 @@ export default function MeditationPlayerScreen() {
       }
     };
   }, [fadeAnimation, isSpeaking]);
+
+  useEffect(() => {
+    if (session) {
+      const durationMinutes = Math.max(1, session.duration ?? 10);
+      durationMinutesRef.current = durationMinutes;
+      setTimeRemaining(durationMinutes * 60);
+    }
+  }, [session]);
 
   useEffect(() => {
     if (isCustom && customSession?.breathingMethod) {
@@ -400,9 +409,13 @@ export default function MeditationPlayerScreen() {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
             setIsPlaying(false);
-            const courseName = session?.title || session?.id || "Meditation Session";
-            console.log('[meditation/[id]] Completing meditation:', { sessionId: session?.id, duration: session?.duration, courseName });
-            completeMeditation(session?.id || "", session?.duration || 10, false, courseName);
+            const courseLabel = isCustom ? "AI" : "Library";
+            const courseTitle = session?.title || session?.id || "Meditation Session";
+            const courseName = `${courseLabel}: ${courseTitle}`;
+            const durationMinutes = Math.max(1, durationMinutesRef.current || session?.duration || 0);
+            const sessionId = session?.id || String(id ?? "meditation");
+            console.log('[meditation/[id]] Completing meditation:', { sessionId, durationMinutes, courseName });
+            completeMeditation(sessionId, durationMinutes, false, courseName);
             return 0;
           }
           return prev - 1;
