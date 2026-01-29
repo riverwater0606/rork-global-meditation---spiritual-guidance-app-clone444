@@ -1026,15 +1026,24 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
         
-        // FORCE SUCCESS: If we have contacts, it is a success, regardless of status flags
-        const contacts = payload?.contacts || payload?.response?.contacts || payload?.finalPayload?.contacts;
+        const status = payload?.status;
+        if (status === "error") {
+          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+          Alert.alert(
+            settings.language === "zh" ? "贈送失敗" : "Gift Failed",
+            settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
+          );
+          return;
+        }
+
+        const contacts = payload?.contacts;
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
-        if (contacts && contacts.length > 0) {
-           console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
-           handleGiftSuccessRef.current(contacts[0]);
+        if (status === "success" && contacts && contacts.length > 0) {
+          console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+          handleGiftSuccessRef.current(contacts[0]);
         } else {
-           console.log("[DEBUG_GIFT] Event triggered but no contacts found in payload");
+          console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
         }
       });
 
@@ -1042,9 +1051,9 @@ export default function GardenScreen() {
         MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
       };
     } else {
-        console.log("[DEBUG] MiniKit not installed or not available for subscription");
+      console.log("[DEBUG] MiniKit not installed or not available for subscription");
     }
-  }, []);
+  }, [settings.language]);
 
   // Update ref when insets change
   useEffect(() => {
@@ -1522,17 +1531,28 @@ export default function GardenScreen() {
   const finishMeditation = async (durationMinutes: number) => {
      stopMeditation();
      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+     const recordDuration = Math.max(1, durationMinutes || awakenedDuration || 1);
      
      // FOR TESTING: Removed !hasGrownOrbToday check
      if (!currentOrb.isAwakened) {
        await cultivateDailyOrb();
-       await completeMeditation("garden-session", durationMinutes, true, "Garden Meditation");
+       await completeMeditation(
+         "garden-daily",
+         Math.max(1, durationMinutes),
+         false,
+         "Garden Meditation"
+       );
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
           settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
        );
      } else {
-       await completeMeditation("awakened-session", durationMinutes, false, "Garden Meditation (Awakened)");
+       await completeMeditation(
+         "awakened-session",
+         recordDuration,
+         false,
+         "Garden: Awakened Meditation"
+       );
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
           settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
@@ -1687,9 +1707,9 @@ export default function GardenScreen() {
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
-    if (isGifting.current) {
-        console.log("[DEBUG_GIFT] isGifting.current is true, ignoring duplicate call");
-        return;
+    if (giftUploadAttemptRef.current) {
+      console.log("[DEBUG_GIFT] giftUploadAttemptRef.current is true, ignoring duplicate call");
+      return;
     }
     isGifting.current = true;
 
@@ -1841,10 +1861,25 @@ export default function GardenScreen() {
       try {
         if (!MiniKit || !MiniKit.isInstalled()) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
           );
+          return;
+        }
+
+        if (!MiniKit.commandsAsync?.shareContacts) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          return;
+        }
+
+        if (!walletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
+          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          Alert.alert("傳送失敗: walletAddress missing");
+          return;
         }
 
         setIsGiftingUI(true);
@@ -1861,21 +1896,38 @@ export default function GardenScreen() {
         }
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || "test_unknown";
+        const toWalletAddress: string = contact?.walletAddress || "unknown";
 
-        if (toWalletAddress === "test_unknown") {
+        if (toWalletAddress === "unknown") {
           console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
         }
 
-        const fromWalletAddress = walletAddress || "missing";
+        const fromWalletAddress = walletAddress;
+        console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
+
+        console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
+          hasMiniKit: Boolean(MiniKit),
+          hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+        });
+        console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+          orbSnapshotId: orbSnapshot.id,
+        });
+
         await attemptGiftUpload({
-          fromWalletAddress,
           toWalletAddress,
+          fromWalletAddress,
           source: "shareContacts",
         });
-      } catch (e: any) {
+
+        console.log("[DEBUG_GIFT_CLOUD] Gift uploaded via attemptGiftUpload");
+        Alert.alert("光球已傳送！");
+      } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+        Alert.alert("傳送失敗，請檢查網路或錢包");
       } finally {
         setIsGiftingUI(false);
       }
