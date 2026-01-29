@@ -1,4 +1,4 @@
-import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
+import { get, push, ref, set } from "firebase/database";
 import {
   getFirebaseLastAuthError,
   getFirebaseMaybe,
@@ -155,29 +155,26 @@ export async function fetchMeditationHistory(params: {
     const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
-    
-    const meditationsQuery = query(
-      meditationsRef,
-      orderByChild("createdAt"),
-      limitToLast(params.limit ?? 50)
-    );
 
-    const snap = await get(meditationsQuery);
+    const buildList = (value: Record<string, MeditationRecord> | null) => {
+      if (!value) return [];
+      const sorted = Object.entries(value)
+        .map(([id, record]) => ({ ...record, id }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return sorted.slice(0, params.limit ?? 50);
+    };
+
+    const snap = await get(meditationsRef);
     if (!snap.exists()) {
       console.log("[firebaseMeditations] fetchMeditationHistory:empty", { safeUserId });
       return [];
     }
 
-    const val = snap.val() as Record<string, MeditationRecord>;
-    const list = Object.entries(val)
-      .map(([id, record]) => ({ ...record, id }))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    console.log("[firebaseMeditations] fetchMeditationHistory:success", {
+    const list = buildList(snap.val() as Record<string, MeditationRecord>);
+    console.log("[firebaseMeditations] fetchMeditationHistory:success (raw)", {
       safeUserId,
       count: list.length,
     });
-
     return list;
   } catch (e) {
     console.error("[firebaseMeditations] fetchMeditationHistory:error", e);
