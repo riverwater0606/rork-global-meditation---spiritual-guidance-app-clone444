@@ -162,22 +162,38 @@ export async function fetchMeditationHistory(params: {
       limitToLast(params.limit ?? 50)
     );
 
+    const buildList = (value: Record<string, MeditationRecord> | null) => {
+      if (!value) return [];
+      return Object.entries(value)
+        .map(([id, record]) => ({ ...record, id }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    };
+
     const snap = await get(meditationsQuery);
-    if (!snap.exists()) {
+    if (snap.exists()) {
+      const list = buildList(snap.val() as Record<string, MeditationRecord>);
+      console.log("[firebaseMeditations] fetchMeditationHistory:success", {
+        safeUserId,
+        count: list.length,
+      });
+      return list;
+    }
+
+    console.log("[firebaseMeditations] fetchMeditationHistory:empty (query), retrying without query", {
+      safeUserId,
+    });
+
+    const rawSnap = await get(meditationsRef);
+    if (!rawSnap.exists()) {
       console.log("[firebaseMeditations] fetchMeditationHistory:empty", { safeUserId });
       return [];
     }
 
-    const val = snap.val() as Record<string, MeditationRecord>;
-    const list = Object.entries(val)
-      .map(([id, record]) => ({ ...record, id }))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    console.log("[firebaseMeditations] fetchMeditationHistory:success", {
+    const list = buildList(rawSnap.val() as Record<string, MeditationRecord>);
+    console.log("[firebaseMeditations] fetchMeditationHistory:success (raw)", {
       safeUserId,
       count: list.length,
     });
-
     return list;
   } catch (e) {
     console.error("[firebaseMeditations] fetchMeditationHistory:error", e);
