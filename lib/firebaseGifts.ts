@@ -63,17 +63,13 @@ export async function uploadGiftOrb(params: {
     
     if (!authUser) {
       const last = getFirebaseLastAuthError();
-      console.error("[firebaseGifts] Firebase auth failed - no user", last);
-      const code = last?.code ? ` (${last.code})` : "";
-      throw new Error(
-        `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
-      );
+      console.warn("[firebaseGifts] Firebase auth missing - continuing with open rules", last);
+    } else {
+      console.log("[firebaseGifts] Auth ready:", {
+        uid: authUser.uid,
+        isAnonymous: authUser.isAnonymous,
+      });
     }
-    
-    console.log("[firebaseGifts] Auth ready:", {
-      uid: authUser.uid,
-      isAnonymous: authUser.isAnonymous,
-    });
 
     const fb = getFirebaseMaybe();
     if (!fb) {
@@ -89,6 +85,7 @@ export async function uploadGiftOrb(params: {
 
     const path = `gifts/${toId}`;
     console.log("[firebaseGifts] Writing to path:", path);
+    console.log("[firebaseGifts] Upload attempt to", path);
     
     const giftRef = push(ref(db, path));
     const giftId = giftRef.key;
@@ -109,11 +106,13 @@ export async function uploadGiftOrb(params: {
     await set(giftRef, payload);
 
     console.log("[firebaseGifts] uploadGiftOrb:success", { giftId, toId });
+    console.log("[firebaseGifts] Upload success", { path, giftId });
     console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
   } catch (e: any) {
     console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
+    console.error("[firebaseGifts] Upload failed", { code: e?.code, message: e?.message, path });
     console.error("[firebaseGifts] Error message:", e?.message);
     console.error("[firebaseGifts] Error code:", e?.code);
     console.error("[firebaseGifts] Error stack:", e?.stack);

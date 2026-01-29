@@ -49,17 +49,13 @@ export async function uploadMeditationRecord(params: {
     
     if (!authUser) {
       const last = getFirebaseLastAuthError();
-      console.error("[firebaseMeditations] Firebase auth failed - no user", last);
-      const code = last?.code ? ` (${last.code})` : "";
-      throw new Error(
-        `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
-      );
+      console.warn("[firebaseMeditations] Firebase auth missing - continuing with open rules", last);
+    } else {
+      console.log("[firebaseMeditations] Auth ready:", {
+        uid: authUser.uid,
+        isAnonymous: authUser.isAnonymous,
+      });
     }
-    
-    console.log("[firebaseMeditations] Auth ready:", {
-      uid: authUser.uid,
-      isAnonymous: authUser.isAnonymous,
-    });
 
     const fb = getFirebaseMaybe();
     if (!fb) {
@@ -75,6 +71,7 @@ export async function uploadMeditationRecord(params: {
 
     const path = `meditations/${safeUserId}`;
     console.log("[firebaseMeditations] Writing to path:", path);
+    console.log("[firebaseMeditations] Upload attempt to", path);
     
     const recordRef = push(ref(db, path));
     const recordId = recordRef.key;
@@ -93,11 +90,13 @@ export async function uploadMeditationRecord(params: {
     await set(recordRef, record);
 
     console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
+    console.log("[firebaseMeditations] Upload success", { path, recordId });
     console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
   } catch (e: any) {
     console.error("[firebaseMeditations] ========== UPLOAD FAILED ==========");
     console.error("[firebaseMeditations] uploadMeditationRecord:error", e);
+    console.error("[firebaseMeditations] Upload failed", { code: e?.code, message: e?.message, path });
     console.error("[firebaseMeditations] Error message:", e?.message);
     console.error("[firebaseMeditations] Error code:", e?.code);
     console.error("[firebaseMeditations] Error stack:", e?.stack);
