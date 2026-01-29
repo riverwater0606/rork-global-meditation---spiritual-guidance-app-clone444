@@ -160,10 +160,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
   };
 
   const resolveMeditationUserId = async () => {
-    if (walletAddress) {
-      return { userId: walletAddress, source: "wallet" as const };
-    }
-
     const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
     if (authUser?.uid) {
       return { userId: authUser.uid, source: "auth" as const };
