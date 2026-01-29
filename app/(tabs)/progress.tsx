@@ -15,6 +15,7 @@ import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { fetchMeditationHistory, MeditationRecord } from "@/lib/firebaseMeditations";
+import { getFirebaseAuthUser, waitForFirebaseAuth } from "@/constants/firebase";
 
 const { width } = Dimensions.get("window");
 
@@ -27,19 +28,21 @@ export default function ProgressScreen() {
   const [meditationHistory, setMeditationHistory] = useState<MeditationRecord[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"success" | "failed" | "missing">("missing");
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [userIdSource, setUserIdSource] = useState<"wallet" | "auth" | "none">("none");
   const pollInFlightRef = useRef(false);
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   const currentDay = new Date().getDay();
 
   const loadHistory = useCallback(async () => {
-    if (!walletAddress || pollInFlightRef.current) return;
+    if (!resolvedUserId || pollInFlightRef.current) return;
     
     pollInFlightRef.current = true;
     console.log("[ProgressScreen] Loading meditation history...");
     
     try {
-      const history = await fetchMeditationHistory({ userId: walletAddress, limit: 50 });
+      const history = await fetchMeditationHistory({ userId: resolvedUserId, limit: 50 });
       setMeditationHistory(history);
       setSyncStatus("success");
       console.log("[ProgressScreen] Loaded history count:", history.length);
@@ -50,14 +53,43 @@ export default function ProgressScreen() {
       pollInFlightRef.current = false;
       setIsLoadingHistory(false);
     }
+  }, [resolvedUserId]);
+
+  useEffect(() => {
+    let isActive = true;
+    const resolveUser = async () => {
+      if (walletAddress) {
+        if (isActive) {
+          setResolvedUserId(walletAddress);
+          setUserIdSource("wallet");
+        }
+        return;
+      }
+
+      const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
+      if (isActive) {
+        if (authUser?.uid) {
+          setResolvedUserId(authUser.uid);
+          setUserIdSource("auth");
+        } else {
+          setResolvedUserId(null);
+          setUserIdSource("none");
+        }
+      }
+    };
+
+    void resolveUser();
+    return () => {
+      isActive = false;
+    };
   }, [walletAddress]);
 
   useEffect(() => {
-    if (!walletAddress) {
+    if (!resolvedUserId) {
       setSyncStatus("missing");
     }
 
-    if (walletAddress) {
+    if (resolvedUserId) {
       setIsLoadingHistory(true);
       loadHistory();
 
@@ -75,7 +107,13 @@ export default function ProgressScreen() {
         subscription.remove();
       };
     }
-  }, [walletAddress, loadHistory]);
+  }, [resolvedUserId, loadHistory]);
+
+  const formattedUserId = resolvedUserId
+    ? userIdSource === "wallet"
+      ? `${resolvedUserId.slice(0, 6)}...${resolvedUserId.slice(-4)}`
+      : `${resolvedUserId.slice(0, 8)}...${resolvedUserId.slice(-6)}`
+    : null;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -107,7 +145,10 @@ export default function ProgressScreen() {
         {/* Stats Overview */}
         <View style={[styles.syncBanner, { backgroundColor: currentTheme.surface }]}>
           <Text style={[styles.syncBannerText, { color: currentTheme.textSecondary }]}>
-            Firebase Sync: {syncStatus === "success" ? "Success" : syncStatus === "failed" ? "Failed" : "Missing wallet"}
+            Firebase Sync: {syncStatus === "success" ? "Success" : syncStatus === "failed" ? "Failed" : "Missing userId"}
+          </Text>
+          <Text style={[styles.syncBannerText, { color: currentTheme.textSecondary }]}>
+            {lang === "zh" ? "使用者來源" : "User source"}: {userIdSource === "wallet" ? "Wallet" : userIdSource === "auth" ? "Auth UID" : "None"}{formattedUserId ? ` (${formattedUserId})` : ""}
           </Text>
         </View>
         <View style={styles.statsContainer}>
@@ -176,7 +217,7 @@ export default function ProgressScreen() {
         </View>
 
         {/* Meditation History */}
-        {walletAddress && (
+        {resolvedUserId && (
           <View style={styles.historyContainer}>
             <View style={styles.historyHeader}>
               <Text style={[styles.sectionTitle, { color: currentTheme.text }]}>
