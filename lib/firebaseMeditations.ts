@@ -4,6 +4,7 @@ import {
   getFirebaseMaybe,
   getFirebaseMissingEnv,
   isFirebaseEnabled,
+  setFirebaseLastWriteError,
   waitForFirebaseAuth,
 } from "@/constants/firebase";
 
@@ -98,13 +99,21 @@ export async function uploadMeditationRecord(params: {
     console.log("[firebaseMeditations] ========== UPLOAD SUCCESS ==========");
     return { recordId };
   } catch (e: any) {
+    const code = e?.code;
+    const message = e?.message;
     console.error("[firebaseMeditations] ========== UPLOAD FAILED ==========");
     console.error("[firebaseMeditations] uploadMeditationRecord:error", e);
     console.error("[Firebase] Write failed:", { code: e?.code, message: e?.message });
     console.error("[firebaseMeditations] Error message:", e?.message);
     console.error("[firebaseMeditations] Error code:", e?.code);
     console.error("[firebaseMeditations] Error stack:", e?.stack);
-    throw e;
+    setFirebaseLastWriteError({ code, message });
+    const normalizedError = e instanceof Error ? e : new Error(message ?? "Firebase write failed");
+    (normalizedError as { code?: string }).code = code;
+    if (message && normalizedError.message !== message) {
+      normalizedError.message = message;
+    }
+    throw normalizedError;
   }
 }
 

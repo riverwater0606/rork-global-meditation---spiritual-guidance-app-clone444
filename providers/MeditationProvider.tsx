@@ -244,7 +244,9 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
       } catch (e: any) {
         console.error("[MeditationProvider] Failed to upload meditation record:", e);
         console.error("[MeditationProvider] Error message:", e?.message);
-        Alert.alert("冥想記錄雲端同步失敗");
+        const code = e?.code ?? "unknown";
+        const message = e?.message ?? "";
+        Alert.alert("冥想記錄雲端同步失敗", `${code}: ${message}`);
         // Still do orb and achievements even if upload failed
         if (growOrb && !currentOrb.isAwakened) {
           const nextLevel = currentOrb.level + 1;

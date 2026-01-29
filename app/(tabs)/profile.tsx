@@ -553,6 +553,29 @@ export default function ProfileScreen() {
               );
             })()}
 
+            {(() => {
+              const diag = getFirebaseDiagnostics();
+              const err = diag.lastWriteError;
+              if (!err?.code && !err?.message) return null;
+              return (
+                <View style={styles.debugRow}>
+                  <AlertCircle size={16} color="#F59E0B" />
+                  <Text style={[styles.debugLabel, { color: currentTheme.text }]}>
+                    {lang === "zh" ? "寫入錯誤" : "Write Error"}:
+                  </Text>
+                  <Text
+                    style={[
+                      styles.debugValue,
+                      { color: "#F59E0B", flex: 1 },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {(err.code ?? "unknown") + ": " + (err.message ?? "")}
+                  </Text>
+                </View>
+              );
+            })()}
+
             {/* Firebase Test */}
             <TouchableOpacity
               disabled={firebaseTestRunning}
