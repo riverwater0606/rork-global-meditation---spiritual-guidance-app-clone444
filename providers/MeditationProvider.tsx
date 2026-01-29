@@ -3,6 +3,7 @@ import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
+import { getFirebaseAuthUser, waitForFirebaseAuth } from "@/constants/firebase";
 import { useUser } from "@/providers/UserProvider";
 import { Alert } from "react-native";
 
@@ -158,6 +159,19 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
+  const resolveMeditationUserId = async () => {
+    if (walletAddress) {
+      return { userId: walletAddress, source: "wallet" as const };
+    }
+
+    const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
+    if (authUser?.uid) {
+      return { userId: authUser.uid, source: "auth" as const };
+    }
+
+    return { userId: null, source: "none" as const };
+  };
+
   const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string): Promise<{ uploaded: boolean; error?: string }> => {
     const today = new Date();
     const todayStr = today.toDateString();
@@ -190,21 +204,26 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Upload to Firebase if user is logged in
-    console.log("[MeditationProvider] completeMeditation: checking walletAddress for Firebase upload");
+    const { userId, source } = await resolveMeditationUserId();
+
+    console.log("[MeditationProvider] completeMeditation: checking userId for Firebase upload");
     console.log("[MeditationProvider] walletAddress:", walletAddress);
+    console.log("[MeditationProvider] resolved userId:", userId);
+    console.log("[MeditationProvider] userId source:", source);
     console.log("[MeditationProvider] sessionId:", sessionId);
     console.log("[MeditationProvider] courseName:", courseName);
     console.log("[MeditationProvider] duration:", duration);
     
-    Alert.alert(`walletAddress: ${walletAddress || "missing"}`);
+    Alert.alert(`Upload userId (${source}): ${userId || "missing"}`);
     Alert.alert("Attempting upload...");
 
-    if (walletAddress) {
+    if (userId) {
       console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
-        walletPrefix: `${walletAddress.slice(0, 6)}...`,
+        userIdPrefix: `${userId.slice(0, 6)}...`,
+        source,
       });
       const recordData = {
-        userId: walletAddress,
+        userId,
         courseName: courseName || sessionId,
         duration,
       };
@@ -258,8 +277,8 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         }
       }
     } else {
-      console.log("[MeditationProvider] WARNING: No walletAddress - skipping Firebase upload");
-      Alert.alert("上傳失敗: walletAddress missing");
+      console.log("[MeditationProvider] WARNING: No userId - skipping Firebase upload");
+      Alert.alert("上傳失敗: userId missing");
       // Still do orb and achievements even without wallet
       if (growOrb && !currentOrb.isAwakened) {
         const nextLevel = currentOrb.level + 1;
@@ -278,7 +297,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
         }
       }
       await checkAndUpdateAchievements(newStats);
-      return { uploaded: false, error: e?.message || "Upload failed" };
+      return { uploaded: false, error: "Upload failed: missing userId" };
     }
   };
 
