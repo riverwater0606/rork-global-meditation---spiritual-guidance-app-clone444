@@ -1538,9 +1538,9 @@ export default function GardenScreen() {
        await cultivateDailyOrb();
        await completeMeditation(
          "garden-daily",
-         recordDuration,
+         Math.max(1, durationMinutes),
          false,
-         "Garden: Daily Meditation"
+         "Garden Meditation"
        );
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
