@@ -6,12 +6,8 @@ import {
   isFirebaseEnabled,
   waitForFirebaseAuth,
 } from "@/constants/firebase";
-
-function sanitizeKey(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return "unknown";
-  return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
+import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
+import { sanitizeUserId } from "@/lib/firebaseMeditations";
 
 export async function firebaseDebugPing(params: {
   walletAddress: string;
@@ -35,8 +31,13 @@ export async function firebaseDebugPing(params: {
     throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
   }
 
-  const safe = sanitizeKey(params.walletAddress);
-  const path = `debug/ping/${safe}`;
+  const resolved = await resolveMeditationUserId({ walletAddress: params.walletAddress });
+  if (!resolved.userId) {
+    throw new Error("No userId resolved for meditation debug ping.");
+  }
+
+  const safeUserId = sanitizeUserId(resolved.userId);
+  const path = `meditations/${safeUserId}/__debug`;
 
   const r = push(ref(fb.db, path));
   const key = r.key;
@@ -45,6 +46,8 @@ export async function firebaseDebugPing(params: {
   const payload = {
     createdAt: new Date().toISOString(),
     authUid: authUser.uid,
+    resolvedUserId: resolved.userId,
+    resolvedSource: resolved.source,
     walletAddress: params.walletAddress,
     platform: "expo",
   };

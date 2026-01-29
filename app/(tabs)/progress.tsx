@@ -13,21 +13,23 @@ import { LinearGradient } from "expo-linear-gradient";
 import { TrendingUp, Calendar, Award, Target, Clock, BookOpen } from "lucide-react-native";
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
+import { useUser } from "@/providers/UserProvider";
 import { fetchMeditationHistory, MeditationRecord } from "@/lib/firebaseMeditations";
-import { getFirebaseAuthUser, waitForFirebaseAuth } from "@/constants/firebase";
+import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
 
 const { width } = Dimensions.get("window");
 
 export default function ProgressScreen() {
   const { currentTheme, settings } = useSettings();
   const { stats, achievements } = useMeditation();
+  const { walletAddress } = useUser();
   const lang = settings.language;
 
   const [meditationHistory, setMeditationHistory] = useState<MeditationRecord[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"success" | "failed" | "missing">("missing");
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
-  const [userIdSource, setUserIdSource] = useState<"auth" | "none">("none");
+  const [userIdSource, setUserIdSource] = useState<"auth" | "wallet" | "none">("none");
   const pollInFlightRef = useRef(false);
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
@@ -56,15 +58,10 @@ export default function ProgressScreen() {
   useEffect(() => {
     let isActive = true;
     const resolveUser = async () => {
-      const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
+      const resolved = await resolveMeditationUserId({ walletAddress });
       if (isActive) {
-        if (authUser?.uid) {
-          setResolvedUserId(authUser.uid);
-          setUserIdSource("auth");
-        } else {
-          setResolvedUserId(null);
-          setUserIdSource("none");
-        }
+        setResolvedUserId(resolved.userId);
+        setUserIdSource(resolved.source);
       }
     };
 
@@ -72,7 +69,7 @@ export default function ProgressScreen() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [walletAddress]);
 
   useEffect(() => {
     if (!resolvedUserId) {
@@ -136,7 +133,7 @@ export default function ProgressScreen() {
             Firebase Sync: {syncStatus === "success" ? "Success" : syncStatus === "failed" ? "Failed" : "Missing userId"}
           </Text>
           <Text style={[styles.syncBannerText, { color: currentTheme.textSecondary }]}>
-            {lang === "zh" ? "使用者來源" : "User source"}: {userIdSource === "auth" ? "Auth UID" : "None"}{formattedUserId ? ` (${formattedUserId})` : ""}
+            {lang === "zh" ? "使用者來源" : "User source"}: {userIdSource === "auth" ? "Auth UID" : userIdSource === "wallet" ? "Wallet" : "None"}{formattedUserId ? ` (${formattedUserId})` : ""}
           </Text>
         </View>
         <View style={styles.statsContainer}>
