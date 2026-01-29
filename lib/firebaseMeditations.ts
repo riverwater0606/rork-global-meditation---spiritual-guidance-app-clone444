@@ -1,4 +1,4 @@
-import { get, push, ref, set, query, orderByChild, limitToLast } from "firebase/database";
+import { get, push, ref, set } from "firebase/database";
 import {
   getFirebaseLastAuthError,
   getFirebaseMaybe,
@@ -155,12 +155,6 @@ export async function fetchMeditationHistory(params: {
     const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
-    
-    const meditationsQuery = query(
-      meditationsRef,
-      orderByChild("createdAt"),
-      limitToLast(params.limit ?? 50)
-    );
 
     const buildList = (value: Record<string, MeditationRecord> | null) => {
       if (!value) return [];
