@@ -14,7 +14,7 @@ import { TrendingUp, Calendar, Award, Target, Clock, BookOpen } from "lucide-rea
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { fetchMeditationHistory, MeditationRecord } from "@/lib/firebaseMeditations";
+import { fetchMeditationHistory, MeditationRecord, sanitizeUserId } from "@/lib/firebaseMeditations";
 import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
 
 const { width } = Dimensions.get("window");
@@ -60,7 +60,7 @@ export default function ProgressScreen() {
     const resolveUser = async () => {
       const resolved = await resolveMeditationUserId({ walletAddress });
       if (isActive) {
-        setResolvedUserId(resolved.userId);
+        setResolvedUserId(resolved.userId ? sanitizeUserId(resolved.userId) : null);
         setUserIdSource(resolved.source);
       }
     };
