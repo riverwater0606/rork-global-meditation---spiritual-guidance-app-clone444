@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
-import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
+import { sanitizeUserId, uploadMeditationRecord } from "@/lib/firebaseMeditations";
 import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
 import { useUser } from "@/providers/UserProvider";
 import { Alert } from "react-native";
@@ -192,25 +192,27 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
 
     // Upload to Firebase if user is logged in
     const { userId, source } = await resolveMeditationUserId({ walletAddress });
+    const userIdForFirebase = userId ? sanitizeUserId(userId) : null;
 
     console.log("[MeditationProvider] completeMeditation: checking userId for Firebase upload");
     console.log("[MeditationProvider] walletAddress:", walletAddress);
     console.log("[MeditationProvider] resolved userId:", userId);
+    console.log("[MeditationProvider] resolved userId (sanitized):", userIdForFirebase);
     console.log("[MeditationProvider] userId source:", source);
     console.log("[MeditationProvider] sessionId:", sessionId);
     console.log("[MeditationProvider] courseName:", courseName);
     console.log("[MeditationProvider] duration:", duration);
     
-    Alert.alert(`Upload userId (${source}): ${userId || "missing"}`);
+    Alert.alert(`Upload userId (${source}): ${userIdForFirebase || "missing"}`);
     Alert.alert("Attempting upload...");
 
-    if (userId) {
+    if (userIdForFirebase) {
       console.log("[MeditationProvider] User logged in, attempting Firebase upload...", {
-        userIdPrefix: `${userId.slice(0, 6)}...`,
+        userIdPrefix: `${userIdForFirebase.slice(0, 6)}...`,
         source,
       });
       const recordData = {
-        userId,
+        userId: userIdForFirebase,
         courseName: courseName || sessionId,
         duration,
       };
