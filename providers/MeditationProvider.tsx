@@ -3,7 +3,7 @@ import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { uploadMeditationRecord } from "@/lib/firebaseMeditations";
-import { getFirebaseAuthUser, waitForFirebaseAuth } from "@/constants/firebase";
+import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
 import { useUser } from "@/providers/UserProvider";
 import { Alert } from "react-native";
 
@@ -159,15 +159,6 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     }
   };
 
-  const resolveMeditationUserId = async () => {
-    const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
-    if (authUser?.uid) {
-      return { userId: authUser.uid, source: "auth" as const };
-    }
-
-    return { userId: null, source: "none" as const };
-  };
-
   const completeMeditation = async (sessionId: string, duration: number, growOrb: boolean = false, courseName?: string): Promise<{ uploaded: boolean; error?: string }> => {
     const today = new Date();
     const todayStr = today.toDateString();
@@ -200,7 +191,7 @@ export const [MeditationProvider, useMeditation] = createContextHook(() => {
     await AsyncStorage.setItem("meditationStats", JSON.stringify(newStats));
 
     // Upload to Firebase if user is logged in
-    const { userId, source } = await resolveMeditationUserId();
+    const { userId, source } = await resolveMeditationUserId({ walletAddress });
 
     console.log("[MeditationProvider] completeMeditation: checking userId for Firebase upload");
     console.log("[MeditationProvider] walletAddress:", walletAddress);
