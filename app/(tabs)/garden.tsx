@@ -1522,16 +1522,28 @@ export default function GardenScreen() {
   const finishMeditation = async (durationMinutes: number) => {
      stopMeditation();
      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+     const recordDuration = Math.max(1, durationMinutes || awakenedDuration || 1);
      
      // FOR TESTING: Removed !hasGrownOrbToday check
      if (!currentOrb.isAwakened) {
        await cultivateDailyOrb();
+       await completeMeditation(
+         "garden-daily",
+         recordDuration,
+         false,
+         "Garden: Daily Meditation"
+       );
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
           settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
        );
      } else {
-       await completeMeditation("awakened-session", durationMinutes, false, "Garden Meditation (Awakened)");
+       await completeMeditation(
+         "awakened-session",
+         recordDuration,
+         false,
+         "Garden: Awakened Meditation"
+       );
        Alert.alert(
           settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
           settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
