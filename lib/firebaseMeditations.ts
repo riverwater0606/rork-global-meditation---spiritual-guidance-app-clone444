@@ -155,9 +155,11 @@ export async function fetchMeditationHistory(params: {
     const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
-    const meditationsQuery = params.limit
-      ? query(meditationsRef, orderByChild("createdAt"), limitToLast(params.limit))
-      : meditationsRef;
+    const meditationsQuery = query(
+      meditationsRef,
+      orderByChild("createdAt"),
+      limitToLast(params.limit ?? 50)
+    );
 
     const buildList = (value: Record<string, MeditationRecord> | null) => {
       if (!value) return [];
@@ -167,27 +169,13 @@ export async function fetchMeditationHistory(params: {
     };
 
     const snap = await get(meditationsQuery);
-    if (snap.exists()) {
-      const list = buildList(snap.val() as Record<string, MeditationRecord>);
-      console.log("[firebaseMeditations] fetchMeditationHistory:success", {
-        safeUserId,
-        count: list.length,
-      });
-      return list;
-    }
-
-    console.log("[firebaseMeditations] fetchMeditationHistory:empty (query), retrying without query", {
-      safeUserId,
-    });
-
-    const rawSnap = await get(meditationsRef);
-    if (!rawSnap.exists()) {
+    if (!snap.exists()) {
       console.log("[firebaseMeditations] fetchMeditationHistory:empty", { safeUserId });
       return [];
     }
 
-    const list = buildList(rawSnap.val() as Record<string, MeditationRecord>);
-    console.log("[firebaseMeditations] fetchMeditationHistory:success (raw)", {
+    const list = buildList(snap.val() as Record<string, MeditationRecord>);
+    console.log("[firebaseMeditations] fetchMeditationHistory:success", {
       safeUserId,
       count: list.length,
     });
