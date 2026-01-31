@@ -1,4 +1,4 @@
-import { get, limitToLast, orderByChild, push, query, ref, set } from "firebase/database";
+import { get, push, ref, set } from "firebase/database";
 import {
   getFirebaseLastAuthError,
   getFirebaseMaybe,
@@ -155,11 +155,6 @@ export async function fetchMeditationHistory(params: {
     const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
-    const meditationsQuery = query(
-      meditationsRef,
-      orderByChild("createdAt"),
-      limitToLast(params.limit ?? 50)
-    );
 
     const buildList = (value: Record<string, MeditationRecord> | null) => {
       if (!value) return [];
@@ -168,18 +163,20 @@ export async function fetchMeditationHistory(params: {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     };
 
-    const snap = await get(meditationsQuery);
+    const snap = await get(meditationsRef);
     if (!snap.exists()) {
       console.log("[firebaseMeditations] fetchMeditationHistory:empty", { safeUserId });
       return [];
     }
 
     const list = buildList(snap.val() as Record<string, MeditationRecord>);
+    const limitedList =
+      typeof params.limit === "number" ? list.slice(0, params.limit) : list;
     console.log("[firebaseMeditations] fetchMeditationHistory:success", {
       safeUserId,
-      count: list.length,
+      count: limitedList.length,
     });
-    return list;
+    return limitedList;
   } catch (e) {
     console.error("[firebaseMeditations] fetchMeditationHistory:error", e);
     throw e;
