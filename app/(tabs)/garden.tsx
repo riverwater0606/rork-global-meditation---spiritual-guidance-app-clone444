@@ -1724,7 +1724,16 @@ export default function GardenScreen() {
     // We only record the gift locally via finishGifting -> sendOrb
     console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
 
-    const toWalletAddress = contact?.walletAddress || "test_unknown";
+    const toWalletAddress = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
+    if (!toWalletAddress) {
+      console.log("[DEBUG_GIFT] Missing contact wallet address, aborting upload");
+      Alert.alert(
+        settings.language === "zh" ? "傳送失敗" : "Send failed",
+        settings.language === "zh" ? "找不到聯絡人的錢包地址" : "Contact wallet address not found."
+      );
+      return;
+    }
+
     const fromWalletAddress = walletAddress || "missing";
     await attemptGiftUpload({
       fromWalletAddress,
@@ -1897,10 +1906,15 @@ export default function GardenScreen() {
         }
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || "unknown";
+        const toWalletAddress: string = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
 
-        if (toWalletAddress === "unknown") {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
+        if (!toWalletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - aborting upload");
+          Alert.alert(
+            settings.language === "zh" ? "傳送失敗" : "Send failed",
+            settings.language === "zh" ? "找不到聯絡人的錢包地址" : "Contact wallet address not found."
+          );
+          return;
         }
 
         const fromWalletAddress = walletAddress;
