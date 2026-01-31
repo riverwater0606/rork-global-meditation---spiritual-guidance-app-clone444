@@ -14,8 +14,14 @@ import { TrendingUp, Calendar, Award, Target, Clock, BookOpen } from "lucide-rea
 import { useMeditation } from "@/providers/MeditationProvider";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
-import { fetchMeditationHistory, MeditationRecord, sanitizeUserId } from "@/lib/firebaseMeditations";
+import {
+  fetchMeditationHistory,
+  fetchMeditationHistoryForUserIds,
+  MeditationRecord,
+  sanitizeUserId,
+} from "@/lib/firebaseMeditations";
 import { resolveMeditationUserId } from "@/lib/resolveMeditationUserId";
+import { getFirebaseAuthUser, waitForFirebaseAuth } from "@/constants/firebase";
 
 const { width } = Dimensions.get("window");
 
@@ -30,6 +36,7 @@ export default function ProgressScreen() {
   const [syncStatus, setSyncStatus] = useState<"success" | "failed" | "missing">("missing");
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [userIdSource, setUserIdSource] = useState<"auth" | "wallet" | "none">("none");
+  const [userIdSourcesUsed, setUserIdSourcesUsed] = useState<Array<"auth" | "wallet">>([]);
   const pollInFlightRef = useRef(false);
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
@@ -42,7 +49,35 @@ export default function ProgressScreen() {
     console.log("[ProgressScreen] Loading meditation history...");
     
     try {
-      const history = await fetchMeditationHistory({ userId: resolvedUserId, limit: 50 });
+      const sources: Array<"auth" | "wallet"> = [];
+      const idsToFetch = new Set<string>([resolvedUserId]);
+
+      if (userIdSource === "wallet") {
+        sources.push("wallet");
+        const authUser = getFirebaseAuthUser() ?? await waitForFirebaseAuth();
+        if (authUser?.uid) {
+          idsToFetch.add(authUser.uid);
+          sources.push("auth");
+        }
+      }
+
+      if (userIdSource === "auth") {
+        sources.push("auth");
+        const wallet = walletAddress?.trim();
+        if (wallet) {
+          idsToFetch.add(wallet);
+          sources.push("wallet");
+        }
+      }
+
+      const uniqueSources = Array.from(new Set(sources));
+      setUserIdSourcesUsed(uniqueSources);
+
+      const userIds = Array.from(idsToFetch);
+      const history =
+        userIds.length > 1
+          ? await fetchMeditationHistoryForUserIds({ userIds, limit: 50 })
+          : await fetchMeditationHistory({ userId: userIds[0]!, limit: 50 });
       setMeditationHistory(history);
       setSyncStatus("success");
       console.log("[ProgressScreen] Loaded history count:", history.length);
@@ -53,7 +88,7 @@ export default function ProgressScreen() {
       pollInFlightRef.current = false;
       setIsLoadingHistory(false);
     }
-  }, [resolvedUserId]);
+  }, [resolvedUserId, userIdSource, walletAddress]);
 
   useEffect(() => {
     let isActive = true;
@@ -62,6 +97,9 @@ export default function ProgressScreen() {
       if (isActive) {
         setResolvedUserId(resolved.userId ? sanitizeUserId(resolved.userId) : null);
         setUserIdSource(resolved.source);
+        setUserIdSourcesUsed(
+          resolved.source === "auth" || resolved.source === "wallet" ? [resolved.source] : []
+        );
       }
     };
 
@@ -109,6 +147,16 @@ export default function ProgressScreen() {
     return `${month}/${day} ${hours}:${minutes}`;
   };
 
+  const sourceNames = userIdSourcesUsed.map((source) => (source === "auth" ? "Auth UID" : "Wallet"));
+  const sourceLabel =
+    sourceNames.length === 0
+      ? lang === "zh"
+        ? "無"
+        : "None"
+      : sourceNames.length > 1
+        ? `${lang === "zh" ? "合併" : "Merged"} (${sourceNames.join(" + ")})`
+        : sourceNames[0];
+
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
       <LinearGradient
@@ -133,7 +181,8 @@ export default function ProgressScreen() {
             Firebase Sync: {syncStatus === "success" ? "Success" : syncStatus === "failed" ? "Failed" : "Missing userId"}
           </Text>
           <Text style={[styles.syncBannerText, { color: currentTheme.textSecondary }]}>
-            {lang === "zh" ? "使用者來源" : "User source"}: {userIdSource === "auth" ? "Auth UID" : userIdSource === "wallet" ? "Wallet" : "None"}{formattedUserId ? ` (${formattedUserId})` : ""}
+            {lang === "zh" ? "使用者來源" : "User source"}: {sourceLabel}
+            {formattedUserId ? ` (${formattedUserId})` : ""}
           </Text>
         </View>
         <View style={styles.statsContainer}>

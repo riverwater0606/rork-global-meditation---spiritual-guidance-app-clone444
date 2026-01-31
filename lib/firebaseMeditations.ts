@@ -194,3 +194,43 @@ export async function fetchMeditationHistory(params: {
     throw e;
   }
 }
+
+export async function fetchMeditationHistoryForUserIds(params: {
+  userIds: string[];
+  limit?: number;
+}): Promise<MeditationRecord[]> {
+  const uniqueUserIds = Array.from(
+    new Set(params.userIds.map((userId) => userId.trim()).filter(Boolean))
+  );
+
+  if (uniqueUserIds.length === 0) {
+    return [];
+  }
+
+  const historyLists = await Promise.all(
+    uniqueUserIds.map((userId) => fetchMeditationHistory({ userId, limit: params.limit }))
+  );
+
+  const mergedMap = new Map<string, MeditationRecord>();
+
+  historyLists.forEach((history, index) => {
+    const safeUserId = sanitizeUserId(uniqueUserIds[index]!);
+    history.forEach((record, recordIndex) => {
+      const baseId = record.id ?? `${record.createdAt}-${recordIndex}`;
+      const mergedId = `${safeUserId}:${baseId}`;
+      if (!mergedMap.has(mergedId)) {
+        mergedMap.set(mergedId, { ...record, id: mergedId });
+      }
+    });
+  });
+
+  const merged = Array.from(mergedMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  if (typeof params.limit === "number") {
+    return merged.slice(0, params.limit);
+  }
+
+  return merged;
+}
