@@ -1700,6 +1700,7 @@ export default function GardenScreen() {
       Alert.alert("光球上傳成功");
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+      giftUploadAttemptRef.current = false;
       Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
     }
   };
