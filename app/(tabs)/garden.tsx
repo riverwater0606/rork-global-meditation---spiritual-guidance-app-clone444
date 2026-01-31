@@ -1667,17 +1667,15 @@ export default function GardenScreen() {
   }) => {
     if (giftUploadAttemptRef.current) {
       console.log("[DEBUG_GIFT_CLOUD] Upload already attempted, skipping duplicate.", params);
-      return;
+      return false;
     }
     giftUploadAttemptRef.current = true;
 
-    Alert.alert("Gift send called");
     console.log("[Garden] Gift send payload:", {
       fromWalletAddress: params.fromWalletAddress,
       toWalletAddress: params.toWalletAddress,
       source: params.source,
     });
-    Alert.alert(`from: ${params.fromWalletAddress}\nto: ${params.toWalletAddress}`);
 
     try {
       const uploaded = await uploadGiftOrb({
@@ -1697,10 +1695,17 @@ export default function GardenScreen() {
         },
       });
       console.log("[DEBUG_GIFT_CLOUD] Gift uploaded:", uploaded.giftId);
-      Alert.alert("光球上傳成功");
+      return true;
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-      Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+      giftUploadAttemptRef.current = false;
+      Alert.alert(
+        settings.language === "zh" ? "傳送失敗" : "Upload failed",
+        settings.language === "zh"
+          ? `請稍後重試。${e?.message ? `\n${e.message}` : ""}`
+          : `Please try again.${e?.message ? `\n${e.message}` : ""}`
+      );
+      return false;
     }
   };
 
@@ -1716,20 +1721,23 @@ export default function GardenScreen() {
     const friendName = contact.name || `User ${contact.walletAddress?.slice(0, 4) || 'Unknown'}`;
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
-    // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
-    finishGifting(friendName);
-
-    // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
-    // We only record the gift locally via finishGifting -> sendOrb
-    console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
-
     const toWalletAddress = contact?.walletAddress || "test_unknown";
     const fromWalletAddress = walletAddress || "missing";
-    await attemptGiftUpload({
+    const didUpload = await attemptGiftUpload({
       fromWalletAddress,
       toWalletAddress,
       source: "event",
     });
+
+    if (!didUpload) {
+      isGifting.current = false;
+      setIsGiftingUI(false);
+      return;
+    }
+
+    // UI success flow after upload succeeds
+    finishGifting(friendName);
+    console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
   };
 
   useEffect(() => {
@@ -1851,34 +1859,34 @@ export default function GardenScreen() {
     isGifting.current = true;
     setIsGiftingUI(true);
     giftUploadAttemptRef.current = false;
-
-    const genericFriendName = settings.language === "zh" ? "朋友" : "Friend";
-
-    console.log("[DEBUG_GIFT] IMMEDIATE SUCCESS UI (no dependency on shareContacts)");
-    finishGifting(genericFriendName);
+    hasAttemptedGift.current = true;
 
     const run = async () => {
       try {
         if (!MiniKit || !MiniKit.isInstalled()) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
-          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
           );
+          isGifting.current = false;
+          setIsGiftingUI(false);
           return;
         }
 
         if (!MiniKit.commandsAsync?.shareContacts) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
-          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
+          Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
+          isGifting.current = false;
+          setIsGiftingUI(false);
           return;
         }
 
         if (!walletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert(`from: ${walletAddress || "missing"}\nto: unknown`);
           Alert.alert("傳送失敗: walletAddress missing");
+          isGifting.current = false;
+          setIsGiftingUI(false);
           return;
         }
 
@@ -1897,6 +1905,8 @@ export default function GardenScreen() {
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
         const toWalletAddress: string = contact?.walletAddress || "unknown";
+        const friendName =
+          contact?.name || (settings.language === "zh" ? "朋友" : "Friend");
 
         if (toWalletAddress === "unknown") {
           console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
@@ -1917,17 +1927,24 @@ export default function GardenScreen() {
           orbSnapshotId: orbSnapshot.id,
         });
 
-        await attemptGiftUpload({
+        const didUpload = await attemptGiftUpload({
           toWalletAddress,
           fromWalletAddress,
           source: "shareContacts",
         });
 
+        if (!didUpload) {
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          return;
+        }
+
         console.log("[DEBUG_GIFT_CLOUD] Gift uploaded via attemptGiftUpload");
-        Alert.alert("光球已傳送！");
+        finishGifting(friendName);
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
         Alert.alert("傳送失敗，請檢查網路或錢包");
+        isGifting.current = false;
       } finally {
         setIsGiftingUI(false);
       }
@@ -1939,13 +1956,6 @@ export default function GardenScreen() {
   const handleCancelGift = () => {
     console.log("[DEBUG_GIFT] handleCancelGift called. hasAttemptedGift:", hasAttemptedGift.current);
     console.log("[DEBUG_GIFT] Current mode:", interactionState.current.mode, "isGifting:", isGifting.current);
-    
-    // FORCE SUCCESS CHECK: If user attempted to gift but failed/cancelled, treat as success
-    if (hasAttemptedGift.current) {
-        console.log("[DEBUG_GIFT] Force success from Cancel after attempt");
-        finishGifting(settings.language === 'zh' ? "朋友" : "Friend");
-        return;
-    }
 
     setShowGiftModal(false);
     setGiftMessage("");
