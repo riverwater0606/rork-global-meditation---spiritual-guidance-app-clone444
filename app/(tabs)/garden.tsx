@@ -16,6 +16,7 @@ import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, gener
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
+import { getFirebaseDiagnostics, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
 interface AmbientSound {
