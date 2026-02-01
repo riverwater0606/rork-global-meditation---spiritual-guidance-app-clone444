@@ -1734,19 +1734,26 @@ export default function GardenScreen() {
 
   const extractContactWalletAddress = (contact: any): string => {
     if (!contact) return "";
-    return (
-      contact.walletAddress ||
-      contact.wallet_address ||
-      contact.address ||
-      contact.wallet ||
-      contact?.wallet?.address ||
-      contact?.wallet?.walletAddress ||
-      contact?.wallet?.wallet_address ||
-      contact?.wallets?.[0]?.address ||
-      contact?.wallets?.[0]?.walletAddress ||
-      contact?.account?.address ||
-      ""
-    );
+    const directAddress = contact.walletAddress || contact.wallet_address || contact.address;
+    if (directAddress) return directAddress;
+
+    if (Array.isArray(contact.wallets)) {
+      const walletEntry = contact.wallets.find(
+        (entry: any) => entry?.address || entry?.walletAddress || entry?.wallet_address
+      );
+      const walletEntryAddress =
+        walletEntry?.address || walletEntry?.walletAddress || walletEntry?.wallet_address;
+      if (walletEntryAddress) return walletEntryAddress;
+    }
+
+    if (contact?.wallet && typeof contact.wallet === "object") {
+      const walletAddress =
+        contact.wallet.address || contact.wallet.walletAddress || contact.wallet.wallet_address;
+      if (walletAddress) return walletAddress;
+    }
+
+    if (typeof contact.wallet === "string") return contact.wallet;
+    return contact?.account?.address || "";
   };
 
   const formatContactName = (contact: any, fallbackWallet?: string) => {
