@@ -9,6 +9,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
+import { getFirebaseDiagnostics, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
@@ -952,6 +953,8 @@ export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const firebaseEnabled = isFirebaseEnabled();
+  const firebaseMissingEnv = getFirebaseMissingEnv();
   
   // Dynamic collapsed height based on safe area
   const collapsedHeight = 90 + insets.bottom;
@@ -1715,7 +1718,21 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
+      const diagnostics = getFirebaseDiagnostics();
+      const lastAuthCode = diagnostics.lastAuthError?.code;
+      const isAuthDisabled =
+        lastAuthCode === "auth/operation-not-allowed" ||
+        lastAuthCode === "admin-restricted-operation";
+      const fallbackMessage = e?.message || "unknown";
+      const authDisabledMessage =
+        settings.language === "zh"
+          ? "Firebase 匿名登入未啟用。請在 Firebase Authentication 啟用匿名登入後再試。"
+          : "Firebase anonymous sign-in is not enabled. Please enable Anonymous sign-in in Firebase Authentication and try again.";
+      const message = isAuthDisabled ? authDisabledMessage : fallbackMessage;
+      Alert.alert(
+        settings.language === "zh" ? "傳送失敗" : "Send failed",
+        message
+      );
     }
   };
 
@@ -2272,6 +2289,15 @@ export default function GardenScreen() {
                multiline
                numberOfLines={3}
             />
+            {!firebaseEnabled && (
+              <View style={styles.firebaseWarning}>
+                <Text style={styles.firebaseWarningText}>
+                  {settings.language === "zh"
+                    ? `Firebase 未啟用，可能缺少或配置錯誤的環境變數：${firebaseMissingEnv.join(", ")}`
+                    : `Firebase is disabled, likely due to missing or misconfigured environment variables: ${firebaseMissingEnv.join(", ")}`}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGiftingUI ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
@@ -3498,6 +3524,20 @@ const styles = StyleSheet.create({
   selectFriendText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  firebaseWarning: {
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 100, 100, 0.6)",
+    backgroundColor: "rgba(255, 100, 100, 0.12)",
+  },
+  firebaseWarningText: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#ffb3b3",
   },
   fullscreenButton: {
     position: 'absolute',
