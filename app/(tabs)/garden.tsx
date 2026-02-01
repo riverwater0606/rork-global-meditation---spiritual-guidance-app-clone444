@@ -1719,6 +1719,48 @@ export default function GardenScreen() {
     }
   };
 
+  const extractContactsFromPayload = (payload: any) => {
+    const contacts =
+      payload?.contacts ||
+      payload?.data?.contacts ||
+      payload?.response?.contacts ||
+      payload?.result?.contacts ||
+      payload?.data?.result?.contacts ||
+      payload?.response?.result?.contacts;
+    if (Array.isArray(contacts)) return contacts;
+    if (payload?.contact) return [payload.contact];
+    return [];
+  };
+
+  const extractContactWalletAddress = (contact: any): string => {
+    if (!contact) return "";
+    return (
+      contact.walletAddress ||
+      contact.wallet_address ||
+      contact.address ||
+      contact.wallet ||
+      contact?.wallet?.address ||
+      contact?.wallet?.walletAddress ||
+      contact?.wallet?.wallet_address ||
+      contact?.wallets?.[0]?.address ||
+      contact?.wallets?.[0]?.walletAddress ||
+      contact?.account?.address ||
+      ""
+    );
+  };
+
+  const formatContactName = (contact: any, fallbackWallet?: string) => {
+    const display =
+      contact?.name ||
+      contact?.displayName ||
+      contact?.username ||
+      contact?.handle ||
+      "";
+    if (display) return display;
+    if (fallbackWallet) return `User ${fallbackWallet.slice(0, 4)}`;
+    return settings.language === "zh" ? "好友" : "Friend";
+  };
+
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
@@ -1728,23 +1770,18 @@ export default function GardenScreen() {
     }
     isGifting.current = true;
 
-    const friendName = contact.name || `User ${contact.walletAddress?.slice(0, 4) || 'Unknown'}`;
+    const toWalletAddress = extractContactWalletAddress(contact);
+    const friendName = formatContactName(contact, toWalletAddress);
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
-    // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
-    finishGifting(friendName);
-
-    // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
-    // We only record the gift locally via finishGifting -> sendOrb
-    console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
-
-    const toWalletAddress = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
     if (!toWalletAddress) {
       console.log("[DEBUG_GIFT] Missing contact wallet address, aborting upload");
       Alert.alert(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
         settings.language === "zh" ? "找不到聯絡人的錢包地址" : "Contact wallet address not found."
       );
+      isGifting.current = false;
+      setIsGiftingUI(false);
       return;
     }
 
