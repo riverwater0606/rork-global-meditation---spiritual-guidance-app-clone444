@@ -1699,13 +1699,7 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      Alert.alert(
-        settings.language === "zh" ? "傳送失敗" : "Upload failed",
-        settings.language === "zh"
-          ? `請稍後重試。${e?.message ? `\n${e.message}` : ""}`
-          : `Please try again.${e?.message ? `\n${e.message}` : ""}`
-      );
-      return false;
+      Alert.alert(`傳送失敗: ${e?.message || "unknown"}`);
     }
   };
 
@@ -1721,7 +1715,23 @@ export default function GardenScreen() {
     const friendName = contact.name || `User ${contact.walletAddress?.slice(0, 4) || 'Unknown'}`;
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
-    const toWalletAddress = contact?.walletAddress || "test_unknown";
+    // 1. UI Success Flow IMMEDIATELY (Optimistic & Local Simulation)
+    finishGifting(friendName);
+
+    // 2. NO BLOCKCHAIN TRANSACTION (Local Simulation Mode)
+    // We only record the gift locally via finishGifting -> sendOrb
+    console.log("[DEBUG_GIFT] Gift simulated successfully (Local Mode)");
+
+    const toWalletAddress = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
+    if (!toWalletAddress) {
+      console.log("[DEBUG_GIFT] Missing contact wallet address, aborting upload");
+      Alert.alert(
+        settings.language === "zh" ? "傳送失敗" : "Send failed",
+        settings.language === "zh" ? "找不到聯絡人的錢包地址" : "Contact wallet address not found."
+      );
+      return;
+    }
+
     const fromWalletAddress = walletAddress || "missing";
     const didUpload = await attemptGiftUpload({
       fromWalletAddress,
@@ -1904,12 +1914,15 @@ export default function GardenScreen() {
         }
 
         const contact = result?.contacts?.[0] || result?.response?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || "unknown";
-        const friendName =
-          contact?.name || (settings.language === "zh" ? "朋友" : "Friend");
+        const toWalletAddress: string = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
 
-        if (toWalletAddress === "unknown") {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - using fallback");
+        if (!toWalletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - aborting upload");
+          Alert.alert(
+            settings.language === "zh" ? "傳送失敗" : "Send failed",
+            settings.language === "zh" ? "找不到聯絡人的錢包地址" : "Contact wallet address not found."
+          );
+          return;
         }
 
         const fromWalletAddress = walletAddress;
