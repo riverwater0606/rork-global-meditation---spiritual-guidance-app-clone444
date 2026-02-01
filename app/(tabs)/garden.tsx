@@ -1052,7 +1052,7 @@ export default function GardenScreen() {
         const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
-        if (status === "success" && contacts && contacts.length > 0) {
+        if (contacts && contacts.length > 0 && status !== "error") {
           console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
           pendingShareContactsRef.current = false;
           clearShareContactsTimeout();
