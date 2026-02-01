@@ -1049,7 +1049,7 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = extractContactsFromPayload(payload);
+        const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
         if (status === "success" && contacts && contacts.length > 0) {
@@ -1968,9 +1968,8 @@ export default function GardenScreen() {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
         }
 
-        const contact = extractContactsFromPayload(result)[0];
-        const toWalletAddress = extractContactWalletAddress(contact);
-        const friendName = formatContactName(contact, toWalletAddress);
+        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0] || result?.data?.contacts?.[0];
+        const toWalletAddress: string = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
 
         if (!toWalletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - waiting for event payload");
