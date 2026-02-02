@@ -4,6 +4,7 @@ import {
   getFirebaseMaybe,
   getFirebaseMissingEnv,
   isFirebaseEnabled,
+  setFirebaseLastWriteError,
   waitForFirebaseAuth,
 } from "@/constants/firebase";
 
@@ -30,7 +31,7 @@ export type GiftOrbPayloadV1 = {
 export function sanitizeWalletId(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "unknown";
-  return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return trimmed.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
 }
 
 
@@ -108,12 +109,14 @@ export async function uploadGiftOrb(params: {
 
     console.log("[firebaseGifts] Calling set() with payload:", JSON.stringify(payload));
     await set(giftRef, payload);
+    setFirebaseLastWriteError(null);
 
     console.log("[firebaseGifts] uploadGiftOrb:success", { giftId, toId });
     console.log("[firebaseGifts] Upload success", { path, giftId });
     console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
   } catch (e: any) {
+    setFirebaseLastWriteError({ code: e?.code, message: e?.message });
     console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
     console.error("[Firebase] Write failed:", { code: e?.code, message: e?.message });
