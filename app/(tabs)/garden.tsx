@@ -1037,7 +1037,7 @@ export default function GardenScreen() {
       MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
         console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
-        
+
         const status = payload?.status;
         if (status === "error") {
           const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
@@ -1052,7 +1052,7 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
+        const contacts = extractContactsFromPayload(payload);
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
         if (contacts && contacts.length > 0 && status !== "error") {
@@ -1739,13 +1739,17 @@ export default function GardenScreen() {
   const extractContactsFromPayload = (payload: any) => {
     const contacts =
       payload?.contacts ||
+      payload?.finalPayload?.contacts ||
       payload?.data?.contacts ||
       payload?.response?.contacts ||
       payload?.result?.contacts ||
       payload?.data?.result?.contacts ||
-      payload?.response?.result?.contacts;
+      payload?.response?.result?.contacts ||
+      payload?.payload?.result?.contacts ||
+      payload?.data?.payload?.result?.contacts;
     if (Array.isArray(contacts)) return contacts;
     if (payload?.contact) return [payload.contact];
+    if (payload?.finalPayload?.contact) return [payload.finalPayload.contact];
     return [];
   };
 
@@ -1981,19 +1985,49 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = true;
         clearShareContactsTimeout();
 
+        if (MiniKit?.commandsAsync?.getPermissions && MiniKit?.commandsAsync?.requestPermission) {
+          const permissionResult = await MiniKit.commandsAsync.getPermissions();
+          const permissions = permissionResult?.finalPayload?.permissions;
+          const hasContactsPermission = Boolean(permissions?.contacts);
+
+          if (!hasContactsPermission) {
+            console.log("[DEBUG_GIFT_CLOUD] Contacts permission missing - requesting permission");
+            const requestResult = await MiniKit.commandsAsync.requestPermission({
+              permission: Permission?.Contacts ?? "contacts",
+            });
+            const requestStatus = requestResult?.finalPayload?.status;
+            if (requestStatus !== "success") {
+              console.log("[DEBUG_GIFT_CLOUD] Contacts permission request denied or failed");
+              pendingShareContactsRef.current = false;
+              isGifting.current = false;
+              setIsGiftingUI(false);
+              Alert.alert(
+                settings.language === "zh" ? "無法傳送" : "Cannot send",
+                settings.language === "zh" ? "未授權聯絡人權限" : "Contacts permission not granted."
+              );
+              return;
+            }
+          }
+        }
+
         let result: any;
         if (MiniKit?.commandsAsync?.shareContacts) {
           console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
           result = await MiniKit.commandsAsync.shareContacts({
             isMultiSelectEnabled: false,
+            inviteMessage:
+              settings.language === "zh"
+                ? "分享你的錢包聯絡人以贈送光球"
+                : "Share a contact wallet to receive a gift orb",
           });
           console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
         } else {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
         }
 
-        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0] || result?.data?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
+        const contacts = extractContactsFromPayload(result);
+        const contact = contacts[0];
+        const toWalletAddress: string = extractContactWalletAddress(contact);
 
         if (!toWalletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - waiting for event payload");
@@ -2014,6 +2048,7 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
+        const friendName = formatContactName(contact, toWalletAddress);
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
