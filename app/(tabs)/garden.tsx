@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput, Platform } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -2135,6 +2135,16 @@ export default function GardenScreen() {
 
         if (!mk || !installed) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          if (Platform.OS === "web") {
+            const miniAppUrl =
+              (mk?.getMiniAppUrl || MiniKit?.getMiniAppUrl)?.(APP_ID, "/") ||
+              `https://worldcoin.org/mini-app/${encodeURIComponent(APP_ID)}`;
+            try {
+              window.location.assign(miniAppUrl);
+            } catch (e) {
+              console.log("[DEBUG_GIFT_CLOUD] Failed to open MiniApp URL:", e);
+            }
+          }
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
             settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"

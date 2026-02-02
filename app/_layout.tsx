@@ -3,6 +3,7 @@ import { Stack, Redirect, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { MiniKit } from "@/constants/minikit";
+import { APP_ID } from "@/constants/world";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -133,7 +134,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (MiniKit?.install) {
       try {
-        MiniKit.install();
+        MiniKit.install(APP_ID);
         console.log('[RootLayout] MiniKit installed');
       } catch (error) {
         console.log('[RootLayout] MiniKit install failed', error);
