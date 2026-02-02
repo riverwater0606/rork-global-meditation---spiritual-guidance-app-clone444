@@ -1013,6 +1013,10 @@ export default function GardenScreen() {
   const modeResetTimeoutRef = useRef<any>(null); // Safety timeout for mode reset
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
+  const miniKitSubscribedRef = useRef(false);
+  const miniKitInstanceRef = useRef<any | null>(null);
+  const miniKitPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const miniKitLoggedMissingRef = useRef(false);
   const giftSoundRef = useRef<Audio.Sound | null>(null);
   const ambientSoundRef = useRef<Audio.Sound | null>(null);
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
@@ -1031,10 +1035,51 @@ export default function GardenScreen() {
     }
   };
 
+  const stopMiniKitPolling = () => {
+    if (miniKitPollRef.current) {
+      clearInterval(miniKitPollRef.current);
+      miniKitPollRef.current = null;
+    }
+  };
+
+  const resolveMiniKit = () => getMiniKit?.() ?? MiniKit;
+
+  const isMiniKitInstalled = async (candidate: any) => {
+    if (!candidate) return false;
+    try {
+      const installed = typeof candidate.isInstalled === "function" ? candidate.isInstalled() : candidate.isInstalled;
+      if (typeof installed?.then === "function") {
+        return Boolean(await installed);
+      }
+      return Boolean(installed);
+    } catch (error) {
+      console.warn("[DEBUG_GIFT] MiniKit isInstalled check failed:", error);
+      return false;
+    }
+  };
+
+  const subscribeMiniKit = (candidate: any, onEvent: (payload: any) => void) => {
+    if (!candidate) return false;
+    if (miniKitInstanceRef.current && miniKitInstanceRef.current !== candidate) {
+      try {
+        miniKitInstanceRef.current.unsubscribe(ResponseEvent.MiniAppShareContacts);
+      } catch (error) {
+        console.warn("[DEBUG_GIFT] MiniKit unsubscribe failed:", error);
+      }
+      miniKitSubscribedRef.current = false;
+    }
+    if (miniKitSubscribedRef.current && miniKitInstanceRef.current === candidate) {
+      return true;
+    }
+    candidate.subscribe(ResponseEvent.MiniAppShareContacts, onEvent);
+    miniKitSubscribedRef.current = true;
+    miniKitInstanceRef.current = candidate;
+    return true;
+  };
+
   // Subscribe to MiniKit Events
   useEffect(() => {
-    if (MiniKit && MiniKit.isInstalled()) {
-      MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
+    const handleMiniKitEvent = (payload: any) => {
         console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
 
@@ -1063,14 +1108,64 @@ export default function GardenScreen() {
         } else {
           console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
         }
-      });
-
-      return () => {
-        MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
       };
-    } else {
-      console.log("[DEBUG] MiniKit not installed or not available for subscription");
+
+    const attemptSubscribe = async () => {
+      const candidate = resolveMiniKit();
+      const installed = await isMiniKitInstalled(candidate);
+      if (!installed) {
+        if (!miniKitLoggedMissingRef.current) {
+          console.log("[DEBUG] MiniKit not installed or not available for subscription");
+          miniKitLoggedMissingRef.current = true;
+        }
+        return false;
+      }
+
+      const subscribed = subscribeMiniKit(candidate, handleMiniKitEvent);
+      if (subscribed) {
+        stopMiniKitPolling();
+      }
+      return subscribed;
+    };
+
+    void attemptSubscribe();
+
+    if (!miniKitSubscribedRef.current && !miniKitPollRef.current) {
+      miniKitPollRef.current = setInterval(() => {
+        void attemptSubscribe();
+      }, 300);
     }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void attemptSubscribe();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", handleVisibilityChange);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("minikit:ready", handleVisibilityChange as EventListener);
+    }
+
+    return () => {
+      stopMiniKitPolling();
+      if (miniKitInstanceRef.current) {
+        try {
+          miniKitInstanceRef.current.unsubscribe(ResponseEvent.MiniAppShareContacts);
+        } catch (error) {
+          console.warn("[DEBUG_GIFT] MiniKit unsubscribe failed:", error);
+        }
+      }
+      miniKitSubscribedRef.current = false;
+      miniKitInstanceRef.current = null;
+      miniKitLoggedMissingRef.current = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", handleVisibilityChange);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("minikit:ready", handleVisibilityChange as EventListener);
+      }
+    };
   }, [settings.language]);
 
   // Update ref when insets change
