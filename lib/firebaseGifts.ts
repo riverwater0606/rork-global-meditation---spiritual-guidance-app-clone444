@@ -116,14 +116,21 @@ export async function uploadGiftOrb(params: {
     console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
   } catch (e: any) {
-    setFirebaseLastWriteError({ code: e?.code, message: e?.message });
+    const code = e?.code;
+    const message = e?.message;
     console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
     console.error("[Firebase] Write failed:", { code: e?.code, message: e?.message });
     console.error("[firebaseGifts] Error message:", e?.message);
     console.error("[firebaseGifts] Error code:", e?.code);
     console.error("[firebaseGifts] Error stack:", e?.stack);
-    throw e;
+    setFirebaseLastWriteError({ code, message });
+    const normalizedError = e instanceof Error ? e : new Error(message ?? "Firebase write failed");
+    (normalizedError as { code?: string }).code = code;
+    if (message && normalizedError.message !== message) {
+      normalizedError.message = message;
+    }
+    throw normalizedError;
   }
 }
 
