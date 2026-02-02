@@ -15,6 +15,7 @@ import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
+import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import { getFirebaseDiagnostics, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
@@ -1066,12 +1067,27 @@ export default function GardenScreen() {
         }
       });
 
-      return () => {
-        MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
-      };
-    } else {
-      console.log("[DEBUG] MiniKit not installed or not available for subscription");
-    }
+    const setup = async () => {
+      if (cancelled || unsubscribe) return;
+      const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
+      if (!mk) return;
+      const installed = await isMiniKitInstalled(mk);
+      if (!installed) return;
+      mk.subscribe(ResponseEvent.MiniAppShareContacts, handler);
+      unsubscribe = () => mk.unsubscribe(ResponseEvent.MiniAppShareContacts);
+      console.log("[DEBUG_GIFT] MiniKit shareContacts subscription active");
+    };
+
+    void setup();
+    pollId = setInterval(() => {
+      void setup();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      if (pollId) clearInterval(pollId);
+      if (unsubscribe) unsubscribe();
+    };
   }, [settings.language]);
 
   // Update ref when insets change
@@ -1951,7 +1967,10 @@ export default function GardenScreen() {
 
     const run = async () => {
       try {
-        if (!MiniKit || !MiniKit.isInstalled()) {
+        const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
+        const installed = await isMiniKitInstalled(mk);
+
+        if (!mk || !installed) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
@@ -1962,8 +1981,14 @@ export default function GardenScreen() {
           return;
         }
 
-        if (!MiniKit.commandsAsync?.shareContacts) {
-          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+        const shareContactsFn =
+          mk?.commandsAsync?.shareContacts ||
+          mk?.commands?.shareContacts ||
+          mk?.actions?.shareContacts ||
+          mk?.shareContacts;
+
+        if (!shareContactsFn) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
           Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
           isGifting.current = false;
           setIsGiftingUI(false);
@@ -1983,9 +2008,9 @@ export default function GardenScreen() {
         clearShareContactsTimeout();
 
         let result: any;
-        if (MiniKit?.commandsAsync?.shareContacts) {
+        if (shareContactsFn) {
           console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-          result = await MiniKit.commandsAsync.shareContacts({
+          result = await shareContactsFn({
             isMultiSelectEnabled: false,
           });
           console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
@@ -2018,8 +2043,8 @@ export default function GardenScreen() {
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
-          hasMiniKit: Boolean(MiniKit),
-          hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
+          hasMiniKit: Boolean(mk),
+          hasShareContacts: Boolean(shareContactsFn),
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
         });
