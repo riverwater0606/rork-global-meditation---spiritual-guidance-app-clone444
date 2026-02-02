@@ -1720,6 +1720,8 @@ export default function GardenScreen() {
       giftUploadAttemptRef.current = false;
       const diagnostics = getFirebaseDiagnosticsFn();
       const lastAuthCode = diagnostics.lastAuthError?.code;
+      const lastWriteCode = diagnostics.lastWriteError?.code;
+      const lastWriteMessage = diagnostics.lastWriteError?.message;
       const isAuthDisabled =
         lastAuthCode === "auth/operation-not-allowed" ||
         lastAuthCode === "admin-restricted-operation";
@@ -1728,7 +1730,34 @@ export default function GardenScreen() {
         settings.language === "zh"
           ? "Firebase 匿名登入未啟用。請在 Firebase Authentication 啟用匿名登入後再試。"
           : "Firebase anonymous sign-in is not enabled. Please enable Anonymous sign-in in Firebase Authentication and try again.";
-      const message = isAuthDisabled ? authDisabledMessage : fallbackMessage;
+      const authHint =
+        settings.language === "zh"
+          ? "提示：請確認 Firebase Authentication 已啟用 Anonymous Auth。"
+          : "Tip: ensure Firebase Authentication has Anonymous Auth enabled.";
+      const permissionHint =
+        settings.language === "zh"
+          ? "提示：請檢查 Realtime Database Rules 是否允許寫入 /gifts/{walletId}。"
+          : "Tip: verify your Realtime Database Rules allow writes to /gifts/{walletId}.";
+      const hasPermissionDenied =
+        lastWriteCode === "permission_denied" ||
+        lastWriteCode === "PERMISSION_DENIED" ||
+        /permission/i.test(lastWriteMessage || "");
+      const hasAuthError =
+        Boolean(lastAuthCode && lastAuthCode.startsWith("auth/")) ||
+        (lastWriteCode && lastWriteCode.startsWith("auth/")) ||
+        /auth/i.test(lastWriteMessage || "");
+      const diagnosticsLine =
+        settings.language === "zh"
+          ? `診斷碼：${lastWriteCode ?? "unknown"}\n診斷訊息：${lastWriteMessage ?? "unknown"}`
+          : `Diagnostics code: ${lastWriteCode ?? "unknown"}\nDiagnostics message: ${lastWriteMessage ?? "unknown"}`;
+      const message = [
+        isAuthDisabled ? authDisabledMessage : fallbackMessage,
+        diagnosticsLine,
+        hasPermissionDenied ? permissionHint : null,
+        hasAuthError && !isAuthDisabled ? authHint : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       Alert.alert(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
         message
