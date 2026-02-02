@@ -43,22 +43,23 @@ export async function uploadGiftOrb(params: {
   blessing?: string;
   orb: GiftOrbPayloadV1["orb"];
 }): Promise<{ giftId: string }> {
-  if (!isFirebaseEnabled()) {
-    const missing = getFirebaseMissingEnv();
-    console.error("[firebaseGifts] Firebase disabled - cannot upload gift", { missing });
-    throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
-  }
-  console.log("[firebaseGifts] ========== GIFT UPLOAD START ==========");
-  console.log("[firebaseGifts] uploadGiftOrb:start", {
-    toWalletAddress: params.toWalletAddress,
-    fromWalletAddress: params.fromWalletAddress,
-    fromDisplayName: params.fromDisplayName,
-    blessing: params.blessing,
-    orbId: params.orb?.id,
-    orbLevel: params.orb?.level,
-  });
-
   try {
+    if (!isFirebaseEnabled()) {
+      const missing = getFirebaseMissingEnv();
+      console.error("[firebaseGifts] Firebase disabled - cannot upload gift", { missing });
+      const error = new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
+      (error as { code?: string }).code = "firebase/disabled";
+      throw error;
+    }
+    console.log("[firebaseGifts] ========== GIFT UPLOAD START ==========");
+    console.log("[firebaseGifts] uploadGiftOrb:start", {
+      toWalletAddress: params.toWalletAddress,
+      fromWalletAddress: params.fromWalletAddress,
+      fromDisplayName: params.fromDisplayName,
+      blessing: params.blessing,
+      orbId: params.orb?.id,
+      orbLevel: params.orb?.level,
+    });
     console.log("[firebaseGifts] Waiting for Firebase auth...");
     const authUser = await waitForFirebaseAuth();
     
@@ -66,9 +67,11 @@ export async function uploadGiftOrb(params: {
       const last = getFirebaseLastAuthError();
       console.error("[firebaseGifts] Firebase auth failed - no user", last);
       const code = last?.code ? ` (${last.code})` : "";
-      throw new Error(
+      const error = new Error(
         `Firebase auth failed${code}. Please enable Anonymous sign-in in Firebase Authentication, then try again.`
       );
+      (error as { code?: string }).code = last?.code ?? "auth/missing-user";
+      throw error;
     }
     
     console.log("[firebaseGifts] Auth ready:", {
@@ -116,7 +119,7 @@ export async function uploadGiftOrb(params: {
     console.log("[firebaseGifts] ========== GIFT UPLOAD SUCCESS ==========");
     return { giftId };
   } catch (e: any) {
-    const code = e?.code;
+    const code = e?.code ?? "unknown";
     const message = e?.message;
     console.error("[firebaseGifts] ========== GIFT UPLOAD FAILED ==========");
     console.error("[firebaseGifts] uploadGiftOrb:error", e);
