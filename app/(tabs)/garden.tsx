@@ -9,14 +9,13 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
-import { getFirebaseDiagnostics, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
+import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
-import { getFirebaseDiagnostics, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
 interface AmbientSound {
@@ -1719,7 +1718,7 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      const diagnostics = getFirebaseDiagnostics();
+      const diagnostics = getFirebaseDiagnosticsFn();
       const lastAuthCode = diagnostics.lastAuthError?.code;
       const isAuthDisabled =
         lastAuthCode === "auth/operation-not-allowed" ||
