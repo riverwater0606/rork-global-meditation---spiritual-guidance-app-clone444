@@ -16,6 +16,7 @@ import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, gener
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
+import { ensureMiniKitLoaded } from "@/components/worldcoin/IDKitWeb";
 import { getFirebaseDiagnostics, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
@@ -1011,6 +1012,9 @@ export default function GardenScreen() {
   const giftUploadAttemptRef = useRef(false);
   const pendingShareContactsRef = useRef(false);
   const shareContactsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const miniKitSubscribedRef = useRef(false);
+  const miniKitInstanceRef = useRef<any>(null);
+  const miniKitPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeResetTimeoutRef = useRef<any>(null); // Safety timeout for mode reset
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
@@ -1032,46 +1036,103 @@ export default function GardenScreen() {
     }
   };
 
+  const clearMiniKitPollTimeout = () => {
+    if (miniKitPollTimeoutRef.current) {
+      clearTimeout(miniKitPollTimeoutRef.current);
+      miniKitPollTimeoutRef.current = null;
+    }
+  };
+
   // Subscribe to MiniKit Events
   useEffect(() => {
-    if (MiniKit && MiniKit.isInstalled()) {
-      MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, (payload: any) => {
-        console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-        console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
-        
-        const status = payload?.status;
-        if (status === "error") {
-          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
-          pendingShareContactsRef.current = false;
-          clearShareContactsTimeout();
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          Alert.alert(
-            settings.language === "zh" ? "贈送失敗" : "Gift Failed",
-            settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
-          );
-          return;
-        }
+    let isActive = true;
 
-        const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
-        console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+    const handleShareContacts = (payload: any) => {
+      console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
+      console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
 
-        if (contacts && contacts.length > 0 && status !== "error") {
-          console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
-          pendingShareContactsRef.current = false;
-          clearShareContactsTimeout();
-          handleGiftSuccessRef.current(contacts[0]);
+      const status = payload?.status;
+      if (status === "error") {
+        const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+        pendingShareContactsRef.current = false;
+        clearShareContactsTimeout();
+        isGifting.current = false;
+        setIsGiftingUI(false);
+        Alert.alert(
+          settings.language === "zh" ? "贈送失敗" : "Gift Failed",
+          settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
+        );
+        return;
+      }
+
+      const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
+      console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+
+      if (contacts && contacts.length > 0 && status !== "error") {
+        console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+        pendingShareContactsRef.current = false;
+        clearShareContactsTimeout();
+        handleGiftSuccessRef.current(contacts[0]);
+      } else {
+        console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
+      }
+    };
+
+    const subscribeMiniKit = (mk: any) => {
+      if (miniKitSubscribedRef.current) return true;
+      const miniKitInstance = mk ?? MiniKit;
+      if (!miniKitInstance) return false;
+
+      const installed =
+        miniKitInstance === MiniKit && typeof MiniKit?.isInstalled === "function"
+          ? MiniKit.isInstalled()
+          : typeof miniKitInstance?.isInstalled === "function"
+          ? miniKitInstance.isInstalled()
+          : miniKitInstance?.isInstalled;
+
+      if (!installed) {
+        console.log("[DEBUG] MiniKit not installed or not available for subscription");
+        return false;
+      }
+
+      miniKitInstanceRef.current = miniKitInstance;
+      if (miniKitInstance === MiniKit) {
+        MiniKit.subscribe(ResponseEvent.MiniAppShareContacts, handleShareContacts);
+      } else {
+        miniKitInstance.subscribe(ResponseEvent.MiniAppShareContacts, handleShareContacts);
+      }
+      miniKitSubscribedRef.current = true;
+      return true;
+    };
+
+    const attemptSubscribe = async () => {
+      const mk = await ensureMiniKitLoaded();
+      if (!isActive) return;
+      const subscribed = subscribeMiniKit(mk);
+      if (!subscribed && isActive) {
+        clearMiniKitPollTimeout();
+        miniKitPollTimeoutRef.current = setTimeout(() => {
+          void attemptSubscribe();
+        }, 500);
+      }
+    };
+
+    void attemptSubscribe();
+
+    return () => {
+      isActive = false;
+      clearMiniKitPollTimeout();
+      if (miniKitSubscribedRef.current) {
+        const miniKitInstance = miniKitInstanceRef.current ?? MiniKit;
+        if (miniKitInstance === MiniKit) {
+          MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
         } else {
-          console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
+          miniKitInstance?.unsubscribe?.(ResponseEvent.MiniAppShareContacts);
         }
-      });
-
-      return () => {
-        MiniKit.unsubscribe(ResponseEvent.MiniAppShareContacts);
-      };
-    } else {
-      console.log("[DEBUG] MiniKit not installed or not available for subscription");
-    }
+        miniKitSubscribedRef.current = false;
+        miniKitInstanceRef.current = null;
+      }
+    };
   }, [settings.language]);
 
   // Update ref when insets change
