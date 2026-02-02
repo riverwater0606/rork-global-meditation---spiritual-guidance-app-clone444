@@ -9,6 +9,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
+import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
@@ -16,7 +17,6 @@ import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2
 import Slider from "@react-native-community/slider";
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
-import { APP_ID } from "@/constants/world";
 import * as firebaseDiagnostics from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
@@ -1005,6 +1005,8 @@ export default function GardenScreen() {
   const { currentTheme, settings } = useSettings();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const firebaseEnabled = isFirebaseEnabled();
+  const firebaseMissingEnv = getFirebaseMissingEnv();
   
   // Dynamic collapsed height based on safe area
   const collapsedHeight = 90 + insets.bottom;
@@ -1063,6 +1065,10 @@ export default function GardenScreen() {
   const modeResetTimeoutRef = useRef<any>(null); // Safety timeout for mode reset
   const meditationTimerRef = useRef<any>(null);
   const handleGiftSuccessRef = useRef<(contact: any) => void>(() => {});
+  const miniKitSubscribedRef = useRef(false);
+  const miniKitInstanceRef = useRef<any | null>(null);
+  const miniKitPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const miniKitLoggedMissingRef = useRef(false);
   const giftSoundRef = useRef<Audio.Sound | null>(null);
   const ambientSoundRef = useRef<Audio.Sound | null>(null);
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
@@ -1081,68 +1087,136 @@ export default function GardenScreen() {
     }
   };
 
-  // Subscribe to MiniKit Events (retry for delayed injection)
+  const stopMiniKitPolling = () => {
+    if (miniKitPollRef.current) {
+      clearInterval(miniKitPollRef.current);
+      miniKitPollRef.current = null;
+    }
+  };
+
+  const resolveMiniKit = () => getMiniKit?.() ?? MiniKit;
+
+  const isMiniKitInstalled = async (candidate: any) => {
+    if (!candidate) return false;
+    try {
+      const installed = typeof candidate.isInstalled === "function" ? candidate.isInstalled() : candidate.isInstalled;
+      if (typeof installed?.then === "function") {
+        return Boolean(await installed);
+      }
+      return Boolean(installed);
+    } catch (error) {
+      console.warn("[DEBUG_GIFT] MiniKit isInstalled check failed:", error);
+      return false;
+    }
+  };
+
+  const subscribeMiniKit = (candidate: any, onEvent: (payload: any) => void) => {
+    if (!candidate) return false;
+    if (miniKitInstanceRef.current && miniKitInstanceRef.current !== candidate) {
+      try {
+        miniKitInstanceRef.current.unsubscribe(ResponseEvent.MiniAppShareContacts);
+      } catch (error) {
+        console.warn("[DEBUG_GIFT] MiniKit unsubscribe failed:", error);
+      }
+      miniKitSubscribedRef.current = false;
+    }
+    if (miniKitSubscribedRef.current && miniKitInstanceRef.current === candidate) {
+      return true;
+    }
+    candidate.subscribe(ResponseEvent.MiniAppShareContacts, onEvent);
+    miniKitSubscribedRef.current = true;
+    miniKitInstanceRef.current = candidate;
+    return true;
+  };
+
+  // Subscribe to MiniKit Events
   useEffect(() => {
-    let cancelled = false;
-    let pollId: ReturnType<typeof setInterval> | null = null;
-    let unsubscribe: (() => void) | null = null;
+    const handleMiniKitEvent = (payload: any) => {
+        console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
+        console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
 
-    const handler = (payload: any) => {
-      console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-      console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
+        const status = payload?.status;
+        if (status === "error") {
+          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+          pendingShareContactsRef.current = false;
+          clearShareContactsTimeout();
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "贈送失敗" : "Gift Failed",
+            settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
+          );
+          return;
+        }
 
-      const status = payload?.status ?? payload?.data?.status ?? payload?.result?.status;
-      if (status === "error" || payload?.error) {
-        const errorCode =
-          payload?.error_code ||
-          payload?.error?.code ||
-          payload?.error?.message ||
-          payload?.message ||
-          "unknown";
-        pendingShareContactsRef.current = false;
-        clearShareContactsTimeout();
-        isGifting.current = false;
-        setIsGiftingUI(false);
-        Alert.alert(
-          settings.language === "zh" ? "贈送失敗" : "Gift Failed",
-          settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
-        );
-        return;
+        const contacts = extractContactsFromPayload(payload);
+        console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+
+        if (contacts && contacts.length > 0 && status !== "error") {
+          console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+          pendingShareContactsRef.current = false;
+          clearShareContactsTimeout();
+          handleGiftSuccessRef.current(contacts[0]);
+        } else {
+          console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
+        }
+      };
+
+    const attemptSubscribe = async () => {
+      const candidate = resolveMiniKit();
+      const installed = await isMiniKitInstalled(candidate);
+      if (!installed) {
+        if (!miniKitLoggedMissingRef.current) {
+          console.log("[DEBUG] MiniKit not installed or not available for subscription");
+          miniKitLoggedMissingRef.current = true;
+        }
+        return false;
       }
 
-      const contacts = extractContactsFromPayload(payload);
-      console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+      const subscribed = subscribeMiniKit(candidate, handleMiniKitEvent);
+      if (subscribed) {
+        stopMiniKitPolling();
+      }
+      return subscribed;
+    };
 
-      if (contacts && contacts.length > 0) {
-        console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
-        pendingShareContactsRef.current = false;
-        clearShareContactsTimeout();
-        handleGiftSuccessRef.current(contacts[0]);
-      } else {
-        console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
+    void attemptSubscribe();
+
+    if (!miniKitSubscribedRef.current && !miniKitPollRef.current) {
+      miniKitPollRef.current = setInterval(() => {
+        void attemptSubscribe();
+      }, 300);
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void attemptSubscribe();
       }
     };
 
-    const setup = async () => {
-      if (cancelled || unsubscribe) return;
-      const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
-      if (!mk) return;
-      const installed = await isMiniKitInstalled(mk);
-      if (!installed) return;
-      mk.subscribe(ResponseEvent.MiniAppShareContacts, handler);
-      unsubscribe = () => mk.unsubscribe(ResponseEvent.MiniAppShareContacts);
-      console.log("[DEBUG_GIFT] MiniKit shareContacts subscription active");
-    };
-
-    void setup();
-    pollId = setInterval(() => {
-      void setup();
-    }, 1000);
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", handleVisibilityChange);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("minikit:ready", handleVisibilityChange as EventListener);
+    }
 
     return () => {
-      cancelled = true;
-      if (pollId) clearInterval(pollId);
-      if (unsubscribe) unsubscribe();
+      stopMiniKitPolling();
+      if (miniKitInstanceRef.current) {
+        try {
+          miniKitInstanceRef.current.unsubscribe(ResponseEvent.MiniAppShareContacts);
+        } catch (error) {
+          console.warn("[DEBUG_GIFT] MiniKit unsubscribe failed:", error);
+        }
+      }
+      miniKitSubscribedRef.current = false;
+      miniKitInstanceRef.current = null;
+      miniKitLoggedMissingRef.current = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", handleVisibilityChange);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("minikit:ready", handleVisibilityChange as EventListener);
+      }
     };
   }, [settings.language]);
 
@@ -1791,32 +1865,104 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      const diagnostics = firebaseDiagnostics.getFirebaseDiagnostics();
-      if (!firebaseDiagnostics.isFirebaseEnabled() || !diagnostics.enabled) {
-        Alert.alert(
-          settings.language === "zh" ? "Firebase 未啟用" : "Firebase Disabled",
-          settings.language === "zh"
-            ? `請檢查 Firebase 環境變數：${diagnostics.missingEnv.join(", ")}`
-            : `Missing Firebase env: ${diagnostics.missingEnv.join(", ")}`
-        );
-        return false;
-      }
-      const authCode = diagnostics.lastAuthError?.code;
-      if (authCode === "auth/operation-not-allowed" || authCode === "auth/admin-restricted-operation") {
-        Alert.alert(
-          settings.language === "zh" ? "Firebase 匿名登入未啟用" : "Firebase Anonymous Auth Disabled",
-          settings.language === "zh"
-            ? "請到 Firebase Console -> Authentication -> Sign-in method 啟用 Anonymous"
-            : "Enable Anonymous sign-in in Firebase Console -> Authentication -> Sign-in method."
-        );
-        return false;
-      }
-      const writeCode = diagnostics.lastWriteError?.code;
+      const diagnostics = getFirebaseDiagnosticsFn();
+      const lastAuthCode = diagnostics.lastAuthError?.code;
+      const lastWriteCode = diagnostics.lastWriteError?.code;
+      const lastWriteMessage = diagnostics.lastWriteError?.message;
+      const isAuthDisabled =
+        lastAuthCode === "auth/operation-not-allowed" ||
+        lastAuthCode === "admin-restricted-operation";
+      const fallbackMessage = e?.message || "unknown";
+      const authDisabledMessage =
+        settings.language === "zh"
+          ? "Firebase 匿名登入未啟用。請在 Firebase Authentication 啟用匿名登入後再試。"
+          : "Firebase anonymous sign-in is not enabled. Please enable Anonymous sign-in in Firebase Authentication and try again.";
+      const authHint =
+        settings.language === "zh"
+          ? "提示：請確認 Firebase Authentication 已啟用 Anonymous Auth。"
+          : "Tip: ensure Firebase Authentication has Anonymous Auth enabled.";
+      const permissionHint =
+        settings.language === "zh"
+          ? "提示：請檢查 Realtime Database Rules 是否允許寫入 /gifts/{walletId}。"
+          : "Tip: verify your Realtime Database Rules allow writes to /gifts/{walletId}.";
+      const hasPermissionDenied =
+        lastWriteCode === "permission_denied" ||
+        lastWriteCode === "PERMISSION_DENIED" ||
+        /permission/i.test(lastWriteMessage || "");
+      const hasAuthError =
+        Boolean(lastAuthCode && lastAuthCode.startsWith("auth/")) ||
+        (lastWriteCode && lastWriteCode.startsWith("auth/")) ||
+        /auth/i.test(lastWriteMessage || "");
+      const diagnosticsLine =
+        settings.language === "zh"
+          ? `診斷碼：${lastWriteCode ?? "unknown"}\n診斷訊息：${lastWriteMessage ?? "unknown"}`
+          : `Diagnostics code: ${lastWriteCode ?? "unknown"}\nDiagnostics message: ${lastWriteMessage ?? "unknown"}`;
+      const message = [
+        isAuthDisabled ? authDisabledMessage : fallbackMessage,
+        diagnosticsLine,
+        hasPermissionDenied ? permissionHint : null,
+        hasAuthError && !isAuthDisabled ? authHint : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       Alert.alert(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
-        `${writeCode ? `${writeCode}: ` : ""}${e?.message || "unknown"}`
+        message
       );
     }
+  };
+
+  const extractContactsFromPayload = (payload: any) => {
+    const contacts =
+      payload?.contacts ||
+      payload?.finalPayload?.contacts ||
+      payload?.data?.contacts ||
+      payload?.response?.contacts ||
+      payload?.result?.contacts ||
+      payload?.data?.result?.contacts ||
+      payload?.response?.result?.contacts ||
+      payload?.payload?.result?.contacts ||
+      payload?.data?.payload?.result?.contacts;
+    if (Array.isArray(contacts)) return contacts;
+    if (payload?.contact) return [payload.contact];
+    if (payload?.finalPayload?.contact) return [payload.finalPayload.contact];
+    return [];
+  };
+
+  const extractContactWalletAddress = (contact: any): string => {
+    if (!contact) return "";
+    const directAddress = contact.walletAddress || contact.wallet_address || contact.address;
+    if (directAddress) return directAddress;
+
+    if (Array.isArray(contact.wallets)) {
+      const walletEntry = contact.wallets.find(
+        (entry: any) => entry?.address || entry?.walletAddress || entry?.wallet_address
+      );
+      const walletEntryAddress =
+        walletEntry?.address || walletEntry?.walletAddress || walletEntry?.wallet_address;
+      if (walletEntryAddress) return walletEntryAddress;
+    }
+
+    if (contact?.wallet && typeof contact.wallet === "object") {
+      const walletAddress =
+        contact.wallet.address || contact.wallet.walletAddress || contact.wallet.wallet_address;
+      if (walletAddress) return walletAddress;
+    }
+
+    if (typeof contact.wallet === "string") return contact.wallet;
+    return contact?.account?.address || "";
+  };
+
+  const formatContactName = (contact: any, fallbackWallet?: string) => {
+    const display =
+      contact?.name ||
+      contact?.displayName ||
+      contact?.username ||
+      contact?.handle ||
+      "";
+    if (display) return display;
+    if (fallbackWallet) return `User ${fallbackWallet.slice(0, 4)}`;
+    return settings.language === "zh" ? "好友" : "Friend";
   };
 
   const handleGiftSuccess = async (contact: any) => {
@@ -1829,7 +1975,7 @@ export default function GardenScreen() {
     isGifting.current = true;
 
     const toWalletAddress = extractContactWalletAddress(contact);
-    const friendName = formatContactName(contact, toWalletAddress, settings.language);
+    const friendName = formatContactName(contact, toWalletAddress);
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
     if (!toWalletAddress) {
@@ -2008,23 +2154,13 @@ export default function GardenScreen() {
           return;
         }
 
-        const getPermissionsFn =
-          mk?.commandsAsync?.getPermissions ||
-          mk?.commands?.getPermissions ||
-          mk?.actions?.getPermissions ||
-          mk?.getPermissions;
-        const requestPermissionFn =
-          mk?.commandsAsync?.requestPermission ||
-          mk?.commands?.requestPermission ||
-          mk?.actions?.requestPermission ||
-          mk?.requestPermission;
-        const shareContactsAsyncFn = mk?.commandsAsync?.shareContacts;
-        const shareContactsCommandFn =
+        const shareContactsFn =
+          mk?.commandsAsync?.shareContacts ||
           mk?.commands?.shareContacts ||
           mk?.actions?.shareContacts ||
           mk?.shareContacts;
 
-        if (!shareContactsAsyncFn && !shareContactsCommandFn) {
+        if (!shareContactsFn) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
           Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
           isGifting.current = false;
@@ -2081,65 +2217,49 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = true;
         clearShareContactsTimeout();
 
-        const runWithTimeout = async <T,>(promise: Promise<T>, ms: number) => {
-          return new Promise<T>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error("shareContacts timeout")), ms);
-            promise
-              .then((value) => {
-                clearTimeout(timer);
-                resolve(value);
-              })
-              .catch((error) => {
-                clearTimeout(timer);
-                reject(error);
-              });
-          });
-        };
+        if (MiniKit?.commandsAsync?.getPermissions && MiniKit?.commandsAsync?.requestPermission) {
+          const permissionResult = await MiniKit.commandsAsync.getPermissions();
+          const permissions = permissionResult?.finalPayload?.permissions;
+          const hasContactsPermission = Boolean(permissions?.contacts);
 
-        let result: any;
-        if (shareContactsAsyncFn) {
-          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-          try {
-            result = await runWithTimeout(
-              shareContactsAsyncFn({
-                isMultiSelectEnabled: false,
-              }),
-              12000
-            );
-            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
-          } catch (shareError) {
-            console.warn("[DEBUG_GIFT_CLOUD] shareContacts async failed, falling back to command:", shareError);
+          if (!hasContactsPermission) {
+            console.log("[DEBUG_GIFT_CLOUD] Contacts permission missing - requesting permission");
+            const requestResult = await MiniKit.commandsAsync.requestPermission({
+              permission: Permission?.Contacts ?? "contacts",
+            });
+            const requestStatus = requestResult?.finalPayload?.status;
+            if (requestStatus !== "success") {
+              console.log("[DEBUG_GIFT_CLOUD] Contacts permission request denied or failed");
+              pendingShareContactsRef.current = false;
+              isGifting.current = false;
+              setIsGiftingUI(false);
+              Alert.alert(
+                settings.language === "zh" ? "無法傳送" : "Cannot send",
+                settings.language === "zh" ? "未授權聯絡人權限" : "Contacts permission not granted."
+              );
+              return;
+            }
           }
         }
 
-        if (!result && shareContactsCommandFn) {
-          console.log("[DEBUG_GIFT_CLOUD] shareContacts async missing/failed - calling command");
-          shareContactsCommandFn({ isMultiSelectEnabled: false });
+        let result: any;
+        if (shareContactsFn) {
+          console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
+          result = await shareContactsFn({
+            isMultiSelectEnabled: false,
+            inviteMessage:
+              settings.language === "zh"
+                ? "分享你的錢包聯絡人以贈送光球"
+                : "Share a contact wallet to receive a gift orb",
+          });
+          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+        } else {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
         }
 
-        const responsePayload =
-          result?.finalPayload ||
-          result?.response ||
-          result?.result ||
-          result;
-        if (responsePayload?.status === "error") {
-          const errorCode =
-            responsePayload?.error_code ||
-            responsePayload?.error?.code ||
-            responsePayload?.error?.message ||
-            responsePayload?.message ||
-            "unknown";
-          Alert.alert(
-            settings.language === "zh" ? "贈送失敗" : "Gift Failed",
-            settings.language === "zh" ? `錯誤原因：${errorCode}` : `Reason: ${errorCode}`
-          );
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          return;
-        }
-        const contact = extractContactsFromPayload(responsePayload)[0];
-        const toWalletAddress = extractContactWalletAddress(contact);
-        const friendName = formatContactName(contact, toWalletAddress, settings.language);
+        const contacts = extractContactsFromPayload(result);
+        const contact = contacts[0];
+        const toWalletAddress: string = extractContactWalletAddress(contact);
 
         if (!toWalletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - waiting for event payload");
@@ -2160,11 +2280,12 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
+        const friendName = formatContactName(contact, toWalletAddress);
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
           hasMiniKit: Boolean(mk),
-          hasShareContacts: Boolean(shareContactsAsyncFn || shareContactsCommandFn),
+          hasShareContacts: Boolean(shareContactsFn),
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
         });
@@ -2435,6 +2556,15 @@ export default function GardenScreen() {
                multiline
                numberOfLines={3}
             />
+            {!firebaseEnabled && (
+              <View style={styles.firebaseWarning}>
+                <Text style={styles.firebaseWarningText}>
+                  {settings.language === "zh"
+                    ? `Firebase 未啟用，可能缺少或配置錯誤的環境變數：${firebaseMissingEnv.join(", ")}`
+                    : `Firebase is disabled, likely due to missing or misconfigured environment variables: ${firebaseMissingEnv.join(", ")}`}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.selectFriendButton, { borderColor: currentTheme.primary, backgroundColor: isGiftingUI ? 'rgba(139, 92, 246, 0.2)' : 'transparent' }]}
@@ -3661,6 +3791,20 @@ const styles = StyleSheet.create({
   selectFriendText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  firebaseWarning: {
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 100, 100, 0.6)",
+    backgroundColor: "rgba(255, 100, 100, 0.12)",
+  },
+  firebaseWarningText: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#ffb3b3",
   },
   fullscreenButton: {
     position: 'absolute',
