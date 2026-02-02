@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 let MiniKit: any = null;
 let ResponseEvent: any = null;
+let Permission: any = null;
 
 if (Platform.OS === 'web') {
   try {
@@ -10,9 +11,10 @@ if (Platform.OS === 'web') {
     const mod = require('@worldcoin/minikit-js');
     MiniKit = mod.MiniKit;
     ResponseEvent = mod.ResponseEvent;
+    Permission = mod.Permission;
   } catch (e) {
     console.warn('MiniKit module failed to load:', e);
   }
 }
 
-export { MiniKit, ResponseEvent };
+export { MiniKit, ResponseEvent, Permission };

@@ -9,15 +9,13 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
 import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
-import { getFirebaseDiagnostics, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
+import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
-import { getMiniKit } from "@/components/worldcoin/IDKitWeb";
-import { getFirebaseDiagnostics, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
 interface AmbientSound {
@@ -1084,7 +1082,7 @@ export default function GardenScreen() {
     const handleMiniKitEvent = (payload: any) => {
         console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
         console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
-        
+
         const status = payload?.status;
         if (status === "error") {
           const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
@@ -1099,7 +1097,7 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = payload?.contacts || payload?.data?.contacts || payload?.response?.contacts;
+        const contacts = extractContactsFromPayload(payload);
         console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
 
         if (contacts && contacts.length > 0 && status !== "error") {
@@ -1815,8 +1813,10 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      const diagnostics = getFirebaseDiagnostics();
+      const diagnostics = getFirebaseDiagnosticsFn();
       const lastAuthCode = diagnostics.lastAuthError?.code;
+      const lastWriteCode = diagnostics.lastWriteError?.code;
+      const lastWriteMessage = diagnostics.lastWriteError?.message;
       const isAuthDisabled =
         lastAuthCode === "auth/operation-not-allowed" ||
         lastAuthCode === "admin-restricted-operation";
@@ -1825,7 +1825,34 @@ export default function GardenScreen() {
         settings.language === "zh"
           ? "Firebase 匿名登入未啟用。請在 Firebase Authentication 啟用匿名登入後再試。"
           : "Firebase anonymous sign-in is not enabled. Please enable Anonymous sign-in in Firebase Authentication and try again.";
-      const message = isAuthDisabled ? authDisabledMessage : fallbackMessage;
+      const authHint =
+        settings.language === "zh"
+          ? "提示：請確認 Firebase Authentication 已啟用 Anonymous Auth。"
+          : "Tip: ensure Firebase Authentication has Anonymous Auth enabled.";
+      const permissionHint =
+        settings.language === "zh"
+          ? "提示：請檢查 Realtime Database Rules 是否允許寫入 /gifts/{walletId}。"
+          : "Tip: verify your Realtime Database Rules allow writes to /gifts/{walletId}.";
+      const hasPermissionDenied =
+        lastWriteCode === "permission_denied" ||
+        lastWriteCode === "PERMISSION_DENIED" ||
+        /permission/i.test(lastWriteMessage || "");
+      const hasAuthError =
+        Boolean(lastAuthCode && lastAuthCode.startsWith("auth/")) ||
+        (lastWriteCode && lastWriteCode.startsWith("auth/")) ||
+        /auth/i.test(lastWriteMessage || "");
+      const diagnosticsLine =
+        settings.language === "zh"
+          ? `診斷碼：${lastWriteCode ?? "unknown"}\n診斷訊息：${lastWriteMessage ?? "unknown"}`
+          : `Diagnostics code: ${lastWriteCode ?? "unknown"}\nDiagnostics message: ${lastWriteMessage ?? "unknown"}`;
+      const message = [
+        isAuthDisabled ? authDisabledMessage : fallbackMessage,
+        diagnosticsLine,
+        hasPermissionDenied ? permissionHint : null,
+        hasAuthError && !isAuthDisabled ? authHint : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       Alert.alert(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
         message
@@ -1836,13 +1863,17 @@ export default function GardenScreen() {
   const extractContactsFromPayload = (payload: any) => {
     const contacts =
       payload?.contacts ||
+      payload?.finalPayload?.contacts ||
       payload?.data?.contacts ||
       payload?.response?.contacts ||
       payload?.result?.contacts ||
       payload?.data?.result?.contacts ||
-      payload?.response?.result?.contacts;
+      payload?.response?.result?.contacts ||
+      payload?.payload?.result?.contacts ||
+      payload?.data?.payload?.result?.contacts;
     if (Array.isArray(contacts)) return contacts;
     if (payload?.contact) return [payload.contact];
+    if (payload?.finalPayload?.contact) return [payload.finalPayload.contact];
     return [];
   };
 
@@ -2078,19 +2109,49 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = true;
         clearShareContactsTimeout();
 
+        if (MiniKit?.commandsAsync?.getPermissions && MiniKit?.commandsAsync?.requestPermission) {
+          const permissionResult = await MiniKit.commandsAsync.getPermissions();
+          const permissions = permissionResult?.finalPayload?.permissions;
+          const hasContactsPermission = Boolean(permissions?.contacts);
+
+          if (!hasContactsPermission) {
+            console.log("[DEBUG_GIFT_CLOUD] Contacts permission missing - requesting permission");
+            const requestResult = await MiniKit.commandsAsync.requestPermission({
+              permission: Permission?.Contacts ?? "contacts",
+            });
+            const requestStatus = requestResult?.finalPayload?.status;
+            if (requestStatus !== "success") {
+              console.log("[DEBUG_GIFT_CLOUD] Contacts permission request denied or failed");
+              pendingShareContactsRef.current = false;
+              isGifting.current = false;
+              setIsGiftingUI(false);
+              Alert.alert(
+                settings.language === "zh" ? "無法傳送" : "Cannot send",
+                settings.language === "zh" ? "未授權聯絡人權限" : "Contacts permission not granted."
+              );
+              return;
+            }
+          }
+        }
+
         let result: any;
         if (MiniKit?.commandsAsync?.shareContacts) {
           console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
           result = await MiniKit.commandsAsync.shareContacts({
             isMultiSelectEnabled: false,
+            inviteMessage:
+              settings.language === "zh"
+                ? "分享你的錢包聯絡人以贈送光球"
+                : "Share a contact wallet to receive a gift orb",
           });
           console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
         } else {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - continuing with fallback");
         }
 
-        const contact = result?.contacts?.[0] || result?.response?.contacts?.[0] || result?.data?.contacts?.[0];
-        const toWalletAddress: string = contact?.walletAddress || contact?.wallet_address || contact?.address || contact?.wallet || "";
+        const contacts = extractContactsFromPayload(result);
+        const contact = contacts[0];
+        const toWalletAddress: string = extractContactWalletAddress(contact);
 
         if (!toWalletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - waiting for event payload");
@@ -2111,6 +2172,7 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
+        const friendName = formatContactName(contact, toWalletAddress);
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
