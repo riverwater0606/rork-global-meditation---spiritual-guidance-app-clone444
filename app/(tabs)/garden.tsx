@@ -1129,11 +1129,25 @@ export default function GardenScreen() {
     return true;
   };
 
-  // Subscribe to MiniKit Events
-  useEffect(() => {
-    const handleMiniKitEvent = (payload: any) => {
-        console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-        console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
+  const handleMiniKitShareContactsEvent = (payload: any) => {
+    console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
+    console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
+
+    const status = payload?.status;
+    if (status === "error") {
+      const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+      pendingShareContactsRef.current = false;
+      clearShareContactsTimeout();
+      isGifting.current = false;
+      setIsGiftingUI(false);
+      Alert.alert(
+        settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+        settings.language === "zh"
+          ? `選擇朋友失敗，請重試\n錯誤原因：${errorCode}`
+          : `Friend selection failed. Please retry.\nReason: ${errorCode}`
+      );
+      return;
+    }
 
         const status = payload?.status;
         if (status === "error") {
@@ -1160,18 +1174,27 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = extractContactsFromPayload(payload);
-        console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+    if (contacts && contacts.length > 0 && status !== "error") {
+      console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+      pendingShareContactsRef.current = false;
+      clearShareContactsTimeout();
+      handleGiftSuccessRef.current(contacts[0]);
+    } else {
+      console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
+      console.log("[DEBUG_GIFT] No walletAddress");
+      pendingShareContactsRef.current = false;
+      clearShareContactsTimeout();
+      isGifting.current = false;
+      setIsGiftingUI(false);
+      Alert.alert(
+        settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+        settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+      );
+    }
+  };
 
-        if (contacts && contacts.length > 0 && status !== "error") {
-          console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
-          pendingShareContactsRef.current = false;
-          clearShareContactsTimeout();
-          handleGiftSuccessRef.current(contacts[0]);
-        } else {
-          console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
-        }
-      };
+  // Subscribe to MiniKit Events
+  useEffect(() => {
 
     const attemptSubscribe = async () => {
       const candidate = resolveMiniKit();
@@ -1184,7 +1207,7 @@ export default function GardenScreen() {
         return false;
       }
 
-      const subscribed = subscribeMiniKit(candidate, handleMiniKitEvent);
+      const subscribed = subscribeMiniKit(candidate, handleMiniKitShareContactsEvent);
       if (subscribed) {
         stopMiniKitPolling();
       }
@@ -1984,12 +2007,6 @@ export default function GardenScreen() {
 
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
-    
-    if (giftUploadAttemptRef.current) {
-      console.log("[DEBUG_GIFT] giftUploadAttemptRef.current is true, ignoring duplicate call");
-      return;
-    }
-    isGifting.current = true;
 
     const toWalletAddress = extractContactWalletAddress(contact);
     const friendName = formatContactName(contact, toWalletAddress);
@@ -2009,6 +2026,10 @@ export default function GardenScreen() {
       );
       isGifting.current = false;
       setIsGiftingUI(false);
+      Alert.alert(
+        settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+        settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+      );
       return;
     }
 
@@ -2179,6 +2200,8 @@ export default function GardenScreen() {
           setIsGiftingUI(false);
           return;
         }
+
+        subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
 
         if (getPermissionsFn) {
           try {
