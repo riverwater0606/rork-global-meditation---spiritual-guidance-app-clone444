@@ -16,7 +16,7 @@ import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2
 import Slider from "@react-native-community/slider";
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
-import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, isFirebaseEnabled } from "@/constants/firebase";
+import * as firebaseDiagnostics from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
 interface AmbientSound {
@@ -1740,8 +1740,8 @@ export default function GardenScreen() {
     } catch (e: any) {
       console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
       giftUploadAttemptRef.current = false;
-      const diagnostics = getFirebaseDiagnosticsFn();
-      if (!isFirebaseEnabled() || !diagnostics.enabled) {
+      const diagnostics = firebaseDiagnostics.getFirebaseDiagnostics();
+      if (!firebaseDiagnostics.isFirebaseEnabled() || !diagnostics.enabled) {
         Alert.alert(
           settings.language === "zh" ? "Firebase 未啟用" : "Firebase Disabled",
           settings.language === "zh"
