@@ -2158,6 +2158,43 @@ export default function GardenScreen() {
           return;
         }
 
+        if (getPermissionsFn) {
+          try {
+            const permissionsResult: any = await getPermissionsFn();
+            const permissionsPayload =
+              permissionsResult?.finalPayload ||
+              permissionsResult?.response ||
+              permissionsResult?.result ||
+              permissionsResult;
+            const permissions = permissionsPayload?.permissions || {};
+            if (permissionsPayload?.status === "error") {
+              console.log("[DEBUG_GIFT_CLOUD] getPermissions error:", permissionsPayload);
+            }
+            if (!permissions?.contacts && requestPermissionFn) {
+              console.log("[DEBUG_GIFT_CLOUD] Requesting contacts permission...");
+              const permissionResult: any = await requestPermissionFn({ permission: "contacts" });
+              const permissionPayload =
+                permissionResult?.finalPayload ||
+                permissionResult?.response ||
+                permissionResult?.result ||
+                permissionResult;
+              if (permissionPayload?.status === "error") {
+                Alert.alert(
+                  settings.language === "zh" ? "授權失敗" : "Permission denied",
+                  settings.language === "zh"
+                    ? "未取得聯絡人授權，無法傳送光球"
+                    : "Contacts permission denied, cannot send."
+                );
+                isGifting.current = false;
+                setIsGiftingUI(false);
+                return;
+              }
+            }
+          } catch (permissionError) {
+            console.warn("[DEBUG_GIFT_CLOUD] Permission check failed:", permissionError);
+          }
+        }
+
         if (!walletAddress) {
           console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
           Alert.alert("傳送失敗: walletAddress missing");
