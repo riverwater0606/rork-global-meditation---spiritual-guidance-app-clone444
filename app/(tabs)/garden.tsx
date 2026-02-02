@@ -15,7 +15,9 @@ import { useUser } from "@/providers/UserProvider";
 import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
+import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
+import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, isFirebaseEnabled } from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
 interface AmbientSound {
@@ -1913,6 +1915,56 @@ export default function GardenScreen() {
     return settings.language === "zh" ? "好友" : "Friend";
   };
 
+  const extractContactsFromPayload = (payload: any) => {
+    const contacts =
+      payload?.contacts ||
+      payload?.data?.contacts ||
+      payload?.response?.contacts ||
+      payload?.result?.contacts ||
+      payload?.data?.result?.contacts ||
+      payload?.response?.result?.contacts;
+    if (Array.isArray(contacts)) return contacts;
+    if (payload?.contact) return [payload.contact];
+    return [];
+  };
+
+  const extractContactWalletAddress = (contact: any): string => {
+    if (!contact) return "";
+    const wallets = Array.isArray(contact?.wallets) ? contact.wallets : [];
+    const walletFromArray = wallets.find(
+      (wallet: any) => wallet?.address || wallet?.walletAddress || wallet?.wallet_address
+    );
+    return (
+      contact.walletAddress ||
+      contact.wallet_address ||
+      contact.address ||
+      contact.wallet ||
+      contact?.wallet?.address ||
+      contact?.wallet?.walletAddress ||
+      contact?.wallet?.wallet_address ||
+      contact?.wallets?.[0]?.address ||
+      contact?.wallets?.[0]?.walletAddress ||
+      contact?.wallets?.[0]?.wallet_address ||
+      walletFromArray?.address ||
+      walletFromArray?.walletAddress ||
+      walletFromArray?.wallet_address ||
+      contact?.account?.address ||
+      ""
+    );
+  };
+
+  const formatContactName = (contact: any, fallbackWallet?: string) => {
+    const display =
+      contact?.name ||
+      contact?.displayName ||
+      contact?.username ||
+      contact?.handle ||
+      "";
+    if (display) return display;
+    if (fallbackWallet) return `User ${fallbackWallet.slice(0, 4)}`;
+    return settings.language === "zh" ? "好友" : "Friend";
+  };
+
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
     
@@ -2078,7 +2130,10 @@ export default function GardenScreen() {
 
     const run = async () => {
       try {
-        if (!MiniKit || !MiniKit.isInstalled()) {
+        const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
+        const installed = await isMiniKitInstalled(mk);
+
+        if (!mk || !installed) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
           Alert.alert(
             settings.language === "zh" ? "無法傳送" : "Cannot send",
@@ -2089,8 +2144,14 @@ export default function GardenScreen() {
           return;
         }
 
-        if (!MiniKit.commandsAsync?.shareContacts) {
-          console.log("[DEBUG_GIFT_CLOUD] MiniKit.commandsAsync.shareContacts missing - skipping upload");
+        const shareContactsFn =
+          mk?.commandsAsync?.shareContacts ||
+          mk?.commands?.shareContacts ||
+          mk?.actions?.shareContacts ||
+          mk?.shareContacts;
+
+        if (!shareContactsFn) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
           Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
           isGifting.current = false;
           setIsGiftingUI(false);
@@ -2135,9 +2196,9 @@ export default function GardenScreen() {
         }
 
         let result: any;
-        if (MiniKit?.commandsAsync?.shareContacts) {
+        if (shareContactsFn) {
           console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-          result = await MiniKit.commandsAsync.shareContacts({
+          result = await shareContactsFn({
             isMultiSelectEnabled: false,
             inviteMessage:
               settings.language === "zh"
@@ -2176,8 +2237,8 @@ export default function GardenScreen() {
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
-          hasMiniKit: Boolean(MiniKit),
-          hasShareContacts: Boolean(MiniKit?.commandsAsync?.shareContacts),
+          hasMiniKit: Boolean(mk),
+          hasShareContacts: Boolean(shareContactsFn),
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
         });

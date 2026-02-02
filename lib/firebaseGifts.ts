@@ -31,7 +31,7 @@ export type GiftOrbPayloadV1 = {
 export function sanitizeWalletId(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "unknown";
-  return trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return trimmed.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
 }
 
 
