@@ -1132,10 +1132,9 @@ export default function GardenScreen() {
   const handleMiniKitShareContactsEvent = (payload: any) => {
     console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
     console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
-    console.log(`[DEBUG_GIFT] ShareContacts payload: ${JSON.stringify(payload)}`);
 
-    const shareContactsStatus = payload?.status;
-    if (shareContactsStatus === "error") {
+    const status = payload?.status;
+    if (status === "error") {
       const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
@@ -1150,10 +1149,32 @@ export default function GardenScreen() {
       return;
     }
 
-    const contacts = extractContactsFromPayload(payload);
-    console.log("[DEBUG_GIFT] Extracted contacts from event:", JSON.stringify(contacts));
+        const status = payload?.status;
+        if (status === "error") {
+          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+          pendingShareContactsRef.current = false;
+          clearShareContactsTimeout();
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
+            settings.language === "zh"
+              ? `無法開啟朋友列表，請檢查 MiniKit 或重試\n錯誤原因：${errorCode}`
+              : `Unable to open friends list. Please check MiniKit or try again.\nReason: ${errorCode}`
+          );
+          finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
+          void attemptGiftUpload(
+            {
+              fromWalletAddress: walletAddress || "missing",
+              toWalletAddress: "unknown",
+              source: "event",
+            },
+            { silent: true }
+          );
+          return;
+        }
 
-    if (contacts && contacts.length > 0 && shareContactsStatus !== "error") {
+    if (contacts && contacts.length > 0 && status !== "error") {
       console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
@@ -1989,15 +2010,20 @@ export default function GardenScreen() {
 
     const toWalletAddress = extractContactWalletAddress(contact);
     const friendName = formatContactName(contact, toWalletAddress);
-    if (toWalletAddress) {
-      console.log(`[DEBUG_GIFT] ShareContacts success: wallet = ${toWalletAddress}`);
-    } else {
-      console.log("[DEBUG_GIFT] No walletAddress");
-    }
+    console.log("[DEBUG_GIFT] Selected contact walletAddress:", toWalletAddress);
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
     if (!toWalletAddress) {
-      console.log("[DEBUG_GIFT] Missing contact wallet address");
+      console.log("[DEBUG_GIFT] Missing contact wallet address, falling back to unknown receiver");
+      finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
+      void attemptGiftUpload(
+        {
+          fromWalletAddress: walletAddress || "missing",
+          toWalletAddress: "unknown",
+          source: "event",
+        },
+        { silent: true }
+      );
       isGifting.current = false;
       setIsGiftingUI(false);
       Alert.alert(
@@ -2008,7 +2034,6 @@ export default function GardenScreen() {
     }
 
     // UI success flow immediately, upload happens in background
-    isGifting.current = false;
     finishGifting(friendName);
     void attemptGiftUpload({
       fromWalletAddress: walletAddress || "missing",
@@ -2269,8 +2294,19 @@ export default function GardenScreen() {
           isGifting.current = false;
           setIsGiftingUI(false);
           Alert.alert(
-            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-            settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+            settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
+            settings.language === "zh"
+              ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
+              : "Unable to open friends list. Please check MiniKit or try again."
+          );
+          finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
+          void attemptGiftUpload(
+            {
+              fromWalletAddress: walletAddress || "missing",
+              toWalletAddress: "unknown",
+              source: "shareContacts",
+            },
+            { silent: true }
           );
           return;
         }
@@ -2287,8 +2323,19 @@ export default function GardenScreen() {
               isGifting.current = false;
               setIsGiftingUI(false);
               Alert.alert(
-                settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-                settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+                settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
+                settings.language === "zh"
+                  ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
+                  : "Unable to open friends list. Please check MiniKit or try again."
+              );
+              finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
+              void attemptGiftUpload(
+                {
+                  fromWalletAddress: walletAddress || "missing",
+                  toWalletAddress: "unknown",
+                  source: "shareContacts",
+                },
+                { silent: true }
               );
             }
           }, 12000);
@@ -2320,13 +2367,23 @@ export default function GardenScreen() {
         });
 
         console.log("[DEBUG_GIFT_CLOUD] Gift upload queued via attemptGiftUpload");
-        isGifting.current = false;
         finishGifting(friendName);
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
         Alert.alert(
-          settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-          settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+          settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
+          settings.language === "zh"
+            ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
+            : "Unable to open friends list. Please check MiniKit or try again."
+        );
+        finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
+        void attemptGiftUpload(
+          {
+            fromWalletAddress: walletAddress || "missing",
+            toWalletAddress: "unknown",
+            source: "shareContacts",
+          },
+          { silent: true }
         );
         isGifting.current = false;
       } finally {
