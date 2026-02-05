@@ -1087,6 +1087,15 @@ export default function GardenScreen() {
     }
   };
 
+  const toSafeJson = (value: any) => {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      console.warn("[DEBUG_GIFT] Failed to stringify payload:", error);
+      return String(value);
+    }
+  };
+
   const stopMiniKitPolling = () => {
     if (miniKitPollRef.current) {
       clearInterval(miniKitPollRef.current);
@@ -1131,7 +1140,7 @@ export default function GardenScreen() {
 
   const handleMiniKitShareContactsEvent = (payload: any) => {
     console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-    console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
+    console.log("[DEBUG_GIFT] Event Payload (Full):", toSafeJson(payload));
 
     const payloadRoot = payload?.finalPayload || payload;
     const status = payloadRoot?.status;
@@ -1984,7 +1993,7 @@ export default function GardenScreen() {
   };
 
   const handleGiftSuccess = async (contact: any) => {
-    console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
+    console.log("[DEBUG_GIFT] handleGiftSuccess called with:", toSafeJson(contact));
 
     const toWalletAddress = extractContactWalletAddress(contact);
     const friendName = formatContactName(contact, toWalletAddress);
