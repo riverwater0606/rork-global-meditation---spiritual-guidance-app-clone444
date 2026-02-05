@@ -1098,118 +1098,6 @@ export default function GardenScreen() {
     }
   };
 
-  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        setTimeout(() => reject(new Error(label)), ms);
-      }),
-    ]);
-  };
-
-  const parseGiftErrorMessage = (err: any) => {
-    const code = String(err?.code || err?.message || "unknown").toLowerCase();
-    if (code.includes("user_rejected")) {
-      return settings.language === "zh" ? "你取消咗選擇朋友" : "You cancelled selecting a friend.";
-    }
-    if (code.includes("already_shared")) {
-      return settings.language === "zh" ? "對方已分享過" : "Already shared with this friend.";
-    }
-    if (code.includes("no_wallet_address")) {
-      return settings.language === "zh" ? "揀到嘅朋友冇 walletAddress" : "Selected friend has no walletAddress.";
-    }
-    if (code.includes("timeout")) {
-      return settings.language === "zh" ? "選擇朋友超時，請重試" : "Selecting friend timed out. Please retry.";
-    }
-    return settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry.";
-  };
-
-  const shareContactsUnified = async (miniKitInstance: any) => {
-    const installed = await isMiniKitInstalled(miniKitInstance);
-    if (!miniKitInstance || !installed) {
-      const error = new Error("minikit_not_installed");
-      (error as any).code = "minikit_not_installed";
-      throw error;
-    }
-
-    const payload = {
-      isMultiSelectEnabled: false,
-      inviteMessage:
-        settings.language === "zh"
-          ? "分享你的錢包聯絡人以贈送光球"
-          : "Share a contact wallet to receive a gift orb",
-    };
-
-    if (miniKitInstance?.commandsAsync?.shareContacts) {
-      console.log("[gift] path=async");
-      const res = await withTimeout(
-        miniKitInstance.commandsAsync.shareContacts(payload),
-        30000,
-        "shareContacts async timeout"
-      );
-      const finalPayload = res?.finalPayload ?? res;
-      if (finalPayload?.status !== "success") {
-        const code = finalPayload?.error_code || "shareContacts_failed";
-        const error = new Error(code);
-        (error as any).code = code;
-        throw error;
-      }
-      const contacts = Array.isArray(finalPayload?.contacts) ? finalPayload.contacts : [];
-      return contacts;
-    }
-
-    if (!miniKitInstance?.commands?.shareContacts) {
-      const error = new Error("shareContacts_missing");
-      (error as any).code = "shareContacts_missing";
-      throw error;
-    }
-
-    console.log("[gift] path=command_fallback");
-    return await new Promise<any[]>((resolve, reject) => {
-      let settled = false;
-      const done = (fn: () => void) => {
-        if (settled) return;
-        settled = true;
-        try {
-          miniKitInstance.unsubscribe(ResponseEvent.MiniAppShareContacts);
-        } catch {}
-        clearShareContactsTimeout();
-        fn();
-      };
-
-      shareContactsTimeoutRef.current = setTimeout(() => {
-        done(() => {
-          const e = new Error("shareContacts event timeout");
-          (e as any).code = "shareContacts_event_timeout";
-          reject(e);
-        });
-      }, 30000);
-
-      try {
-        try {
-          miniKitInstance.unsubscribe(ResponseEvent.MiniAppShareContacts);
-        } catch {}
-        miniKitInstance.subscribe(ResponseEvent.MiniAppShareContacts, (response: any) => {
-          const finalPayload = response?.finalPayload ?? response;
-          if (finalPayload?.status !== "success") {
-            const code = finalPayload?.error_code || "shareContacts_failed";
-            done(() => {
-              const e = new Error(code);
-              (e as any).code = code;
-              reject(e);
-            });
-            return;
-          }
-          const contacts = Array.isArray(finalPayload?.contacts) ? finalPayload.contacts : [];
-          done(() => resolve(contacts));
-        });
-        miniKitInstance.commands.shareContacts(payload);
-      } catch (err: any) {
-        done(() => reject(err));
-      }
-    });
-  };
-
   const stopMiniKitPolling = () => {
     if (miniKitPollRef.current) {
       clearInterval(miniKitPollRef.current);
@@ -1273,7 +1161,7 @@ export default function GardenScreen() {
       return;
     }
 
-    const contacts = extractContactsFromPayload(payloadRoot);
+    const contacts = extractContactsFromPayload(payload?.finalPayload || payload);
     const contact = contacts[0];
     const selectedWalletAddress = extractContactWalletAddress(contact);
     if (selectedWalletAddress) {
@@ -2234,7 +2122,7 @@ export default function GardenScreen() {
   const handleStartGiftingOptimistic = () => {
     console.log("[gift] start gifting");
     if (isGifting.current) {
-      console.log("[gift] stale gifting lock cleared");
+      console.log("[DEBUG_GIFT] stale isGifting lock detected, clearing lock before shareContacts");
       isGifting.current = false;
     }
 
@@ -2249,6 +2137,89 @@ export default function GardenScreen() {
     const run = async () => {
       try {
         const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
+        const getPermissionsFn = mk?.commandsAsync?.getPermissions;
+        const requestPermissionFn = mk?.commandsAsync?.requestPermission;
+        const shareContactsAsyncFn = mk?.commandsAsync?.shareContacts;
+        const shareContactsCommandFn = mk?.commands?.shareContacts;
+        const installed = await isMiniKitInstalled(mk);
+
+        if (!mk || !installed) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
+          if (Platform.OS === "web") {
+            const miniAppUrl =
+              (mk?.getMiniAppUrl || MiniKit?.getMiniAppUrl)?.(APP_ID, "/") ||
+              `https://worldcoin.org/mini-app/${encodeURIComponent(APP_ID)}`;
+            try {
+              window.location.assign(miniAppUrl);
+            } catch (e) {
+              console.log("[DEBUG_GIFT_CLOUD] Failed to open MiniApp URL:", e);
+            }
+          }
+          Alert.alert(
+            settings.language === "zh" ? "無法傳送" : "Cannot send",
+            settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
+          );
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          return;
+        }
+
+        if (!shareContactsAsyncFn && !shareContactsCommandFn) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
+          Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          return;
+        }
+
+        const subscribed = subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
+        if (!subscribed) {
+          pendingShareContactsRef.current = false;
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+          );
+          return;
+        }
+
+        if (getPermissionsFn) {
+          try {
+            const permissionsResult: any = await getPermissionsFn();
+            const permissionsPayload =
+              permissionsResult?.finalPayload ||
+              permissionsResult?.response ||
+              permissionsResult?.result ||
+              permissionsResult;
+            const permissions = permissionsPayload?.permissions || {};
+            if (permissionsPayload?.status === "error") {
+              console.log("[DEBUG_GIFT_CLOUD] getPermissions error:", permissionsPayload);
+            }
+            if (!permissions?.contacts && requestPermissionFn) {
+              console.log("[DEBUG_GIFT_CLOUD] Requesting contacts permission...");
+              const permissionResult: any = await requestPermissionFn({ permission: "contacts" });
+              const permissionPayload =
+                permissionResult?.finalPayload ||
+                permissionResult?.response ||
+                permissionResult?.result ||
+                permissionResult;
+              if (permissionPayload?.status === "error") {
+                Alert.alert(
+                  settings.language === "zh" ? "授權失敗" : "Permission denied",
+                  settings.language === "zh"
+                    ? "未取得聯絡人授權，無法傳送光球"
+                    : "Contacts permission denied, cannot send."
+                );
+                isGifting.current = false;
+                setIsGiftingUI(false);
+                return;
+              }
+            }
+          } catch (permissionError) {
+            console.warn("[DEBUG_GIFT_CLOUD] Permission check failed:", permissionError);
+          }
+        }
 
         if (!walletAddress) {
           const err = new Error("wallet_missing");
@@ -2256,24 +2227,81 @@ export default function GardenScreen() {
           throw err;
         }
 
-        const contacts = await shareContactsUnified(mk);
-        const firstContact = contacts?.[0];
-        const friendWallet = firstContact?.walletAddress || "";
-        const friendName = firstContact?.username || (settings.language === "zh" ? "好友" : "friend");
+        setIsGiftingUI(true);
+        pendingShareContactsRef.current = true;
+        clearShareContactsTimeout();
 
-        console.log("[gift] contacts received", {
-          count: Array.isArray(contacts) ? contacts.length : 0,
-          hasUsername: Boolean(firstContact?.username),
-          hasWalletAddress: Boolean(friendWallet),
-        });
+        let result: any;
+        const shareContactsPayload = {
+          isMultiSelectEnabled: false,
+          inviteMessage:
+            settings.language === "zh"
+              ? "分享你的錢包聯絡人以贈送光球"
+              : "Share a contact wallet to receive a gift orb",
+        };
 
-        if (!friendWallet) {
-          const err = new Error("no_wallet_address");
-          (err as any).code = "no_wallet_address";
-          throw err;
+        console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
+        try {
+          if (shareContactsCommandFn) {
+            result = shareContactsCommandFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
+          } else {
+            result = await shareContactsAsyncFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+          }
+        } catch (shareError) {
+          console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
+          pendingShareContactsRef.current = false;
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh"
+              ? "選擇朋友失敗，請重試"
+              : "Friend selection failed. Please retry."
+          );
+          return;
         }
 
-        finishGifting(friendName);
+        const responsePayload = result?.finalPayload || result;
+        console.log("[DEBUG_GIFT_CLOUD] shareContacts response payload:", JSON.stringify(responsePayload ?? {}, null, 2));
+        const contacts = extractContactsFromPayload(responsePayload);
+        const contact = contacts[0];
+        const toWalletAddress: string = extractContactWalletAddress(contact);
+
+        if (!toWalletAddress) {
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - waiting for event payload");
+          shareContactsTimeoutRef.current = setTimeout(() => {
+            if (pendingShareContactsRef.current) {
+              pendingShareContactsRef.current = false;
+              isGifting.current = false;
+              setIsGiftingUI(false);
+              Alert.alert(
+                settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+                settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+              );
+            }
+          }, 8000);
+          return;
+        }
+
+        pendingShareContactsRef.current = false;
+        clearShareContactsTimeout();
+        const fromWalletAddress = walletAddress;
+        const friendName = formatContactName(contact, toWalletAddress);
+        console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
+
+        console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
+          hasMiniKit: Boolean(mk),
+          hasShareContacts: Boolean(shareContactsAsyncFn || shareContactsCommandFn),
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+        });
+        console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
+          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
+          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+          orbSnapshotId: orbSnapshot.id,
+        });
 
         void attemptGiftUpload({
           fromWalletAddress: walletAddress || "missing",
@@ -2282,14 +2310,19 @@ export default function GardenScreen() {
         }).catch((uploadErr) => {
           console.error("[gift] upload failed after ui success", uploadErr);
         });
-      } catch (err: any) {
-        const errorCode = err?.code || err?.message || "unknown";
-        console.log("[gift] failed", { error_code: errorCode, message: err?.message });
-        setGiftingError(parseGiftErrorMessage(err));
+
+        console.log("[DEBUG_GIFT_CLOUD] Gift upload queued via attemptGiftUpload");
+        finishGifting(friendName);
+      } catch (e) {
+        console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+        Alert.alert(
+          settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+          settings.language === "zh"
+            ? "選擇朋友失敗，請重試"
+            : "Friend selection failed. Please retry."
+        );
         isGifting.current = false;
       } finally {
-        clearShareContactsTimeout();
-        pendingShareContactsRef.current = false;
         pauseMiniKitAutoSubscribeRef.current = false;
         setIsGiftingUI(false);
       }
