@@ -1069,6 +1069,7 @@ export default function GardenScreen() {
   const miniKitInstanceRef = useRef<any | null>(null);
   const miniKitPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const miniKitLoggedMissingRef = useRef(false);
+  const pauseMiniKitAutoSubscribeRef = useRef(false);
   const giftSoundRef = useRef<Audio.Sound | null>(null);
   const ambientSoundRef = useRef<Audio.Sound | null>(null);
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
@@ -1184,6 +1185,9 @@ export default function GardenScreen() {
   useEffect(() => {
 
     const attemptSubscribe = async () => {
+      if (pauseMiniKitAutoSubscribeRef.current) {
+        return false;
+      }
       const candidate = resolveMiniKit();
       const installed = await isMiniKitInstalled(candidate);
       if (!installed) {
@@ -2352,6 +2356,7 @@ export default function GardenScreen() {
         );
         isGifting.current = false;
       } finally {
+        pauseMiniKitAutoSubscribeRef.current = false;
         setIsGiftingUI(false);
       }
     };
