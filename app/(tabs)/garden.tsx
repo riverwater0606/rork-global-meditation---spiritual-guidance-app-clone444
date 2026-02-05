@@ -2281,15 +2281,15 @@ export default function GardenScreen() {
             console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
           }
         } catch (shareError) {
-          console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open:", shareError);
+          console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
           pendingShareContactsRef.current = false;
           isGifting.current = false;
           setIsGiftingUI(false);
           Alert.alert(
-            settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
             settings.language === "zh"
-              ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
-              : "Unable to open friends list. Please check MiniKit or try again."
+              ? "選擇朋友失敗，請重試"
+              : "Friend selection failed. Please retry."
           );
           return;
         }
@@ -2312,7 +2312,7 @@ export default function GardenScreen() {
                 settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
               );
             }
-          }, 12000);
+          }, 8000);
           return;
         }
 
