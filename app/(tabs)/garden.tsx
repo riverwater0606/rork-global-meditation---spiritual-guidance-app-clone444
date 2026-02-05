@@ -2241,31 +2241,6 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = true;
         clearShareContactsTimeout();
 
-        if (MiniKit?.commandsAsync?.getPermissions && MiniKit?.commandsAsync?.requestPermission) {
-          const permissionResult = await MiniKit.commandsAsync.getPermissions();
-          const permissions = permissionResult?.finalPayload?.permissions;
-          const hasContactsPermission = Boolean(permissions?.contacts);
-
-          if (!hasContactsPermission) {
-            console.log("[DEBUG_GIFT_CLOUD] Contacts permission missing - requesting permission");
-            const requestResult = await MiniKit.commandsAsync.requestPermission({
-              permission: Permission?.Contacts ?? "contacts",
-            });
-            const requestStatus = requestResult?.finalPayload?.status;
-            if (requestStatus !== "success") {
-              console.log("[DEBUG_GIFT_CLOUD] Contacts permission request denied or failed");
-              pendingShareContactsRef.current = false;
-              isGifting.current = false;
-              setIsGiftingUI(false);
-              Alert.alert(
-                settings.language === "zh" ? "無法傳送" : "Cannot send",
-                settings.language === "zh" ? "未授權聯絡人權限" : "Contacts permission not granted."
-              );
-              return;
-            }
-          }
-        }
-
         let result: any;
         const shareContactsPayload = {
           isMultiSelectEnabled: false,
