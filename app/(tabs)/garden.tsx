@@ -1150,7 +1150,7 @@ export default function GardenScreen() {
       return;
     }
 
-    const contacts = extractContactsFromPayload(payloadRoot);
+    const contacts = extractContactsFromPayload(payload?.finalPayload || payload);
     const contact = contacts[0];
     const selectedWalletAddress = extractContactWalletAddress(contact);
     if (selectedWalletAddress) {
