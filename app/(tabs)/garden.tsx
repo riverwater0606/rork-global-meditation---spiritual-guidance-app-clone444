@@ -1133,9 +1133,10 @@ export default function GardenScreen() {
     console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
     console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
 
-    const status = payload?.status;
+    const payloadRoot = payload?.finalPayload || payload;
+    const status = payloadRoot?.status;
     if (status === "error") {
-      const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+      const errorCode = payloadRoot?.error_code || payloadRoot?.error?.code || payloadRoot?.error?.message || payloadRoot?.message || "unknown";
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
       isGifting.current = false;
@@ -2133,7 +2134,8 @@ export default function GardenScreen() {
         const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
         const getPermissionsFn = mk?.commandsAsync?.getPermissions;
         const requestPermissionFn = mk?.commandsAsync?.requestPermission;
-        const shareContactsFn = mk?.commandsAsync?.shareContacts;
+        const shareContactsAsyncFn = mk?.commandsAsync?.shareContacts;
+        const shareContactsCommandFn = mk?.commands?.shareContacts;
         const installed = await isMiniKitInstalled(mk);
 
         if (!mk || !installed) {
@@ -2157,7 +2159,7 @@ export default function GardenScreen() {
           return;
         }
 
-        if (!shareContactsFn) {
+        if (!shareContactsAsyncFn && !shareContactsCommandFn) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
           Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
           isGifting.current = false;
@@ -2252,16 +2254,23 @@ export default function GardenScreen() {
         }
 
         let result: any;
+        const shareContactsPayload = {
+          isMultiSelectEnabled: false,
+          inviteMessage:
+            settings.language === "zh"
+              ? "分享你的錢包聯絡人以贈送光球"
+              : "Share a contact wallet to receive a gift orb",
+        };
+
         console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
         try {
-          result = await shareContactsFn({
-            isMultiSelectEnabled: false,
-            inviteMessage:
-              settings.language === "zh"
-                ? "分享你的錢包聯絡人以贈送光球"
-                : "Share a contact wallet to receive a gift orb",
-          });
-          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+          if (shareContactsCommandFn) {
+            result = shareContactsCommandFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
+          } else {
+            result = await shareContactsAsyncFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+          }
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open:", shareError);
           pendingShareContactsRef.current = false;
@@ -2276,7 +2285,9 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = extractContactsFromPayload(result);
+        const responsePayload = result?.finalPayload || result;
+        console.log("[DEBUG_GIFT_CLOUD] shareContacts response payload:", JSON.stringify(responsePayload ?? {}, null, 2));
+        const contacts = extractContactsFromPayload(responsePayload);
         const contact = contacts[0];
         const toWalletAddress: string = extractContactWalletAddress(contact);
 
@@ -2304,7 +2315,7 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
           hasMiniKit: Boolean(mk),
-          hasShareContacts: Boolean(shareContactsFn),
+          hasShareContacts: Boolean(shareContactsAsyncFn || shareContactsCommandFn),
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
         });
