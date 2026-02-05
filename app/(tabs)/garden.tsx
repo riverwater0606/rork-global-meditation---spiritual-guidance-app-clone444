@@ -1159,7 +1159,7 @@ export default function GardenScreen() {
       return;
     }
 
-    const contacts = extractContactsFromPayload(payloadRoot);
+    const contacts = extractContactsFromPayload(payload?.finalPayload || payload);
     const contact = contacts[0];
     const selectedWalletAddress = extractContactWalletAddress(contact);
     if (selectedWalletAddress) {
@@ -2176,19 +2176,16 @@ export default function GardenScreen() {
           return;
         }
 
-        const useAsyncShareContacts = Boolean(shareContactsAsyncFn);
-        if (!useAsyncShareContacts) {
-          const subscribed = subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
-          if (!subscribed) {
-            pendingShareContactsRef.current = false;
-            isGifting.current = false;
-            setIsGiftingUI(false);
-            Alert.alert(
-              settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-              settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
-            );
-            return;
-          }
+        const subscribed = subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
+        if (!subscribed) {
+          pendingShareContactsRef.current = false;
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+          );
+          return;
         }
 
         if (getPermissionsFn) {
@@ -2276,22 +2273,12 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
         try {
-          const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
-            Promise.race([
-              promise,
-              new Promise<T>((_, reject) =>
-                setTimeout(() => reject(new Error(`shareContacts timeout after ${ms}ms`)), ms)
-              ),
-            ]);
-
-          if (useAsyncShareContacts) {
-            result = await withTimeout(shareContactsAsyncFn(shareContactsPayload), 15000);
-            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", toSafeJson(result));
-          } else if (shareContactsCommandFn) {
+          if (shareContactsCommandFn) {
             result = shareContactsCommandFn(shareContactsPayload);
-            console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", toSafeJson(result ?? {}));
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
           } else {
-            throw new Error("shareContacts function missing");
+            result = await shareContactsAsyncFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
           }
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
@@ -2308,52 +2295,13 @@ export default function GardenScreen() {
         }
 
         const responsePayload = result?.finalPayload || result;
-        const responseCommandPayload = result?.commandPayload;
-        console.log("[DEBUG_GIFT_CLOUD] shareContacts response payload:", toSafeJson(responsePayload ?? {}));
-        console.log("[DEBUG_GIFT_CLOUD] shareContacts command payload:", toSafeJson(responseCommandPayload ?? {}));
-
-        if (responsePayload?.status === "error") {
-          const errorCode =
-            responsePayload?.error_code ||
-            responsePayload?.error?.code ||
-            responsePayload?.error?.message ||
-            responsePayload?.message ||
-            "unknown";
-          pendingShareContactsRef.current = false;
-          clearShareContactsTimeout();
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          Alert.alert(
-            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-            settings.language === "zh"
-              ? `選擇朋友失敗，請重試
-錯誤原因：${errorCode}`
-              : `Friend selection failed. Please retry.
-Reason: ${errorCode}`
-          );
-          return;
-        }
-
+        console.log("[DEBUG_GIFT_CLOUD] shareContacts response payload:", JSON.stringify(responsePayload ?? {}, null, 2));
         const contacts = extractContactsFromPayload(responsePayload);
-        const commandContacts = extractContactsFromPayload(responseCommandPayload);
-        const contact = contacts[0] || commandContacts[0];
+        const contact = contacts[0];
         const toWalletAddress: string = extractContactWalletAddress(contact);
 
         if (!toWalletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress");
-          if (useAsyncShareContacts) {
-            pendingShareContactsRef.current = false;
-            clearShareContactsTimeout();
-            isGifting.current = false;
-            setIsGiftingUI(false);
-            Alert.alert(
-              settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-              settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
-            );
-            return;
-          }
-
-          console.log("[DEBUG_GIFT_CLOUD] Waiting for event payload in commands.shareContacts mode");
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - waiting for event payload");
           shareContactsTimeoutRef.current = setTimeout(() => {
             if (pendingShareContactsRef.current) {
               pendingShareContactsRef.current = false;
