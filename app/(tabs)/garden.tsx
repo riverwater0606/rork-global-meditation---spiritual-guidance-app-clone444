@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1059,6 +1059,7 @@ export default function GardenScreen() {
   const isGifting = useRef(false); // Ref for lock to prevent double execution
   const hasAttemptedGift = useRef(false); // Ref to track if user tried to gift
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
+  const [giftingError, setGiftingError] = useState<string | null>(null);
   const giftUploadAttemptRef = useRef(false);
   const pendingShareContactsRef = useRef(false);
   const shareContactsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1820,6 +1821,7 @@ export default function GardenScreen() {
        }
        isGifting.current = false; // Reset lock before modal opens
        hasAttemptedGift.current = false;
+       setGiftingError(null);
        setShowGiftModal(true);
        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
        console.log("[DEBUG_SWIPE] Heart transformation complete, gift modal opened");
@@ -2118,29 +2120,19 @@ export default function GardenScreen() {
   };
 
   const handleStartGiftingOptimistic = () => {
-    console.log("[DEBUG_GIFT] handleStartGiftingOptimistic PRESS");
-    console.log("[DEBUG_GIFT] Current state - isGifting:", isGifting.current, "mode:", interactionState.current.mode);
-
+    console.log("[gift] start gifting");
     if (isGifting.current) {
       console.log("[DEBUG_GIFT] stale isGifting lock detected, clearing lock before shareContacts");
       isGifting.current = false;
     }
 
-    const orbSnapshot = {
-      id: currentOrbRef.current.id || `orb-${Date.now()}`,
-      level: currentOrbRef.current.level,
-      layers: [...(currentOrbRef.current.layers ?? [])],
-      isAwakened: Boolean(currentOrbRef.current.isAwakened),
-      createdAt: currentOrbRef.current.createdAt || new Date().toISOString(),
-      completedAt: currentOrbRef.current.completedAt,
-      shape: currentOrbRef.current.shape,
-      rotationSpeed: interactionState.current.spinVelocity,
-    };
-
     isGifting.current = true;
-    setIsGiftingUI(true);
     giftUploadAttemptRef.current = false;
     hasAttemptedGift.current = true;
+    setGiftingError(null);
+    setIsGiftingUI(true);
+    pendingShareContactsRef.current = true;
+    pauseMiniKitAutoSubscribeRef.current = true;
 
     const run = async () => {
       try {
@@ -2230,11 +2222,9 @@ export default function GardenScreen() {
         }
 
         if (!walletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert("傳送失敗: walletAddress missing");
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          return;
+          const err = new Error("wallet_missing");
+          (err as any).code = "wallet_missing";
+          throw err;
         }
 
         setIsGiftingUI(true);
@@ -2314,9 +2304,11 @@ export default function GardenScreen() {
         });
 
         void attemptGiftUpload({
-          toWalletAddress,
-          fromWalletAddress,
+          fromWalletAddress: walletAddress || "missing",
+          toWalletAddress: friendWallet,
           source: "shareContacts",
+        }).catch((uploadErr) => {
+          console.error("[gift] upload failed after ui success", uploadErr);
         });
 
         console.log("[DEBUG_GIFT_CLOUD] Gift upload queued via attemptGiftUpload");
@@ -2345,6 +2337,7 @@ export default function GardenScreen() {
 
     setShowGiftModal(false);
     setGiftMessage("");
+    setGiftingError(null);
     setIsGiftingUI(false);
     
     // CRITICAL: Always reset isGifting when modal closes
@@ -2581,6 +2574,12 @@ export default function GardenScreen() {
                     ? `Firebase 未啟用，可能缺少或配置錯誤的環境變數：${firebaseMissingEnv.join(", ")}`
                     : `Firebase is disabled, likely due to missing or misconfigured environment variables: ${firebaseMissingEnv.join(", ")}`}
                 </Text>
+              </View>
+            )}
+
+            {giftingError && (
+              <View style={{ marginTop: 10, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(239, 68, 68, 0.18)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.5)" }}>
+                <Text style={{ color: "#fecaca", fontSize: 13, fontWeight: "600" }}>{giftingError}</Text>
               </View>
             )}
 
