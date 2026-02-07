@@ -1164,9 +1164,9 @@ export default function GardenScreen() {
     }
   };
 
-  const getGiftingErrorMessage = (error: any) => {
+  const parseGiftErrorMessage = (error: any) => {
     const code = error?.code || error?.message;
-    if (code === "version_unsupported") {
+    if (code === "world_app_version_unsupported" || code === "version_unsupported") {
       return settings.language === "zh"
         ? "World App 版本過低，請更新"
         : "World App version is too old. Please update.";
@@ -1185,6 +1185,13 @@ export default function GardenScreen() {
     shareContactsCommandFn?: (data: any) => any;
     payload: any;
   }) => {
+    const worldAppVersion = parseVersionString(miniKitInstance?.deviceProperties?.worldAppVersion);
+    if (worldAppVersion && compareVersions(worldAppVersion, MIN_WORLD_APP_VERSION) < 0) {
+      const error = new Error("world_app_version_unsupported");
+      (error as any).code = "world_app_version_unsupported";
+      (error as any).details = { worldAppVersion };
+      throw error;
+    }
     ensureMiniKitVersionSupported(miniKitInstance);
     if (shareContactsCommandFn) {
       const result = shareContactsCommandFn(payload);
@@ -2372,7 +2379,7 @@ export default function GardenScreen() {
           });
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
-          const errorMessage = getGiftingErrorMessage(shareError);
+          const errorMessage = parseGiftErrorMessage(shareError);
           if (errorMessage) {
             pendingShareContactsRef.current = false;
             clearShareContactsTimeout();
@@ -2445,7 +2452,7 @@ export default function GardenScreen() {
         finishGifting(friendName);
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        const errorMessage = getGiftingErrorMessage(e);
+        const errorMessage = parseGiftErrorMessage(e);
         if (errorMessage) {
           pendingShareContactsRef.current = false;
           clearShareContactsTimeout();
