@@ -1171,6 +1171,11 @@ export default function GardenScreen() {
         ? "World App 版本過低，請更新"
         : "World App version is too old. Please update.";
     }
+    if (code === "minikit_version_unsupported") {
+      return settings.language === "zh"
+        ? "MiniKit 版本過低"
+        : "MiniKit version is too old.";
+    }
     return null;
   };
 
@@ -1193,6 +1198,14 @@ export default function GardenScreen() {
       throw error;
     }
     ensureMiniKitVersionSupported(miniKitInstance);
+    const miniKitVersion = parseVersionString(
+      miniKitInstance?.version ??
+        miniKitInstance?.sdkVersion ??
+        miniKitInstance?.miniKitVersion
+    );
+    if (miniKitVersion && compareVersions(miniKitVersion, MIN_MINIKIT_VERSION) < 0) {
+      throw new Error("minikit_version_unsupported");
+    }
     if (shareContactsCommandFn) {
       const result = shareContactsCommandFn(payload);
       console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
