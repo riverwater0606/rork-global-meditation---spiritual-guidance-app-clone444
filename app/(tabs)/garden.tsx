@@ -1213,7 +1213,7 @@ export default function GardenScreen() {
   const waitForMiniKitInstalled = async (
     candidate: any,
     timeoutMs = 1500,
-    intervalMs = 250
+    intervalMs = 100
   ) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -2345,7 +2345,7 @@ export default function GardenScreen() {
         };
 
         mk?.install?.(APP_ID);
-        const confirmedInstalled = await waitForMiniKitInstalled(mk, 1500, 250);
+        const confirmedInstalled = await waitForMiniKitInstalled(mk, 1200, 100);
         if (!confirmedInstalled) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed after install attempt - skipping shareContacts + upload");
           Alert.alert(
