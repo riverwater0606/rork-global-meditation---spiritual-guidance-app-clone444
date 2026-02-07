@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 import React, { useRef, useMemo, useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanResponder, Modal, Dimensions, Animated, Easing, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, PanResponder, Modal, Dimensions, Animated, Easing, TextInput } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -89,41 +89,21 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
 ];
 
 const extractContactsFromPayload = (payload: any) => {
+  const responsePayload = payload?.finalPayload ?? payload;
   const contacts =
-    payload?.contacts ||
-    payload?.data?.contacts ||
-    payload?.response?.contacts ||
-    payload?.result?.contacts ||
-    payload?.data?.result?.contacts ||
-    payload?.response?.result?.contacts;
+    responsePayload?.contacts ||
+    responsePayload?.data?.contacts ||
+    responsePayload?.response?.contacts ||
+    responsePayload?.result?.contacts ||
+    responsePayload?.data?.result?.contacts ||
+    responsePayload?.response?.result?.contacts;
   if (Array.isArray(contacts)) return contacts;
-  if (payload?.contact) return [payload.contact];
+  if (responsePayload?.contact) return [responsePayload.contact];
   return [];
 };
 
 const extractContactWalletAddress = (contact: any): string => {
-  if (!contact) return "";
-  const wallets = Array.isArray(contact?.wallets) ? contact.wallets : [];
-  const walletFromArray = wallets.find(
-    (wallet: any) => wallet?.address || wallet?.walletAddress || wallet?.wallet_address
-  );
-  return (
-    contact.walletAddress ||
-    contact.wallet_address ||
-    contact.address ||
-    contact.wallet ||
-    contact?.wallet?.address ||
-    contact?.wallet?.walletAddress ||
-    contact?.wallet?.wallet_address ||
-    contact?.wallets?.[0]?.address ||
-    contact?.wallets?.[0]?.walletAddress ||
-    contact?.wallets?.[0]?.wallet_address ||
-    walletFromArray?.address ||
-    walletFromArray?.walletAddress ||
-    walletFromArray?.wallet_address ||
-    contact?.account?.address ||
-    ""
-  );
+  return contact?.walletAddress || "";
 };
 
 const formatContactName = (contact: any, fallbackWallet?: string, language?: string) => {
@@ -1059,6 +1039,9 @@ export default function GardenScreen() {
   const isGifting = useRef(false); // Ref for lock to prevent double execution
   const hasAttemptedGift = useRef(false); // Ref to track if user tried to gift
   const [isGiftingUI, setIsGiftingUI] = useState(false); // State for UI loading indicator
+  const [giftingError, setGiftingError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTitle, setToastTitle] = useState<string | null>(null);
   const giftUploadAttemptRef = useRef(false);
   const pendingShareContactsRef = useRef(false);
   const shareContactsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1069,11 +1052,13 @@ export default function GardenScreen() {
   const miniKitInstanceRef = useRef<any | null>(null);
   const miniKitPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const miniKitLoggedMissingRef = useRef(false);
+  const pauseMiniKitAutoSubscribeRef = useRef(false);
   const giftSoundRef = useRef<Audio.Sound | null>(null);
   const ambientSoundRef = useRef<Audio.Sound | null>(null);
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
   const [ambientVolume, setAmbientVolume] = useState(0.5);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const useShareContactsAsyncOnly = true;
 
   useEffect(() => {
     console.log("[DEBUG_GIFT] GardenScreen MOUNTED - Checking for pending actions...");
@@ -1085,6 +1070,102 @@ export default function GardenScreen() {
       clearTimeout(shareContactsTimeoutRef.current);
       shareContactsTimeoutRef.current = null;
     }
+  };
+
+  const toSafeJson = (value: any) => {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      console.warn("[DEBUG_GIFT] Failed to stringify payload:", error);
+      return String(value);
+    }
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error(label)), ms);
+      }),
+    ]);
+  };
+
+  const parseGiftErrorMessage = (err: any) => {
+    const code = String(err?.code || err?.message || "unknown").toLowerCase();
+    if (code.includes("user_rejected")) {
+      return settings.language === "zh" ? "你取消咗選擇朋友" : "You cancelled selecting a friend.";
+    }
+    if (code.includes("generic_error")) {
+      return settings.language === "zh" ? "系統出錯，請重試" : "System error. Please retry.";
+    }
+    if (code.includes("no_contacts")) {
+      return settings.language === "zh" ? "未選擇任何朋友" : "No friend selected.";
+    }
+    if (code.includes("already_shared")) {
+      return settings.language === "zh" ? "對方已分享過" : "Already shared with this friend.";
+    }
+    if (code.includes("no_wallet_address")) {
+      return settings.language === "zh" ? "揀到嘅朋友冇 walletAddress" : "Selected friend has no walletAddress.";
+    }
+    if (code.includes("timeout")) {
+      return settings.language === "zh" ? "選擇朋友超時，請重試" : "Selecting friend timed out. Please retry.";
+    }
+    return settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry.";
+  };
+
+  const showToast = (title: string, message: string) => {
+    setToastTitle(title);
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage(null);
+      setToastTitle(null);
+    }, 4000);
+  };
+
+  const shareContactsUnified = async (miniKitInstance: any) => {
+    const installed = await isMiniKitInstalled(miniKitInstance);
+    const worldAppVersion = miniKitInstance?.deviceProperties?.worldAppVersion;
+    console.log("[gift] MiniKit installed:", installed, "worldAppVersion:", worldAppVersion);
+    if (!miniKitInstance || !installed) {
+      const error = new Error("minikit_not_installed");
+      (error as any).code = "minikit_not_installed";
+      throw error;
+    }
+
+    const payload = {
+      isMultiSelectEnabled: false,
+      inviteMessage:
+        settings.language === "zh"
+          ? "分享你的錢包聯絡人以贈送光球"
+          : "Share a contact wallet to receive a gift orb",
+    };
+
+    if (!miniKitInstance?.commandsAsync?.shareContacts) {
+      const error = new Error("shareContacts_missing");
+      (error as any).code = "shareContacts_missing";
+      throw error;
+    }
+
+    console.log("[gift] path=async");
+    const res = await withTimeout(
+      miniKitInstance.commandsAsync.shareContacts(payload),
+      30000,
+      "shareContacts async timeout"
+    );
+    const finalPayload = res?.finalPayload ?? res;
+    if (finalPayload?.status !== "success") {
+      const code = finalPayload?.error_code || "shareContacts_failed";
+      const error = new Error(code);
+      (error as any).code = code;
+      throw error;
+    }
+    const contacts = Array.isArray(finalPayload?.contacts) ? finalPayload.contacts : [];
+    if (!contacts.length) {
+      const error = new Error("no_contacts");
+      (error as any).code = "no_contacts";
+      throw error;
+    }
+    return contacts;
   };
 
   const stopMiniKitPolling = () => {
@@ -1131,16 +1212,17 @@ export default function GardenScreen() {
 
   const handleMiniKitShareContactsEvent = (payload: any) => {
     console.log("[DEBUG_GIFT] MiniKit Event: ResponseEvent.MiniAppShareContacts triggered");
-    console.log("[DEBUG_GIFT] Event Payload (Full):", JSON.stringify(payload, null, 2));
+    console.log("[DEBUG_GIFT] Event Payload (Full):", toSafeJson(payload));
 
-    const status = payload?.status;
+    const payloadRoot = payload?.finalPayload || payload;
+    const status = payloadRoot?.status;
     if (status === "error") {
-      const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
+      const errorCode = payloadRoot?.error_code || payloadRoot?.error?.code || payloadRoot?.error?.message || payloadRoot?.message || "unknown";
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
       isGifting.current = false;
       setIsGiftingUI(false);
-      Alert.alert(
+      showToast(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh"
           ? `選擇朋友失敗，請重試\n錯誤原因：${errorCode}`
@@ -1149,44 +1231,21 @@ export default function GardenScreen() {
       return;
     }
 
-        const status = payload?.status;
-        if (status === "error") {
-          const errorCode = payload?.error_code || payload?.error?.code || payload?.error?.message || payload?.message || "unknown";
-          pendingShareContactsRef.current = false;
-          clearShareContactsTimeout();
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          Alert.alert(
-            settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
-            settings.language === "zh"
-              ? `無法開啟朋友列表，請檢查 MiniKit 或重試\n錯誤原因：${errorCode}`
-              : `Unable to open friends list. Please check MiniKit or try again.\nReason: ${errorCode}`
-          );
-          finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
-          void attemptGiftUpload(
-            {
-              fromWalletAddress: walletAddress || "missing",
-              toWalletAddress: "unknown",
-              source: "event",
-            },
-            { silent: true }
-          );
-          return;
-        }
-
-    if (contacts && contacts.length > 0 && status !== "error") {
-      console.log("[DEBUG_GIFT] Event has contacts, calling handleGiftSuccessRef");
+    const contacts = extractContactsFromPayload(payloadRoot);
+    const contact = contacts[0];
+    const selectedWalletAddress = extractContactWalletAddress(contact);
+    if (selectedWalletAddress) {
+      console.log(`[DEBUG_GIFT] ShareContacts success: wallet = ${selectedWalletAddress}`);
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
-      handleGiftSuccessRef.current(contacts[0]);
+      handleGiftSuccessRef.current(contact);
     } else {
-      console.log("[DEBUG_GIFT] Event triggered but no successful contacts found in payload");
       console.log("[DEBUG_GIFT] No walletAddress");
       pendingShareContactsRef.current = false;
       clearShareContactsTimeout();
       isGifting.current = false;
       setIsGiftingUI(false);
-      Alert.alert(
+      showToast(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
       );
@@ -1197,6 +1256,12 @@ export default function GardenScreen() {
   useEffect(() => {
 
     const attemptSubscribe = async () => {
+      if (useShareContactsAsyncOnly) {
+        return false;
+      }
+      if (pauseMiniKitAutoSubscribeRef.current) {
+        return false;
+      }
       const candidate = resolveMiniKit();
       const installed = await isMiniKitInstalled(candidate);
       if (!installed) {
@@ -1216,7 +1281,7 @@ export default function GardenScreen() {
 
     void attemptSubscribe();
 
-    if (!miniKitSubscribedRef.current && !miniKitPollRef.current) {
+    if (!useShareContactsAsyncOnly && !miniKitSubscribedRef.current && !miniKitPollRef.current) {
       miniKitPollRef.current = setInterval(() => {
         void attemptSubscribe();
       }, 300);
@@ -1228,7 +1293,7 @@ export default function GardenScreen() {
       }
     };
 
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !useShareContactsAsyncOnly) {
       window.addEventListener("focus", handleVisibilityChange);
       document.addEventListener("visibilitychange", handleVisibilityChange);
       window.addEventListener("minikit:ready", handleVisibilityChange as EventListener);
@@ -1456,7 +1521,7 @@ export default function GardenScreen() {
 
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-            Alert.alert(
+            showToast(
               settings.language === "zh" ? "🎁 收到光球" : "🎁 Gift Received",
               settings.language === "zh"
                 ? `你收到來自 ${g.fromDisplayName || "朋友"} 的光球`
@@ -1465,7 +1530,10 @@ export default function GardenScreen() {
           }
         } catch (e) {
           console.error("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
-          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+          showToast(
+            settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry",
+            settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry"
+          );
         } finally {
           giftPollInFlightRef.current = false;
         }
@@ -1742,10 +1810,10 @@ export default function GardenScreen() {
          false,
          "Garden Meditation"
        );
-       Alert.alert(
-          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
-          settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
-       );
+      showToast(
+        settings.language === 'zh' ? "冥想完成" : "Meditation Complete",
+        settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
+      );
      } else {
        await completeMeditation(
          "awakened-session",
@@ -1753,10 +1821,10 @@ export default function GardenScreen() {
          false,
          "Garden: Awakened Meditation"
        );
-       Alert.alert(
-          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
-          settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
-       );
+      showToast(
+        settings.language === 'zh' ? "冥想完成" : "Meditation Complete",
+        settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
+      );
      }
   };
 
@@ -1796,7 +1864,7 @@ export default function GardenScreen() {
     const isEmptyWhiteBall = currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default');
     
     if (isEmptyWhiteBall) {
-      Alert.alert(
+      showToast(
         settings.language === 'zh' ? "無法贈送" : "Cannot Gift",
         settings.language === 'zh' ? "請先培育或改變光球形態" : "Grow or transform your orb first"
       );
@@ -1829,6 +1897,7 @@ export default function GardenScreen() {
        }
        isGifting.current = false; // Reset lock before modal opens
        hasAttemptedGift.current = false;
+       setGiftingError(null);
        setShowGiftModal(true);
        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
        console.log("[DEBUG_SWIPE] Heart transformation complete, gift modal opened");
@@ -1945,7 +2014,7 @@ export default function GardenScreen() {
       ]
         .filter(Boolean)
         .join("\n\n");
-      Alert.alert(
+      showToast(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
         message
       );
@@ -2006,27 +2075,19 @@ export default function GardenScreen() {
   };
 
   const handleGiftSuccess = async (contact: any) => {
-    console.log("[DEBUG_GIFT] handleGiftSuccess called with:", JSON.stringify(contact, null, 2));
+    console.log("[DEBUG_GIFT] handleGiftSuccess called with:", toSafeJson(contact));
 
     const toWalletAddress = extractContactWalletAddress(contact);
     const friendName = formatContactName(contact, toWalletAddress);
     console.log("[DEBUG_GIFT] Selected contact walletAddress:", toWalletAddress);
+    console.log(`[DEBUG_GIFT] ShareContacts success: wallet = ${toWalletAddress || ""}`);
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
 
     if (!toWalletAddress) {
-      console.log("[DEBUG_GIFT] Missing contact wallet address, falling back to unknown receiver");
-      finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
-      void attemptGiftUpload(
-        {
-          fromWalletAddress: walletAddress || "missing",
-          toWalletAddress: "unknown",
-          source: "event",
-        },
-        { silent: true }
-      );
+      console.log("[DEBUG_GIFT] No walletAddress");
       isGifting.current = false;
       setIsGiftingUI(false);
-      Alert.alert(
+      showToast(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
       );
@@ -2115,12 +2176,12 @@ export default function GardenScreen() {
            interactionState.current.mode = 'idle';
            console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. All states reset.");
            
-           Alert.alert(
-               settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
-               settings.language === 'zh' 
-                ? `已贈送給 ${friendName}，願愛與能量永流` 
-                : `Gifted to ${friendName}, may love and energy flow forever.`
-           );
+          showToast(
+            settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+            settings.language === 'zh' 
+              ? `已贈送給 ${friendName}，願愛與能量永流` 
+              : `Gifted to ${friendName}, may love and energy flow forever.`
+          );
       }, 3000);
       
       // Safety timeout: ensure mode resets even if something goes wrong
@@ -2135,258 +2196,75 @@ export default function GardenScreen() {
   };
 
   const handleStartGiftingOptimistic = () => {
-    console.log("[DEBUG_GIFT] handleStartGiftingOptimistic PRESS");
-    console.log("[DEBUG_GIFT] Current state - isGifting:", isGifting.current, "mode:", interactionState.current.mode);
-
+    console.log("[gift] start gifting");
     if (isGifting.current) {
-      console.log("[DEBUG_GIFT] isGifting.current is true, ignoring optimistic gift start");
-      // Safety: if button was pressed but state is stuck, force reset after alert
-      Alert.alert(
-        settings.language === 'zh' ? "請稍候" : "Please wait",
-        settings.language === 'zh' ? "正在處理中..." : "Processing..."
-      );
-      return;
+      console.log("[gift] stale gifting lock cleared");
+      isGifting.current = false;
     }
 
-    const orbSnapshot = {
-      id: currentOrbRef.current.id || `orb-${Date.now()}`,
-      level: currentOrbRef.current.level,
-      layers: [...(currentOrbRef.current.layers ?? [])],
-      isAwakened: Boolean(currentOrbRef.current.isAwakened),
-      createdAt: currentOrbRef.current.createdAt || new Date().toISOString(),
-      completedAt: currentOrbRef.current.completedAt,
-      shape: currentOrbRef.current.shape,
-      rotationSpeed: interactionState.current.spinVelocity,
-    };
-
     isGifting.current = true;
-    setIsGiftingUI(true);
     giftUploadAttemptRef.current = false;
     hasAttemptedGift.current = true;
+    setGiftingError(null);
+    setIsGiftingUI(true);
+    pendingShareContactsRef.current = true;
+    pauseMiniKitAutoSubscribeRef.current = true;
 
     const run = async () => {
       try {
         const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
-        const getPermissionsFn = mk?.commandsAsync?.getPermissions;
-        const requestPermissionFn = mk?.commandsAsync?.requestPermission;
-        const shareContactsFn = mk?.commandsAsync?.shareContacts;
-        const installed = await isMiniKitInstalled(mk);
-
-        if (!mk || !installed) {
-          console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed - skipping shareContacts + upload");
-          if (Platform.OS === "web") {
-            const miniAppUrl =
-              (mk?.getMiniAppUrl || MiniKit?.getMiniAppUrl)?.(APP_ID, "/") ||
-              `https://worldcoin.org/mini-app/${encodeURIComponent(APP_ID)}`;
-            try {
-              window.location.assign(miniAppUrl);
-            } catch (e) {
-              console.log("[DEBUG_GIFT_CLOUD] Failed to open MiniApp URL:", e);
-            }
-          }
-          Alert.alert(
-            settings.language === "zh" ? "無法傳送" : "Cannot send",
-            settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
-          );
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          return;
-        }
-
-        if (!shareContactsFn) {
-          console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
-          Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          return;
-        }
-
-        subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
-
-        if (getPermissionsFn) {
-          try {
-            const permissionsResult: any = await getPermissionsFn();
-            const permissionsPayload =
-              permissionsResult?.finalPayload ||
-              permissionsResult?.response ||
-              permissionsResult?.result ||
-              permissionsResult;
-            const permissions = permissionsPayload?.permissions || {};
-            if (permissionsPayload?.status === "error") {
-              console.log("[DEBUG_GIFT_CLOUD] getPermissions error:", permissionsPayload);
-            }
-            if (!permissions?.contacts && requestPermissionFn) {
-              console.log("[DEBUG_GIFT_CLOUD] Requesting contacts permission...");
-              const permissionResult: any = await requestPermissionFn({ permission: "contacts" });
-              const permissionPayload =
-                permissionResult?.finalPayload ||
-                permissionResult?.response ||
-                permissionResult?.result ||
-                permissionResult;
-              if (permissionPayload?.status === "error") {
-                Alert.alert(
-                  settings.language === "zh" ? "授權失敗" : "Permission denied",
-                  settings.language === "zh"
-                    ? "未取得聯絡人授權，無法傳送光球"
-                    : "Contacts permission denied, cannot send."
-                );
-                isGifting.current = false;
-                setIsGiftingUI(false);
-                return;
-              }
-            }
-          } catch (permissionError) {
-            console.warn("[DEBUG_GIFT_CLOUD] Permission check failed:", permissionError);
-          }
-        }
 
         if (!walletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] walletAddress missing - cannot upload gift");
-          Alert.alert("傳送失敗: walletAddress missing");
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          return;
+          const err = new Error("wallet_missing");
+          (err as any).code = "wallet_missing";
+          throw err;
         }
 
-        setIsGiftingUI(true);
-        pendingShareContactsRef.current = true;
-        clearShareContactsTimeout();
+        const contacts = await shareContactsUnified(mk);
+        const firstContact = contacts?.[0];
+        const toWalletAddress = firstContact?.walletAddress || "";
+        const friendName = firstContact?.username || (settings.language === "zh" ? "好友" : "friend");
 
-        if (MiniKit?.commandsAsync?.getPermissions && MiniKit?.commandsAsync?.requestPermission) {
-          const permissionResult = await MiniKit.commandsAsync.getPermissions();
-          const permissions = permissionResult?.finalPayload?.permissions;
-          const hasContactsPermission = Boolean(permissions?.contacts);
-
-          if (!hasContactsPermission) {
-            console.log("[DEBUG_GIFT_CLOUD] Contacts permission missing - requesting permission");
-            const requestResult = await MiniKit.commandsAsync.requestPermission({
-              permission: Permission?.Contacts ?? "contacts",
-            });
-            const requestStatus = requestResult?.finalPayload?.status;
-            if (requestStatus !== "success") {
-              console.log("[DEBUG_GIFT_CLOUD] Contacts permission request denied or failed");
-              pendingShareContactsRef.current = false;
-              isGifting.current = false;
-              setIsGiftingUI(false);
-              Alert.alert(
-                settings.language === "zh" ? "無法傳送" : "Cannot send",
-                settings.language === "zh" ? "未授權聯絡人權限" : "Contacts permission not granted."
-              );
-              return;
-            }
-          }
-        }
-
-        let result: any;
-        console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
-        try {
-          result = await shareContactsFn({
-            isMultiSelectEnabled: false,
-            inviteMessage:
-              settings.language === "zh"
-                ? "分享你的錢包聯絡人以贈送光球"
-                : "Share a contact wallet to receive a gift orb",
-          });
-          console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
-        } catch (shareError) {
-          console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open:", shareError);
-          pendingShareContactsRef.current = false;
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          Alert.alert(
-            settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
-            settings.language === "zh"
-              ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
-              : "Unable to open friends list. Please check MiniKit or try again."
-          );
-          finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
-          void attemptGiftUpload(
-            {
-              fromWalletAddress: walletAddress || "missing",
-              toWalletAddress: "unknown",
-              source: "shareContacts",
-            },
-            { silent: true }
-          );
-          return;
-        }
-
-        const contacts = extractContactsFromPayload(result);
-        const contact = contacts[0];
-        const toWalletAddress: string = extractContactWalletAddress(contact);
+        console.log("[gift] contacts received", {
+          count: Array.isArray(contacts) ? contacts.length : 0,
+          hasUsername: Boolean(firstContact?.username),
+          hasWalletAddress: Boolean(toWalletAddress),
+        });
 
         if (!toWalletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] No wallet address in shareContacts result - waiting for event payload");
-          shareContactsTimeoutRef.current = setTimeout(() => {
-            if (pendingShareContactsRef.current) {
-              pendingShareContactsRef.current = false;
-              isGifting.current = false;
-              setIsGiftingUI(false);
-              Alert.alert(
-                settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
-                settings.language === "zh"
-                  ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
-                  : "Unable to open friends list. Please check MiniKit or try again."
-              );
-              finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
-              void attemptGiftUpload(
-                {
-                  fromWalletAddress: walletAddress || "missing",
-                  toWalletAddress: "unknown",
-                  source: "shareContacts",
-                },
-                { silent: true }
-              );
-            }
-          }, 12000);
+          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result");
+          showToast(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+          );
+          isGifting.current = false;
+          setIsGiftingUI(false);
           return;
         }
 
-        pendingShareContactsRef.current = false;
-        clearShareContactsTimeout();
-        const fromWalletAddress = walletAddress;
-        const friendName = formatContactName(contact, toWalletAddress);
-        console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
+        finishGifting(friendName);
 
-        console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
-          hasMiniKit: Boolean(mk),
-          hasShareContacts: Boolean(shareContactsFn),
-          toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
+        void attemptGiftUpload({
+          fromWalletAddress: walletAddress || "missing",
+          toWalletAddress,
+          source: "shareContacts",
+        }).catch((uploadErr) => {
+          console.error("[gift] upload failed after ui success", uploadErr);
         });
         console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
-          fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-          orbSnapshotId: orbSnapshot.id,
+          fromWalletPrefix: `${String(walletAddress).slice(0, 6)}...`,
         });
-
-        void attemptGiftUpload({
-          toWalletAddress,
-          fromWalletAddress,
-          source: "shareContacts",
-        });
-
-        console.log("[DEBUG_GIFT_CLOUD] Gift upload queued via attemptGiftUpload");
-        finishGifting(friendName);
-      } catch (e) {
-        console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
-        Alert.alert(
-          settings.language === "zh" ? "無法開啟朋友列表" : "Unable to open friends list",
-          settings.language === "zh"
-            ? "無法開啟朋友列表，請檢查 MiniKit 或重試"
-            : "Unable to open friends list. Please check MiniKit or try again."
-        );
-        finishGifting(settings.language === "zh" ? "未知好友" : "Unknown");
-        void attemptGiftUpload(
-          {
-            fromWalletAddress: walletAddress || "missing",
-            toWalletAddress: "unknown",
-            source: "shareContacts",
-          },
-          { silent: true }
-        );
+      } catch (err: any) {
+        const errorCode = err?.code || err?.message || "unknown";
+        console.log("[gift] failed", { error_code: errorCode, message: err?.message });
+        setGiftingError(parseGiftErrorMessage(err));
         isGifting.current = false;
+        setIsGiftingUI(false);
       } finally {
+        clearShareContactsTimeout();
+        pendingShareContactsRef.current = false;
+        pauseMiniKitAutoSubscribeRef.current = false;
         setIsGiftingUI(false);
       }
     };
@@ -2400,6 +2278,7 @@ export default function GardenScreen() {
 
     setShowGiftModal(false);
     setGiftMessage("");
+    setGiftingError(null);
     setIsGiftingUI(false);
     
     // CRITICAL: Always reset isGifting when modal closes
@@ -2465,6 +2344,15 @@ export default function GardenScreen() {
           </View>
         </SafeAreaView>
       </LinearGradient>
+
+      {toastMessage && (
+        <View pointerEvents="none" style={styles.toastOverlay}>
+          <View style={styles.toastContainer}>
+            {toastTitle && <Text style={styles.toastTitle}>{toastTitle}</Text>}
+            <Text style={styles.toastMessage}>{toastMessage}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Dev Menu */}
       {showDevMenu && (
@@ -2636,6 +2524,12 @@ export default function GardenScreen() {
                     ? `Firebase 未啟用，可能缺少或配置錯誤的環境變數：${firebaseMissingEnv.join(", ")}`
                     : `Firebase is disabled, likely due to missing or misconfigured environment variables: ${firebaseMissingEnv.join(", ")}`}
                 </Text>
+              </View>
+            )}
+
+            {giftingError && (
+              <View style={{ marginTop: 10, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(239, 68, 68, 0.18)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.5)" }}>
+                <Text style={{ color: "#fecaca", fontSize: 13, fontWeight: "600" }}>{giftingError}</Text>
               </View>
             )}
 
@@ -2851,7 +2745,7 @@ export default function GardenScreen() {
               ]}
               onPress={() => {
                 if (!currentOrb.isAwakened) {
-                  Alert.alert(
+                  showToast(
                     settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
                     settings.language === 'zh' 
                       ? '光球需要覺醒後才能選擇形態' 
@@ -3235,7 +3129,7 @@ export default function GardenScreen() {
                 style={styles.fullscreenActionButton}
                 onPress={() => {
                   if (!currentOrb.isAwakened) {
-                    Alert.alert(
+                    showToast(
                       settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
                       settings.language === 'zh' 
                         ? '光球需要覺醒後才能選擇形態' 
@@ -3349,6 +3243,35 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500' as const,
     color: '#E0E7FF',
+  },
+  toastOverlay: {
+    position: 'absolute',
+    top: 70,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 200,
+  },
+  toastContainer: {
+    backgroundColor: 'rgba(120, 53, 15, 0.95)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.6)',
+    maxWidth: 340,
+  },
+  toastTitle: {
+    color: '#FBBF24',
+    fontSize: 14,
+    fontWeight: '700' as const,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  toastMessage: {
+    color: '#FEF3C7',
+    fontSize: 13,
+    textAlign: 'center',
   },
   sceneContainer: {
     flex: 1,
