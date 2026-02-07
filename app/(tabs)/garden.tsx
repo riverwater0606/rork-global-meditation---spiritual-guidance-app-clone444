@@ -1288,6 +1288,9 @@ export default function GardenScreen() {
 
   // Subscribe to MiniKit Events
   useEffect(() => {
+    if (useShareContactsAsyncOnly) {
+      return;
+    }
 
     const attemptSubscribe = async () => {
       if (pauseMiniKitAutoSubscribeRef.current) {
@@ -2276,16 +2279,18 @@ export default function GardenScreen() {
           return;
         }
 
-        const subscribed = subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
-        if (!subscribed) {
-          pendingShareContactsRef.current = false;
-          isGifting.current = false;
-          setIsGiftingUI(false);
-          Alert.alert(
-            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-            settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
-          );
-          return;
+        if (!useShareContactsAsyncOnly) {
+          const subscribed = subscribeMiniKit(mk, handleMiniKitShareContactsEvent);
+          if (!subscribed) {
+            pendingShareContactsRef.current = false;
+            isGifting.current = false;
+            setIsGiftingUI(false);
+            Alert.alert(
+              settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+              settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
+            );
+            return;
+          }
         }
 
         if (getPermissionsFn) {
