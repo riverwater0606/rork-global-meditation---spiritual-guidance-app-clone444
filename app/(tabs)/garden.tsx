@@ -17,6 +17,7 @@ import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2
 import Slider from "@react-native-community/slider";
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
 import { MiniKit, ResponseEvent } from "@/constants/minikit";
+import { APP_ID } from "@/constants/world";
 import * as firebaseDiagnostics from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
 
@@ -1120,6 +1121,21 @@ export default function GardenScreen() {
       console.warn("[DEBUG_GIFT] MiniKit isInstalled check failed:", error);
       return false;
     }
+  };
+
+  const waitForMiniKitInstalled = async (
+    candidate: any,
+    timeoutMs = 1500,
+    intervalMs = 250
+  ) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (await isMiniKitInstalled(candidate)) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    return isMiniKitInstalled(candidate);
   };
 
   const subscribeMiniKit = (candidate: any, onEvent: (payload: any) => void) => {
@@ -2240,6 +2256,19 @@ export default function GardenScreen() {
               ? "分享你的錢包聯絡人以贈送光球"
               : "Share a contact wallet to receive a gift orb",
         };
+
+        mk?.install?.(APP_ID);
+        const confirmedInstalled = await waitForMiniKitInstalled(mk, 1500, 250);
+        if (!confirmedInstalled) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit not installed after install attempt - skipping shareContacts + upload");
+          Alert.alert(
+            settings.language === "zh" ? "無法傳送" : "Cannot send",
+            settings.language === "zh" ? "目前裝置未安裝 World App / MiniKit，無法選擇聯絡人錢包" : "World App / MiniKit not installed, cannot pick a contact wallet"
+          );
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          return;
+        }
 
         console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
         try {
