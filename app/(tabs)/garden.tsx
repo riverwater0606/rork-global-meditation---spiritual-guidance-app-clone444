@@ -1109,6 +1109,93 @@ export default function GardenScreen() {
 
   const resolveMiniKit = () => getMiniKit?.() ?? MiniKit;
 
+  const MIN_WORLD_APP_VERSION = "2.8.72";
+  const MIN_MINIKIT_VERSION = "1.4.0";
+
+  const parseVersionString = (value: unknown) => {
+    if (value === undefined || value === null) return null;
+    const match = String(value).match(/\d+(?:\.\d+)+/);
+    return match?.[0] ?? null;
+  };
+
+  const compareVersions = (left: string, right: string) => {
+    const leftParts = left.split(".").map((part) => Number.parseInt(part, 10));
+    const rightParts = right.split(".").map((part) => Number.parseInt(part, 10));
+    const maxLength = Math.max(leftParts.length, rightParts.length);
+    for (let i = 0; i < maxLength; i += 1) {
+      const leftValue = leftParts[i] ?? 0;
+      const rightValue = rightParts[i] ?? 0;
+      if (leftValue > rightValue) return 1;
+      if (leftValue < rightValue) return -1;
+    }
+    return 0;
+  };
+
+  const getMiniKitVersion = (candidate: any) =>
+    parseVersionString(
+      candidate?.version ??
+        candidate?.sdkVersion ??
+        candidate?.miniKitVersion ??
+        candidate?.deviceProperties?.miniKitVersion ??
+        candidate?.deviceProperties?.sdkVersion
+    );
+
+  const getWorldAppVersion = (candidate: any) =>
+    parseVersionString(
+      candidate?.deviceProperties?.worldAppVersion ??
+        candidate?.deviceProperties?.worldAppVersionName ??
+        candidate?.deviceProperties?.worldAppVersionCode
+    );
+
+  const ensureMiniKitVersionSupported = (candidate: any) => {
+    const worldAppVersion = getWorldAppVersion(candidate);
+    const miniKitVersion = getMiniKitVersion(candidate);
+    if (worldAppVersion && compareVersions(worldAppVersion, MIN_WORLD_APP_VERSION) < 0) {
+      const error = new Error("version_unsupported");
+      (error as any).code = "version_unsupported";
+      (error as any).details = { worldAppVersion, miniKitVersion };
+      throw error;
+    }
+    if (miniKitVersion && compareVersions(miniKitVersion, MIN_MINIKIT_VERSION) < 0) {
+      const error = new Error("version_unsupported");
+      (error as any).code = "version_unsupported";
+      (error as any).details = { worldAppVersion, miniKitVersion };
+      throw error;
+    }
+  };
+
+  const getGiftingErrorMessage = (error: any) => {
+    const code = error?.code || error?.message;
+    if (code === "version_unsupported") {
+      return settings.language === "zh"
+        ? "World App 版本過低，請更新"
+        : "World App version is too old. Please update.";
+    }
+    return null;
+  };
+
+  const shareContactsUnified = async ({
+    miniKitInstance,
+    shareContactsAsyncFn,
+    shareContactsCommandFn,
+    payload,
+  }: {
+    miniKitInstance: any;
+    shareContactsAsyncFn?: (data: any) => Promise<any>;
+    shareContactsCommandFn?: (data: any) => any;
+    payload: any;
+  }) => {
+    ensureMiniKitVersionSupported(miniKitInstance);
+    if (shareContactsCommandFn) {
+      const result = shareContactsCommandFn(payload);
+      console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
+      return result;
+    }
+    const result = await shareContactsAsyncFn?.(payload);
+    console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
+    return result;
+  };
+
   const isMiniKitInstalled = async (candidate: any) => {
     if (!candidate) return false;
     try {
@@ -2272,15 +2359,23 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
         try {
-          if (shareContactsCommandFn) {
-            result = shareContactsCommandFn(shareContactsPayload);
-            console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
-          } else {
-            result = await shareContactsAsyncFn(shareContactsPayload);
-            console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
-          }
+          result = await shareContactsUnified({
+            miniKitInstance: mk,
+            shareContactsAsyncFn,
+            shareContactsCommandFn,
+            payload: shareContactsPayload,
+          });
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
+          const errorMessage = getGiftingErrorMessage(shareError);
+          if (errorMessage) {
+            pendingShareContactsRef.current = false;
+            clearShareContactsTimeout();
+            isGifting.current = false;
+            setGiftingError(errorMessage);
+            setIsGiftingUI(false);
+            return;
+          }
           pendingShareContactsRef.current = false;
           isGifting.current = false;
           setIsGiftingUI(false);
@@ -2345,6 +2440,14 @@ export default function GardenScreen() {
         finishGifting(friendName);
       } catch (e) {
         console.error("[DEBUG_GIFT_CLOUD] shareContacts/upload failed:", e);
+        const errorMessage = getGiftingErrorMessage(e);
+        if (errorMessage) {
+          pendingShareContactsRef.current = false;
+          clearShareContactsTimeout();
+          isGifting.current = false;
+          setGiftingError(errorMessage);
+          return;
+        }
         Alert.alert(
           settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
           settings.language === "zh"
