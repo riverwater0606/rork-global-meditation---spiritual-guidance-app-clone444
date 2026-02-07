@@ -1076,6 +1076,7 @@ export default function GardenScreen() {
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
   const [ambientVolume, setAmbientVolume] = useState(0.5);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const useShareContactsAsyncOnly = true;
 
   useEffect(() => {
     console.log("[DEBUG_GIFT] GardenScreen MOUNTED - Checking for pending actions...");
@@ -1208,7 +1209,7 @@ export default function GardenScreen() {
 
     void attemptSubscribe();
 
-    if (!miniKitSubscribedRef.current && !miniKitPollRef.current) {
+    if (!useShareContactsAsyncOnly && !miniKitSubscribedRef.current && !miniKitPollRef.current) {
       miniKitPollRef.current = setInterval(() => {
         void attemptSubscribe();
       }, 300);
@@ -1220,7 +1221,7 @@ export default function GardenScreen() {
       }
     };
 
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !useShareContactsAsyncOnly) {
       window.addEventListener("focus", handleVisibilityChange);
       document.addEventListener("visibilitychange", handleVisibilityChange);
       window.addEventListener("minikit:ready", handleVisibilityChange as EventListener);
