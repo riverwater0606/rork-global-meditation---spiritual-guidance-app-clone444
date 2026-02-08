@@ -2413,32 +2413,46 @@ export default function GardenScreen() {
           return;
         }
 
-        const responsePayload = result?.finalPayload || result;
-        console.log("[DEBUG_GIFT_CLOUD] shareContacts response payload:", JSON.stringify(responsePayload ?? {}, null, 2));
-        const contacts = extractContactsFromPayload(responsePayload);
-        const contact = contacts[0];
-        const toWalletAddress: string = extractContactWalletAddress(contact);
+        console.log("[DEBUG_GIFT] shareContacts full result:", JSON.stringify(result, null, 2));
+        console.log("[DEBUG_GIFT] finalPayload:", JSON.stringify(result?.finalPayload, null, 2));
+        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(result?.finalPayload?.contacts, null, 2));
+
+        const responsePayload = result?.finalPayload;
+        console.log("[DEBUG_GIFT] responsePayload:", JSON.stringify(responsePayload, null, 2));
+
+        if (responsePayload?.status === 'error') {
+          console.log("[DEBUG_GIFT] shareContacts error:", responsePayload.error_code);
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            responsePayload.error_code || "Unknown error"
+          );
+          return;
+        }
+
+        const contacts = responsePayload?.contacts;
+        const contact = contacts?.[0];
+        const toWalletAddress = contact?.walletAddress;
+
+        console.log("[DEBUG_GIFT] Selected contact:", JSON.stringify(contact, null, 2));
+        console.log("[DEBUG_GIFT] toWalletAddress:", toWalletAddress);
 
         if (!toWalletAddress) {
-          console.log("[DEBUG_GIFT_CLOUD] No walletAddress in shareContacts result - waiting for event payload");
-          shareContactsTimeoutRef.current = setTimeout(() => {
-            if (pendingShareContactsRef.current) {
-              pendingShareContactsRef.current = false;
-              isGifting.current = false;
-              setIsGiftingUI(false);
-              Alert.alert(
-                settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-                settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
-              );
-            }
-          }, 8000);
+          console.log("[DEBUG_GIFT] No walletAddress found in response");
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh" ? "無法取得朋友的錢包地址" : "Could not get friend's wallet address"
+          );
           return;
         }
 
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
-        const friendName = formatContactName(contact, toWalletAddress);
+        const friendName = contact?.username || `User ${toWalletAddress.slice(0, 6)}`;
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
@@ -2450,12 +2464,12 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-          orbSnapshotId: orbSnapshot.id,
+          orbSnapshotId: currentOrbRef.current?.id || "unknown",
         });
 
         void attemptGiftUpload({
           fromWalletAddress: walletAddress || "missing",
-          toWalletAddress: friendWallet,
+          toWalletAddress: toWalletAddress,
           source: "shareContacts",
         }).catch((uploadErr) => {
           console.error("[gift] upload failed after ui success", uploadErr);
