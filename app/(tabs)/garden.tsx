@@ -90,21 +90,41 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
 ];
 
 const extractContactsFromPayload = (payload: any) => {
-  const responsePayload = payload?.finalPayload ?? payload;
   const contacts =
-    responsePayload?.contacts ||
-    responsePayload?.data?.contacts ||
-    responsePayload?.response?.contacts ||
-    responsePayload?.result?.contacts ||
-    responsePayload?.data?.result?.contacts ||
-    responsePayload?.response?.result?.contacts;
+    payload?.contacts ||
+    payload?.data?.contacts ||
+    payload?.response?.contacts ||
+    payload?.result?.contacts ||
+    payload?.data?.result?.contacts ||
+    payload?.response?.result?.contacts;
   if (Array.isArray(contacts)) return contacts;
-  if (responsePayload?.contact) return [responsePayload.contact];
+  if (payload?.contact) return [payload.contact];
   return [];
 };
 
 const extractContactWalletAddress = (contact: any): string => {
-  return contact?.walletAddress || "";
+  if (!contact) return "";
+  const wallets = Array.isArray(contact?.wallets) ? contact.wallets : [];
+  const walletFromArray = wallets.find(
+    (wallet: any) => wallet?.address || wallet?.walletAddress || wallet?.wallet_address
+  );
+  return (
+    contact.walletAddress ||
+    contact.wallet_address ||
+    contact.address ||
+    contact.wallet ||
+    contact?.wallet?.address ||
+    contact?.wallet?.walletAddress ||
+    contact?.wallet?.wallet_address ||
+    contact?.wallets?.[0]?.address ||
+    contact?.wallets?.[0]?.walletAddress ||
+    contact?.wallets?.[0]?.wallet_address ||
+    walletFromArray?.address ||
+    walletFromArray?.walletAddress ||
+    walletFromArray?.wallet_address ||
+    contact?.account?.address ||
+    ""
+  );
 };
 
 const formatContactName = (contact: any, fallbackWallet?: string, language?: string) => {
@@ -1256,7 +1276,7 @@ export default function GardenScreen() {
       clearShareContactsTimeout();
       isGifting.current = false;
       setIsGiftingUI(false);
-      showToast(
+      Alert.alert(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh"
           ? `選擇朋友失敗，請重試\n錯誤原因：${errorCode}`
@@ -1279,7 +1299,7 @@ export default function GardenScreen() {
       clearShareContactsTimeout();
       isGifting.current = false;
       setIsGiftingUI(false);
-      showToast(
+      Alert.alert(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
       );
@@ -1555,7 +1575,7 @@ export default function GardenScreen() {
 
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-            showToast(
+            Alert.alert(
               settings.language === "zh" ? "🎁 收到光球" : "🎁 Gift Received",
               settings.language === "zh"
                 ? `你收到來自 ${g.fromDisplayName || "朋友"} 的光球`
@@ -1564,10 +1584,7 @@ export default function GardenScreen() {
           }
         } catch (e) {
           console.error("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
-          showToast(
-            settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry",
-            settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry"
-          );
+          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
         } finally {
           giftPollInFlightRef.current = false;
         }
@@ -1844,10 +1861,10 @@ export default function GardenScreen() {
          false,
          "Garden Meditation"
        );
-      showToast(
-        settings.language === 'zh' ? "冥想完成" : "Meditation Complete",
-        settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
-      );
+       Alert.alert(
+          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
+          settings.language === 'zh' ? "你的光球吸收了能量。" : "Your orb has absorbed energy."
+       );
      } else {
        await completeMeditation(
          "awakened-session",
@@ -1855,10 +1872,10 @@ export default function GardenScreen() {
          false,
          "Garden: Awakened Meditation"
        );
-      showToast(
-        settings.language === 'zh' ? "冥想完成" : "Meditation Complete",
-        settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
-      );
+       Alert.alert(
+          settings.language === 'zh' ? "冥想完成" : "Meditation Complete", 
+          settings.language === 'zh' ? "願你內心平靜。" : "May you be at peace."
+       );
      }
   };
 
@@ -1898,7 +1915,7 @@ export default function GardenScreen() {
     const isEmptyWhiteBall = currentOrb.level === 0 && currentOrb.layers.length === 0 && (!currentOrb.shape || currentOrb.shape === 'default');
     
     if (isEmptyWhiteBall) {
-      showToast(
+      Alert.alert(
         settings.language === 'zh' ? "無法贈送" : "Cannot Gift",
         settings.language === 'zh' ? "請先培育或改變光球形態" : "Grow or transform your orb first"
       );
@@ -2048,7 +2065,7 @@ export default function GardenScreen() {
       ]
         .filter(Boolean)
         .join("\n\n");
-      showToast(
+      Alert.alert(
         settings.language === "zh" ? "傳送失敗" : "Send failed",
         message
       );
@@ -2121,7 +2138,7 @@ export default function GardenScreen() {
       console.log("[DEBUG_GIFT] No walletAddress");
       isGifting.current = false;
       setIsGiftingUI(false);
-      showToast(
+      Alert.alert(
         settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
         settings.language === "zh" ? "選擇朋友失敗，請重試" : "Friend selection failed. Please retry."
       );
@@ -2210,12 +2227,12 @@ export default function GardenScreen() {
            interactionState.current.mode = 'idle';
            console.log("[DEBUG_GIFT] Gifting sequence COMPLETE. All states reset.");
            
-          showToast(
-            settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
-            settings.language === 'zh' 
-              ? `已贈送給 ${friendName}，願愛與能量永流` 
-              : `Gifted to ${friendName}, may love and energy flow forever.`
-          );
+           Alert.alert(
+               settings.language === 'zh' ? "✨ 贈送成功" : "✨ Gift Sent",
+               settings.language === 'zh' 
+                ? `已贈送給 ${friendName}，願愛與能量永流` 
+                : `Gifted to ${friendName}, may love and energy flow forever.`
+           );
       }, 3000);
       
       // Safety timeout: ensure mode resets even if something goes wrong
@@ -2463,7 +2480,6 @@ export default function GardenScreen() {
             : "Friend selection failed. Please retry."
         );
         isGifting.current = false;
-        setIsGiftingUI(false);
       } finally {
         pauseMiniKitAutoSubscribeRef.current = false;
         setIsGiftingUI(false);
@@ -2545,15 +2561,6 @@ export default function GardenScreen() {
           </View>
         </SafeAreaView>
       </LinearGradient>
-
-      {toastMessage && (
-        <View pointerEvents="none" style={styles.toastOverlay}>
-          <View style={styles.toastContainer}>
-            {toastTitle && <Text style={styles.toastTitle}>{toastTitle}</Text>}
-            <Text style={styles.toastMessage}>{toastMessage}</Text>
-          </View>
-        </View>
-      )}
 
       {/* Dev Menu */}
       {showDevMenu && (
@@ -2946,7 +2953,7 @@ export default function GardenScreen() {
               ]}
               onPress={() => {
                 if (!currentOrb.isAwakened) {
-                  showToast(
+                  Alert.alert(
                     settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
                     settings.language === 'zh' 
                       ? '光球需要覺醒後才能選擇形態' 
@@ -3330,7 +3337,7 @@ export default function GardenScreen() {
                 style={styles.fullscreenActionButton}
                 onPress={() => {
                   if (!currentOrb.isAwakened) {
-                    showToast(
+                    Alert.alert(
                       settings.language === 'zh' ? '尚未覺醒' : 'Not Awakened',
                       settings.language === 'zh' 
                         ? '光球需要覺醒後才能選擇形態' 
@@ -3444,35 +3451,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500' as const,
     color: '#E0E7FF',
-  },
-  toastOverlay: {
-    position: 'absolute',
-    top: 70,
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-    zIndex: 200,
-  },
-  toastContainer: {
-    backgroundColor: 'rgba(120, 53, 15, 0.95)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.6)',
-    maxWidth: 340,
-  },
-  toastTitle: {
-    color: '#FBBF24',
-    fontSize: 14,
-    fontWeight: '700' as const,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  toastMessage: {
-    color: '#FEF3C7',
-    fontSize: 13,
-    textAlign: 'center',
   },
   sceneContainer: {
     flex: 1,
