@@ -2291,6 +2291,19 @@ export default function GardenScreen() {
           return;
         }
 
+        if (useShareContactsAsyncOnly && !shareContactsAsyncFn) {
+          console.log("[DEBUG_GIFT_CLOUD] MiniKit async shareContacts missing while async-only enabled");
+          Alert.alert(
+            settings.language === "zh" ? "無法傳送" : "Cannot send",
+            settings.language === "zh"
+              ? "無法使用非同步聯絡人分享，請更新 World App"
+              : "Async contact sharing is unavailable. Please update World App."
+          );
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          return;
+        }
+
         if (!shareContactsAsyncFn && !shareContactsCommandFn) {
           console.log("[DEBUG_GIFT_CLOUD] MiniKit shareContacts missing - skipping upload");
           Alert.alert(settings.language === "zh" ? "無法傳送" : "Cannot send");
@@ -2387,7 +2400,7 @@ export default function GardenScreen() {
           result = await shareContactsUnified({
             miniKitInstance: mk,
             shareContactsAsyncFn,
-            shareContactsCommandFn,
+            shareContactsCommandFn: useShareContactsAsyncOnly ? undefined : shareContactsCommandFn,
             payload: shareContactsPayload,
           });
         } catch (shareError) {
