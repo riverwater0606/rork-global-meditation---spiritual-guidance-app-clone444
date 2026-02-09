@@ -2384,12 +2384,13 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT_CLOUD] Calling shareContacts...");
         try {
-          result = await shareContactsUnified({
-            miniKitInstance: mk,
-            shareContactsAsyncFn,
-            shareContactsCommandFn,
-            payload: shareContactsPayload,
-          });
+          if (shareContactsAsyncFn) {
+            result = await shareContactsAsyncFn(shareContactsPayload);
+            console.log("[DEBUG_GIFT] Async shareContacts result:", JSON.stringify(result, null, 2));
+          } else if (shareContactsCommandFn) {
+            shareContactsCommandFn(shareContactsPayload);
+            return;
+          }
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
           const errorMessage = parseGiftErrorMessage(shareError);
@@ -2414,11 +2415,10 @@ export default function GardenScreen() {
         }
 
         console.log("[DEBUG_GIFT] shareContacts full result:", JSON.stringify(result, null, 2));
-        console.log("[DEBUG_GIFT] finalPayload:", JSON.stringify(result?.finalPayload, null, 2));
-        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(result?.finalPayload?.contacts, null, 2));
 
-        const responsePayload = result?.finalPayload;
+        const responsePayload = result;
         console.log("[DEBUG_GIFT] responsePayload:", JSON.stringify(responsePayload, null, 2));
+        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(responsePayload?.contacts, null, 2));
 
         if (responsePayload?.status === 'error') {
           console.log("[DEBUG_GIFT] shareContacts error:", responsePayload.error_code);
@@ -2431,8 +2431,7 @@ export default function GardenScreen() {
           return;
         }
 
-        const contacts = responsePayload?.contacts;
-        const contact = contacts?.[0];
+        const contact = responsePayload?.contacts?.[0];
         const toWalletAddress = contact?.walletAddress;
 
         console.log("[DEBUG_GIFT] Selected contact:", JSON.stringify(contact, null, 2));
