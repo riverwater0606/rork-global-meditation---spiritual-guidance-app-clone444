@@ -2464,7 +2464,7 @@ export default function GardenScreen() {
         console.log("[DEBUG_GIFT_CLOUD] Calling attemptGiftUpload...", {
           toWalletPrefix: `${String(toWalletAddress).slice(0, 6)}...`,
           fromWalletPrefix: `${String(fromWalletAddress).slice(0, 6)}...`,
-          orbSnapshotId: orbSnapshot.id,
+          orbSnapshotId: currentOrbRef.current?.id || "unknown",
         });
 
         void attemptGiftUpload({
