@@ -1209,7 +1209,7 @@ export default function GardenScreen() {
     if (shareContactsCommandFn) {
       const result = shareContactsCommandFn(payload);
       console.log("[DEBUG_GIFT_CLOUD] shareContacts command dispatched:", JSON.stringify(result ?? {}, null, 2));
-      return result;
+      return null;
     }
     const result = await shareContactsAsyncFn?.(payload);
     console.log("[DEBUG_GIFT_CLOUD] shareContacts resolved:", JSON.stringify(result, null, 2));
