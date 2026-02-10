@@ -2390,6 +2390,10 @@ export default function GardenScreen() {
             shareContactsCommandFn,
             payload: shareContactsPayload,
           });
+          if (useShareContactsAsyncOnly) {
+            console.log("[DEBUG_GIFT] result type:", typeof result);
+            console.log("[DEBUG_GIFT] result keys:", result ? Object.keys(result) : "null");
+          }
         } catch (shareError) {
           console.warn("[DEBUG_GIFT_CLOUD] shareContacts failed to open/resolve:", shareError);
           const errorMessage = parseGiftErrorMessage(shareError);
