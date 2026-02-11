@@ -2429,6 +2429,21 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT] shareContacts full result:", JSON.stringify(result, null, 2));
 
+        Alert.alert(
+          "DEBUG shareContacts",
+          JSON.stringify(
+            {
+              resultType: typeof result,
+              status: result?.status,
+              hasContacts: Array.isArray(result?.contacts),
+              contactsLength: result?.contacts?.length || 0,
+              firstContact: result?.contacts?.[0] || null,
+            },
+            null,
+            2
+          )
+        );
+
         const responsePayload = result;
         console.log("[DEBUG_GIFT] responsePayload:", JSON.stringify(responsePayload, null, 2));
         console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(responsePayload?.contacts, null, 2));
