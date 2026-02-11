@@ -2249,15 +2249,53 @@ export default function GardenScreen() {
             return;
           }
 
-          if (toWalletAddress && pendingShareContactsRef.current) {
-            console.log("[GIFT_FLOW] async fallback resolved immediately");
-            pendingShareContactsRef.current = false;
-            clearShareContactsTimeout();
-            await handleGiftSuccess(selectedContact);
-            return;
-          }
-        } else {
-          shareContactsCommandFn?.(shareContactsPayload);
+        console.log("[DEBUG_GIFT] shareContacts full result:", JSON.stringify(result, null, 2));
+
+        Alert.alert(
+          "DEBUG shareContacts",
+          JSON.stringify(
+            {
+              resultType: typeof result,
+              status: result?.status,
+              hasContacts: Array.isArray(result?.contacts),
+              contactsLength: result?.contacts?.length || 0,
+              firstContact: result?.contacts?.[0] || null,
+            },
+            null,
+            2
+          )
+        );
+
+        const responsePayload = result;
+        console.log("[DEBUG_GIFT] responsePayload:", JSON.stringify(responsePayload, null, 2));
+        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(responsePayload?.contacts, null, 2));
+
+        if (responsePayload?.status === 'error') {
+          console.log("[DEBUG_GIFT] shareContacts error:", responsePayload.error_code);
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            responsePayload.error_code || "Unknown error"
+          );
+          return;
+        }
+
+        const contact = responsePayload?.contacts?.[0];
+        const toWalletAddress = contact?.walletAddress;
+
+        console.log("[DEBUG_GIFT] Selected contact:", JSON.stringify(contact, null, 2));
+        console.log("[DEBUG_GIFT] toWalletAddress:", toWalletAddress);
+
+        if (!toWalletAddress) {
+          console.log("[DEBUG_GIFT] No walletAddress found in response");
+          isGifting.current = false;
+          setIsGiftingUI(false);
+          Alert.alert(
+            settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
+            settings.language === "zh" ? "無法取得朋友的錢包地址" : "Could not get friend's wallet address"
+          );
+          return;
         }
       } catch (e) {
         const errorMessage = parseGiftErrorMessage(e);
