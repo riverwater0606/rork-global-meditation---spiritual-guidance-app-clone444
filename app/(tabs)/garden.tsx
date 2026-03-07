@@ -2429,38 +2429,24 @@ export default function GardenScreen() {
 
         console.log("[DEBUG_GIFT] shareContacts full result:", JSON.stringify(result, null, 2));
 
-        Alert.alert(
-          "DEBUG shareContacts",
-          JSON.stringify(
-            {
-              resultType: typeof result,
-              status: result?.status,
-              hasContacts: Array.isArray(result?.contacts),
-              contactsLength: result?.contacts?.length || 0,
-              firstContact: result?.contacts?.[0] || null,
-            },
-            null,
-            2
-          )
-        );
+        const responsePayload = result?.finalPayload || result;
+        const contacts = extractContactsFromPayload(result);
+        const contact = contacts[0];
+        const toWalletAddress = extractContactWalletAddress(contact);
 
-        const responsePayload = result;
         console.log("[DEBUG_GIFT] responsePayload:", JSON.stringify(responsePayload, null, 2));
-        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(responsePayload?.contacts, null, 2));
+        console.log("[DEBUG_GIFT] contacts array:", JSON.stringify(contacts, null, 2));
 
         if (responsePayload?.status === 'error') {
-          console.log("[DEBUG_GIFT] shareContacts error:", responsePayload.error_code);
+          console.log("[DEBUG_GIFT] shareContacts error:", responsePayload?.error_code);
           isGifting.current = false;
           setIsGiftingUI(false);
           Alert.alert(
             settings.language === "zh" ? "選擇朋友失敗" : "Friend selection failed",
-            responsePayload.error_code || "Unknown error"
+            responsePayload?.error_code || "Unknown error"
           );
           return;
         }
-
-        const contact = responsePayload?.contacts?.[0];
-        const toWalletAddress = contact?.walletAddress;
 
         console.log("[DEBUG_GIFT] Selected contact:", JSON.stringify(contact, null, 2));
         console.log("[DEBUG_GIFT] toWalletAddress:", toWalletAddress);
@@ -2479,7 +2465,7 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
-        const friendName = contact?.username || `User ${toWalletAddress.slice(0, 6)}`;
+        const friendName = formatContactName(contact, toWalletAddress);
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
