@@ -14,6 +14,8 @@ interface SoundCategory {
 }
 
 export function useAmbientAudio(categories: SoundCategory[]) {
+  const GIFT_SEND_SOUND_URI =
+    "https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b6a66f4db.mp3?filename=magic-2-16764.mp3";
   const giftSoundRef = useRef<Audio.Sound | null>(null);
   const ambientSoundRef = useRef<Audio.Sound | null>(null);
   const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
@@ -67,9 +69,7 @@ export function useAmbientAudio(categories: SoundCategory[]) {
       await giftSoundRef.current.unloadAsync();
       giftSoundRef.current = null;
     }
-    const { sound } = await Audio.Sound.createAsync(
-      require("@/assets/sounds/notification/new-notification-7-210334.mp3")
-    );
+    const { sound } = await Audio.Sound.createAsync({ uri: GIFT_SEND_SOUND_URI });
     giftSoundRef.current = sound;
     await sound.playAsync();
   }, []);
