@@ -4,11 +4,15 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, PanRespond
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Canvas } from "@react-three/fiber";
+import { Audio } from "expo-av";
+import { Canvas, useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 import { useMeditation, OrbShape, CHAKRA_COLORS } from "@/providers/MeditationProvider";
+import { fetchAndConsumeGifts, uploadGiftOrb } from "@/lib/firebaseGifts";
 import { getFirebaseDiagnostics as getFirebaseDiagnosticsFn, getFirebaseMissingEnv, isFirebaseEnabled } from "@/constants/firebase";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useUser } from "@/providers/UserProvider";
+import { generateMerkabaData, generateEarthData, generateFlowerOfLifeData, generateFlowerOfLifeCompleteData, generateTreeOfLifeData, generateGridOfLifeData, generateSriYantraData, generateStarOfDavidData, generateTriquetraData, generateGoldenRectanglesData, generateDoubleHelixDNAData, generateVortexRingData, generateFractalTreeData, generateWaveInterferenceData, generateQuantumOrbitalsData, generateCelticKnotData, generateStarburstNovaData, generateLatticeWaveData, generateSacredFlameData, PARTICLE_COUNT } from "@/constants/sacredGeometry";
 import { Clock, Zap, Archive, ArrowUp, ArrowDown, Sparkles, X, Sprout, Maximize2, Minimize2, Music, Volume2, VolumeX } from "lucide-react-native";
 import Slider from "@react-native-community/slider";
 import { ensureMiniKitLoaded, getMiniKit, isMiniKitInstalled } from "@/components/worldcoin/IDKitWeb";
@@ -16,10 +20,6 @@ import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import { APP_ID } from "@/constants/world";
 import * as firebaseDiagnostics from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
-import { OrbParticles } from "@/features/garden/components/OrbParticles";
-import { useAmbientAudio } from "@/features/garden/hooks/useAmbientAudio";
-import { useGiftSync } from "@/features/garden/hooks/useGiftSync";
-import { extractContactsFromPayload, extractContactWalletAddress, formatContactName } from "@/features/garden/services/contactUtils";
 
 interface AmbientSound {
   id: string;
@@ -89,6 +89,56 @@ const AMBIENT_SOUND_CATEGORIES: SoundCategory[] = [
   },
 ];
 
+const extractContactsFromPayload = (payload: any) => {
+  const contacts =
+    payload?.contacts ||
+    payload?.data?.contacts ||
+    payload?.response?.contacts ||
+    payload?.result?.contacts ||
+    payload?.data?.result?.contacts ||
+    payload?.response?.result?.contacts;
+  if (Array.isArray(contacts)) return contacts;
+  if (payload?.contact) return [payload.contact];
+  return [];
+};
+
+const extractContactWalletAddress = (contact: any): string => {
+  if (!contact) return "";
+  const wallets = Array.isArray(contact?.wallets) ? contact.wallets : [];
+  const walletFromArray = wallets.find(
+    (wallet: any) => wallet?.address || wallet?.walletAddress || wallet?.wallet_address
+  );
+  return (
+    contact.walletAddress ||
+    contact.wallet_address ||
+    contact.address ||
+    contact.wallet ||
+    contact?.wallet?.address ||
+    contact?.wallet?.walletAddress ||
+    contact?.wallet?.wallet_address ||
+    contact?.wallets?.[0]?.address ||
+    contact?.wallets?.[0]?.walletAddress ||
+    contact?.wallets?.[0]?.wallet_address ||
+    walletFromArray?.address ||
+    walletFromArray?.walletAddress ||
+    walletFromArray?.wallet_address ||
+    contact?.account?.address ||
+    ""
+  );
+};
+
+const formatContactName = (contact: any, fallbackWallet?: string, language?: string) => {
+  const display =
+    contact?.name ||
+    contact?.displayName ||
+    contact?.username ||
+    contact?.handle ||
+    "";
+  if (display) return display;
+  if (fallbackWallet) return `User ${fallbackWallet.slice(0, 4)}`;
+  return language === "zh" ? "好友" : "Friend";
+};
+
 // Minimal Progress Component (Corner Ring)
 const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration: number }, ref) => {
   const [visible, setVisible] = useState(false);
@@ -126,6 +176,807 @@ const MinimalProgress = forwardRef(({ theme, duration }: { theme: any, duration:
   );
 });
 MinimalProgress.displayName = "MinimalProgress";
+
+// Orb Component with Sacred Geometry
+const OrbParticles = ({ layers, interactionState, shape }: { layers: string[], interactionState: any, shape: OrbShape }) => {
+  const pointsRef = useRef<THREE.Points>(null!);
+  const colorAttributeRef = useRef<THREE.BufferAttribute>(null!);
+  
+  // Pre-calculate positions for Sacred Geometry
+  const { positions, colors, targetPositions, heartPositions, groups } = useMemo(() => {
+    const particleCount = PARTICLE_COUNT;
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const targetPositions = new Float32Array(particleCount * 3); // The destination shape
+    const heartPositions = new Float32Array(particleCount * 3); // Heart shape for sending
+    const groups = new Float32Array(particleCount); // Group ID for animation
+    
+    const colorObjects = layers.length > 0 ? layers.map(c => new THREE.Color(c)) : [new THREE.Color("#ffffff")];
+    
+    // Helper: Random point in sphere
+    const setRandomSphere = (i: number) => {
+      const r = 1.0 + Math.random() * 0.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+      
+      // Default colors
+      const layerIndex = Math.floor(Math.random() * layers.length);
+      const c = colorObjects[layerIndex] || new THREE.Color("#ffffff");
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    };
+
+    // --- GEOMETRY GENERATORS ---
+
+    // 0. Default Sphere
+    const generateSphere = () => {
+      for(let i=0; i<particleCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = 1.0 + Math.random() * 0.2; // Natural sphere with slight fuzziness
+        
+        targetPositions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        targetPositions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        targetPositions[i*3+2] = r * Math.cos(phi);
+        
+        // Reset colors to layers
+        const layerIndex = Math.floor(Math.random() * layers.length);
+        const c = colorObjects[layerIndex] || new THREE.Color("#ffffff");
+        colors[i*3] = c.r;
+        colors[i*3+1] = c.g;
+        colors[i*3+2] = c.b;
+      }
+    };
+
+    // 1. Flower of Life (3D with sacred geometry points)
+    const generateFlowerOfLife = () => {
+      const data = generateFlowerOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 1.5 Flower of Life Complete
+    const generateFlowerOfLifeComplete = () => {
+      const data = generateFlowerOfLifeCompleteData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 2. Star of David (Interlocking Triangles) with Light Beams
+    const generateStarOfDavid = () => {
+      const data = generateStarOfDavidData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 3. Merkaba (Star Tetrahedron)
+    const generateMerkaba = () => {
+      const data = generateMerkabaData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 4. Tree of Life
+    const generateTreeOfLife = () => {
+      const data = generateTreeOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 6. Grid of Life (64 Tetrahedron)
+    const generateGridOfLife = () => {
+      const data = generateGridOfLifeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 7. Sri Yantra
+    const generateSriYantra = () => {
+      const data = generateSriYantraData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 8. Triquetra
+    const generateTriquetra = () => {
+      const data = generateTriquetraData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 9. Golden Rectangles
+    const generateGoldenRectangles = () => {
+      const data = generateGoldenRectanglesData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 10. Double Helix DNA
+    const generateDoubleHelixDNA = () => {
+      const data = generateDoubleHelixDNAData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 11. Vortex Ring
+    const generateVortexRing = () => {
+      const data = generateVortexRingData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 12. Fractal Tree
+    const generateFractalTree = () => {
+      const data = generateFractalTreeData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 13. Wave Interference
+    const generateWaveInterference = () => {
+      const data = generateWaveInterferenceData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 14. Quantum Orbitals
+    const generateQuantumOrbitals = () => {
+      const data = generateQuantumOrbitalsData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 15. Celtic Knot
+    const generateCelticKnot = () => {
+      const data = generateCelticKnotData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 16. Starburst Nova
+    const generateStarburstNova = () => {
+      const data = generateStarburstNovaData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 17. Lattice Wave
+    const generateLatticeWave = () => {
+      const data = generateLatticeWaveData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 18. Sacred Flame
+    const generateSacredFlame = () => {
+      const data = generateSacredFlameData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 5. Earth
+    const generateEarth = () => {
+      const data = generateEarthData();
+      targetPositions.set(data.positions);
+      colors.set(data.colors);
+      groups.set(data.groups);
+    };
+
+    // 6. Heart (For Sending)
+    const generateHeart = () => {
+      for(let i=0; i<particleCount; i++) {
+        // Parametric Heart
+        // x = 16 sin^3(t)
+        // y = 13 cos(t) - 5 cos(2t) - 2 cos(3t) - cos(4t)
+        
+        // We want a filled heart, so we can vary the "radius" or just layer multiple curves
+        // Or simply distribute points along the curve with some noise
+        
+        const t = Math.random() * Math.PI * 2;
+        const scale = 0.05;
+        
+        // Base curve
+        let hx = 16 * Math.pow(Math.sin(t), 3);
+        let hy = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+        
+        // Add thickness/volume
+        // Random point inside unit sphere * thickness
+        const thickness = 0.2;
+        
+        // Pull towards center to make it solid?
+        // Let's keep it as a thick shell for better definition
+        
+        heartPositions[i*3] = hx * scale + (Math.random()-0.5)*thickness;
+        heartPositions[i*3+1] = hy * scale + (Math.random()-0.5)*thickness + 0.2; // Shift up slightly
+        heartPositions[i*3+2] = (Math.random()-0.5) * 0.5; // Depth
+      }
+    };
+
+    // Initialize random sphere positions first (start state)
+    for(let i=0; i<particleCount; i++) setRandomSphere(i);
+    
+    // Generate Target Shape based on prop
+    if (shape === 'flower-of-life') generateFlowerOfLife();
+    else if (shape === 'flower-of-life-complete') generateFlowerOfLifeComplete();
+    else if (shape === 'star-of-david') generateStarOfDavid();
+    else if (shape === 'merkaba') generateMerkaba();
+    else if (shape === 'tree-of-life') generateTreeOfLife();
+    else if (shape === 'earth') generateEarth();
+    else if (shape === 'grid-of-life') generateGridOfLife();
+    else if (shape === 'sri-yantra') generateSriYantra();
+    else if (shape === 'triquetra') generateTriquetra();
+    else if (shape === 'golden-rectangles') generateGoldenRectangles();
+    else if (shape === 'double-helix-dna') generateDoubleHelixDNA();
+    else if (shape === 'vortex-ring') generateVortexRing();
+    else if (shape === 'fractal-tree') generateFractalTree();
+    else if (shape === 'wave-interference') generateWaveInterference();
+    else if (shape === 'quantum-orbitals') generateQuantumOrbitals();
+    else if (shape === 'celtic-knot') generateCelticKnot();
+    else if (shape === 'starburst-nova') generateStarburstNova();
+    else if (shape === 'lattice-wave') generateLatticeWave();
+    else if (shape === 'sacred-flame') generateSacredFlame();
+    else generateSphere(); // Default
+    
+    // Always generate heart positions so they are ready
+    generateHeart();
+    
+    return { positions, colors, targetPositions, heartPositions, groups };
+  }, [layers, shape]);
+
+  // Use a buffer attribute for current positions to interpolate
+  const currentPositions = useMemo(() => {
+    // Start with random sphere positions (from useMemo above)
+    // We clone positions to be the mutable current state
+    return new Float32Array(positions);
+  }, [positions]); // Reset when positions (shape source) changes
+
+  useFrame((state, delta) => {
+    if (!pointsRef.current) return;
+    
+    const { mode, spinVelocity, progress } = interactionState.current;
+    
+    // Friction for spin - REMOVED per user request (perpetual spin)
+    // if (Math.abs(spinVelocity) > 0.0001) {
+    //    interactionState.current.spinVelocity *= 0.98; 
+    // } else {
+    //    interactionState.current.spinVelocity = 0;
+    // }
+    
+    // Cap max speed to avoid dizziness
+    if (Math.abs(interactionState.current.spinVelocity) > 2.0) {
+      interactionState.current.spinVelocity = 2.0 * Math.sign(interactionState.current.spinVelocity);
+    }
+
+    // Rotation Logic
+    let rotationSpeed = 0.001 + spinVelocity;
+    
+    // Earth: 90s rotation (approx 0.0011 rad/frame at 60fps) + User Control
+    if (shape === 'earth') {
+       // Auto rotation: 1 rev / 90s (Clockwise from North = Negative Y)
+       // 2PI / (90 * 60) ~= 0.00116
+       const autoSpeed = -0.00116; 
+       rotationSpeed = autoSpeed + spinVelocity;
+    }
+    
+    if (mode === 'gather') rotationSpeed = 0.02 + (progress * 0.1); 
+    if (mode === 'meditating') rotationSpeed = 0.005; // Gentle rotation during meditation
+    pointsRef.current.rotation.y += rotationSpeed;
+    
+    // Apply X rotation (vertical tilt from gestures)
+    const rotationSpeedX = interactionState.current.spinVelocityX || 0;
+    if (shape !== 'merkaba' && shape !== 'earth') {
+      pointsRef.current.rotation.x += rotationSpeedX;
+    }
+    
+    // Merkaba needs to stay upright (no Z tilt from gestures if we supported them)
+    // Actually standard rotation is only Y.
+    // If we want to allow user to tilt earth? 
+    // For now keep Y rotation.
+    
+    if (shape === 'merkaba' || shape === 'earth') {
+       pointsRef.current.rotation.z = 0;
+       // Earth needs to be upright
+       pointsRef.current.rotation.x = 0; 
+    }
+    
+    // Access geometry attributes
+    const geometry = pointsRef.current.geometry;
+    const positionAttribute = geometry.attributes.position;
+    
+    // Time-based animations
+    const t = state.clock.elapsedTime;
+    
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const ix = i * 3;
+      const iy = i * 3 + 1;
+      const iz = i * 3 + 2;
+      
+      let tx = targetPositions[ix];
+      let ty = targetPositions[iy];
+      let tz = targetPositions[iz];
+      
+      // SHAPE ANIMATIONS
+      if (shape === 'flower-of-life' || shape === 'flower-of-life-complete') {
+         const g = groups[i];
+         // Gentle pulse for all particles
+         const pulse = 1.0 + Math.sin(t * 2) * 0.03;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         if (shape === 'flower-of-life-complete') {
+            // For complete version:
+            // Group 1: Circles -> Subtle breathing
+            if (g === 1) {
+              const breath = 1.0 + Math.sin(t * 1.5 + ix * 0.0001) * 0.01;
+              tx *= breath; ty *= breath;
+            }
+            // Group 2: Outer Circle -> Slow rotation or shine?
+            if (g === 2) {
+               // Make outer ring shimmer
+               const shimmer = 1.0 + Math.sin(t * 3 + Math.atan2(ty, tx)*5) * 0.02;
+               tx *= shimmer; ty *= shimmer;
+            }
+         } else {
+             // Old logic
+             // Key intersection points (g=0) glow brighter
+             if (g === 0) {
+               const glow = 1.0 + Math.sin(t * 4 + i * 0.01) * 0.08;
+               tx *= glow; ty *= glow; tz *= glow;
+             }
+             // Outer ring (g=2) subtle wave
+             if (g === 2) {
+               const wave = Math.sin(t * 1.5 + Math.atan2(ty, tx) * 3) * 0.02;
+               tx += wave; ty += wave;
+             }
+         }
+      } else if (shape === 'merkaba') {
+         const g = groups[i];
+         if (g === 2) {
+           // Center pulse
+           const s = 1 + Math.pow(Math.sin(t * 3), 2) * 0.1; // Faster, sharp pulse
+           tx *= s; ty *= s; tz *= s;
+         } else {
+           // Rotation
+           // T1 (Gold, g=0): Left 12s -> 2PI/12 rad/s
+           // T2 (Silver, g=1): Right 15s -> -2PI/15 rad/s
+           
+           let ang = 0;
+           if (g === 0) {
+              ang = t * (Math.PI * 2 / 12);
+           } else {
+              ang = -t * (Math.PI * 2 / 15);
+           }
+           
+           const cos = Math.cos(ang);
+           const sin = Math.sin(ang);
+           
+           // Rotate around Y axis
+           const rx = tx * cos - tz * sin;
+           const rz = tx * sin + tz * cos;
+           tx = rx; tz = rz;
+         }
+      } else if (shape === 'grid-of-life') {
+         const g = groups[i];
+         // Pulsing effect for the entire structure
+         const pulse = 1.0 + Math.sin(t * 1.5) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Vertex nodes (g=0) - bright pulsing glow
+         if (g === 0) {
+           const glow = 1.0 + Math.sin(t * 3 + i * 0.02) * 0.1;
+           tx *= glow; ty *= glow; tz *= glow;
+         }
+         // Edge lines (g=1) - flowing energy along edges
+         else if (g === 1) {
+           const flow = Math.sin(t * 2 + i * 0.005) * 0.015;
+           tx += flow; ty += flow; tz += flow;
+         }
+         // Inner grid (g=2) - subtle breathing
+         else if (g === 2) {
+           const breath = 1.0 + Math.sin(t * 2.5 + i * 0.01) * 0.06;
+           tx *= breath; ty *= breath; tz *= breath;
+         }
+         // Outer boundary (g=3) - wave effect
+         else if (g === 3) {
+           const wave = Math.sin(t * 1.2 + Math.atan2(ty, tx) * 4) * 0.03;
+           tx += wave; ty += wave;
+         }
+      } else if (shape === 'star-of-david') {
+         const g = groups[i];
+         // Sacred pulsing for entire star
+         const pulse = 1.0 + Math.sin(t * 2) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Triangle 1 edges (g=0) - blue waves flowing
+         if (g === 0) {
+           const wave = Math.sin(t * 2.5 + i * 0.008) * 0.025;
+           tx += wave; ty += wave;
+         }
+         // Triangle 2 edges (g=1) - gold waves flowing
+         else if (g === 1) {
+           const wave = Math.sin(t * 2.3 + i * 0.008) * 0.025;
+           tx += wave; ty += wave;
+         }
+         // Vertex nodes (g=2) - bright pulsing star points
+         else if (g === 2) {
+           const pointGlow = 1.0 + Math.sin(t * 4 + i * 0.05) * 0.15;
+           tx *= pointGlow; ty *= pointGlow; tz *= pointGlow;
+         }
+         // Center core (g=3) - sacred center bright pulse
+         else if (g === 3) {
+           const coreGlow = 1.0 + Math.sin(t * 3.5) * 0.18;
+           tx *= coreGlow; ty *= coreGlow; tz *= coreGlow;
+         }
+         // Center hexagon (g=4) - rotating energy ring
+         else if (g === 4) {
+           const hexRotation = Math.sin(t * 2 + Math.atan2(ty, tx) * 6) * 0.04;
+           tx += hexRotation * Math.cos(Math.atan2(ty, tx));
+           ty += hexRotation * Math.sin(Math.atan2(ty, tx));
+           
+           const hexGlow = 1.0 + Math.sin(t * 3.2 + Math.atan2(ty, tx) * 6) * 0.08;
+           tx *= hexGlow; ty *= hexGlow;
+         }
+         // Outer ambient glow (g=5) - radiating energy
+         else if (g === 5) {
+           const radialPulse = Math.sin(t * 1.8 + Math.sqrt(tx*tx + ty*ty) * 3) * 0.035;
+           const angle = Math.atan2(ty, tx);
+           tx += radialPulse * Math.cos(angle);
+           ty += radialPulse * Math.sin(angle);
+         }
+      } else if (shape === 'earth') {
+          // Earth Animation: 
+          // 1. Slow rotation of the "texture" (points) relative to the frame?
+          // No, we rotate the whole group in the standard rotation logic below.
+          // But user asked for "Unlock rotation... let user control".
+          // And also "90s slow rotation".
+          
+          // If we want the particles to move *on* the sphere while the sphere is static?
+          // No, usually we rotate the sphere container.
+          
+          // Let's handle Earth rotation in the main rotation logic (outside loop)
+      } else if (shape === 'sri-yantra') {
+         const g = groups[i];
+         // Sacred pulsing for entire yantra
+         const pulse = 1.0 + Math.sin(t * 2.5) * 0.04;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Bindu (g=0) - central point bright pulsing
+         if (g === 0) {
+           const binduGlow = 1.0 + Math.sin(t * 4) * 0.15;
+           tx *= binduGlow; ty *= binduGlow; tz *= binduGlow;
+         }
+         // Triangles (g=1-9) - alternating wave based on group
+         else if (g >= 1 && g <= 9) {
+           const triangleWave = Math.sin(t * 3 + g * 0.5) * 0.03;
+           tx += triangleWave; ty += triangleWave;
+         }
+         // Intersection nodes (g=10) - bright glow
+         else if (g === 10) {
+           const nodeGlow = 1.0 + Math.sin(t * 5 + i * 0.03) * 0.12;
+           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
+         }
+         // Outer circles (g=11) - rotating wave
+         else if (g === 11) {
+           const outerWave = Math.sin(t * 2 + Math.atan2(ty, tx) * 3) * 0.04;
+           tx += outerWave; ty += outerWave;
+         }
+      } else if (shape === 'triquetra') {
+         const g = groups[i];
+         // Extremely subtle unified breathing - entire form breathes as one eternal presence
+         const breath = 1.0 + Math.sin(t * 0.8) * 0.015;
+         tx *= breath; ty *= breath; tz *= breath;
+         
+         // Arc particles (g=0,1,2) - the three sacred strands flow with barely perceptible energy
+         if (g === 0 || g === 1 || g === 2) {
+           const subtleFlow = Math.sin(t * 1.5 + i * 0.003) * 0.008;
+           const angle = Math.atan2(ty, tx);
+           tx += subtleFlow * Math.cos(angle);
+           ty += subtleFlow * Math.sin(angle);
+         }
+         // Center luminescence (g=4) - soft eternal light
+         else if (g === 4) {
+           const coreGlow = 1.0 + Math.sin(t * 2.0) * 0.08;
+           tx *= coreGlow; ty *= coreGlow; tz *= coreGlow;
+         }
+         // Ambient halo (g=5) - slow ethereal presence
+         else if (g === 5) {
+           const drift = Math.sin(t * 0.6 + Math.atan2(ty, tx) * 2) * 0.015;
+           const angle = Math.atan2(ty, tx);
+           tx += drift * Math.cos(angle);
+           ty += drift * Math.sin(angle);
+         }
+      } else if (shape === 'golden-rectangles') {
+         const g = groups[i];
+         // Divine proportion breathing for entire structure
+         const pulse = 1.0 + Math.sin(t * 1.8) * 0.035;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Rectangle edges (g=0,1,2) - flowing golden energy
+         if (g === 0) {
+           // XY plane rectangle - horizontal wave
+           const wave = Math.sin(t * 2.2 + tx * 3) * 0.02;
+           tx += wave; ty += wave * 0.5;
+         }
+         else if (g === 1) {
+           // YZ plane rectangle - vertical wave
+           const wave = Math.sin(t * 2.0 + ty * 3) * 0.02;
+           ty += wave; tz += wave * 0.5;
+         }
+         else if (g === 2) {
+           // ZX plane rectangle - depth wave
+           const wave = Math.sin(t * 2.4 + tz * 3) * 0.02;
+           tz += wave; tx += wave * 0.5;
+         }
+         // Intersection nodes (g=3) - bright golden glow
+         else if (g === 3) {
+           const nodeGlow = 1.0 + Math.sin(t * 3.5 + i * 0.03) * 0.12;
+           tx *= nodeGlow; ty *= nodeGlow; tz *= nodeGlow;
+         }
+         // Sacred center (g=4) - phi ratio pulse
+         else if (g === 4) {
+           const phiPulse = 1.0 + Math.sin(t * 2.618) * 0.15; // 2.618 ≈ φ + 1
+           tx *= phiPulse; ty *= phiPulse; tz *= phiPulse;
+         }
+         // Outer aura (g=5) - radiating divine proportion
+         else if (g === 5) {
+           const radialPulse = Math.sin(t * 1.618 + Math.sqrt(tx*tx + ty*ty + tz*tz) * 2) * 0.025;
+           const dist = Math.sqrt(tx*tx + ty*ty + tz*tz);
+           if (dist > 0.001) {
+             tx += radialPulse * (tx / dist);
+             ty += radialPulse * (ty / dist);
+             tz += radialPulse * (tz / dist);
+           }
+         }
+      } else if (shape === 'double-helix-dna') {
+         const g = groups[i];
+         // Gentle pulse for entire DNA structure
+         const pulse = 1.0 + Math.sin(t * 1.5) * 0.03;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Strand 1 (g=0) - flowing cyan energy upward
+         if (g === 0) {
+           const flow = Math.sin(t * 2.5 + ty * 4) * 0.02;
+           tx += flow * Math.cos(ty * 3);
+           tz += flow * Math.sin(ty * 3);
+         }
+         // Strand 2 (g=1) - flowing teal energy downward
+         else if (g === 1) {
+           const flow = Math.sin(t * 2.3 - ty * 4) * 0.02;
+           tx += flow * Math.cos(ty * 3 + Math.PI);
+           tz += flow * Math.sin(ty * 3 + Math.PI);
+         }
+         // Base pair connections (g=2) - pulsing bridges
+         else if (g === 2) {
+           const connectionPulse = 1.0 + Math.sin(t * 4 + i * 0.05) * 0.08;
+           tx *= connectionPulse;
+           tz *= connectionPulse;
+         }
+         // Trail particles (g=3) - floating around helix
+         else if (g === 3) {
+           const drift = Math.sin(t * 1.2 + i * 0.01) * 0.04;
+           tx += drift;
+           tz += drift * 0.5;
+         }
+         // Ambient particles (g=4) - subtle cosmic drift
+         else if (g === 4) {
+           const cosmicDrift = Math.sin(t * 0.8 + i * 0.005) * 0.02;
+           tx += cosmicDrift;
+           ty += cosmicDrift * 0.3;
+         }
+      } else if (shape === 'vortex-ring') {
+         const g = groups[i];
+         // Gentle breathing pulse for the torus
+         const pulse = 1.0 + Math.sin(t * 1.8) * 0.025;
+         tx *= pulse; ty *= pulse; tz *= pulse;
+         
+         // Torus surface (g=0) - swirling motion around the ring
+         if (g === 0) {
+           const angle = Math.atan2(tz, tx);
+           const swirl = Math.sin(t * 2 + angle * 3) * 0.025;
+           tx += swirl * Math.cos(angle + Math.PI / 2);
+           tz += swirl * Math.sin(angle + Math.PI / 2);
+         }
+         // Flow lines (g=1) - spiraling energy
+         else if (g === 1) {
+           const spiral = Math.sin(t * 3 + i * 0.01) * 0.03;
+           const angle = Math.atan2(tz, tx);
+           tx += spiral * Math.cos(angle);
+           tz += spiral * Math.sin(angle);
+           ty += Math.sin(t * 2.5 + i * 0.02) * 0.015;
+         }
+         // Core ring (g=2) - bright pulsing center
+         else if (g === 2) {
+           const coreGlow = 1.0 + Math.sin(t * 4) * 0.12;
+           tx *= coreGlow;
+           tz *= coreGlow;
+         }
+         // Outer vortex (g=3) - particles being drawn in
+         else if (g === 3) {
+           const inwardPull = Math.sin(t * 1.5 + i * 0.008) * 0.04;
+           const angle = Math.atan2(tz, tx);
+           tx -= inwardPull * Math.cos(angle);
+           tz -= inwardPull * Math.sin(angle);
+         }
+         // Ambient dust (g=4) - slow cosmic drift
+         else if (g === 4) {
+           const drift = Math.sin(t * 0.7 + i * 0.003) * 0.015;
+           tx += drift;
+           tz += drift * 0.5;
+         }
+      } else if (shape === 'fractal-tree') {
+         const g = groups[i];
+         // Gentle swaying motion like wind through branches
+         const sway = Math.sin(t * 0.8 + ty * 2) * 0.02;
+         tx += sway;
+         tz += sway * 0.5;
+         
+         // Branch particles (g=0) - subtle breathing
+         if (g === 0) {
+           const breath = 1.0 + Math.sin(t * 1.5 + ty * 3) * 0.015;
+           tx *= breath;
+           tz *= breath;
+         }
+         // Leaf particles (g=1) - glowing pulse at endpoints
+         else if (g === 1) {
+           const leafGlow = 1.0 + Math.sin(t * 3 + i * 0.02) * 0.1;
+           tx *= leafGlow;
+           ty *= leafGlow;
+           tz *= leafGlow;
+         }
+         // Glow particles (g=2) - floating ambient
+         else if (g === 2) {
+           const floatY = Math.sin(t * 1.2 + i * 0.01) * 0.03;
+           ty += floatY;
+         }
+         // Ambient particles (g=3) - gentle drift
+         else if (g === 3) {
+           const drift = Math.sin(t * 0.6 + i * 0.005) * 0.02;
+           tx += drift;
+           tz += drift * 0.3;
+         }
+      } else if (shape === 'wave-interference') {
+         const g = groups[i];
+         // Global wave motion
+         const globalWave = Math.sin(t * 1.5) * 0.02;
+         ty += globalWave;
+         
+         // Wave 1 (g=0) - horizontal oscillation
+         if (g === 0) {
+           const oscillate = Math.sin(t * 2.5 + tx * 5) * 0.03;
+           ty += oscillate;
+         }
+         // Wave 2 (g=1) - vertical oscillation
+         else if (g === 1) {
+           const oscillate = Math.sin(t * 2.3 + tx * 5) * 0.03;
+           tz += oscillate;
+         }
+         // Interference surface (g=2) - rippling effect
+         else if (g === 2) {
+           const ripple = Math.sin(t * 2 + Math.sqrt(tx*tx + tz*tz) * 4) * 0.025;
+           ty += ripple;
+         }
+         // Node particles (g=3) - bright pulsing
+         else if (g === 3) {
+           const nodePulse = 1.0 + Math.sin(t * 4 + i * 0.03) * 0.12;
+           tx *= nodePulse;
+           ty *= nodePulse;
+           tz *= nodePulse;
+         }
+         // Ambient particles (g=4) - slow drift
+         else if (g === 4) {
+           const drift = Math.sin(t * 0.8 + i * 0.004) * 0.015;
+           tx += drift;
+           tz += drift * 0.5;
+         }
+      } 
+
+      // Modifiers based on mode
+      if (mode === 'gather') {
+        const tighten = 1.0 - (progress * 0.8); 
+        tx *= tighten; ty *= tighten; tz *= tighten;
+        
+        const jitter = 0.05 * progress;
+        tx += (Math.random() - 0.5) * jitter;
+        ty += (Math.random() - 0.5) * jitter;
+        tz += (Math.random() - 0.5) * jitter;
+      } 
+      else if (mode === 'heart') {
+         tx = heartPositions[ix];
+         ty = heartPositions[iy];
+         tz = heartPositions[iz];
+
+         const beat = 1.0 + Math.sin(state.clock.elapsedTime * 15) * 0.05;
+         tx *= beat; ty *= beat; tz *= beat;
+      }
+      else if (mode === 'store') {
+        tx *= 0.01;
+        ty = ty * 0.01 - 3.0; 
+        tz *= 0.01;
+      }
+      else if (mode === 'explode') {
+         // Heart flying away effect (Gift sent)
+         tx = heartPositions[ix];
+         ty = heartPositions[iy];
+         tz = heartPositions[iz];
+         
+         const flyScale = 2.0;
+         tx *= flyScale + (Math.random() - 0.5) * 0.5;
+         ty = ty * flyScale + 5.0; // Fly UP off screen
+         tz *= flyScale + (Math.random() - 0.5) * 0.5;
+      }
+      else if (mode === 'diffused') {
+         // Scatter outward like a cloud/nebula
+         // We use the original position but scale it up and add some sine wave movement
+         const scatter = 1.5 + Math.sin(t + i * 0.1) * 0.2;
+         tx *= scatter;
+         ty *= scatter;
+         tz *= scatter;
+      }
+      else if (mode === 'meditating') {
+         // Gentle breathing effect
+         const breath = 1.0 + Math.sin(t * 0.5) * 0.05;
+         tx *= breath;
+         ty *= breath;
+         tz *= breath;
+      }
+      
+      const lerpFactor = 0.1;
+      currentPositions[ix] += (tx - currentPositions[ix]) * lerpFactor;
+      currentPositions[iy] += (ty - currentPositions[iy]) * lerpFactor;
+      currentPositions[iz] += (tz - currentPositions[iz]) * lerpFactor;
+    }
+    
+    positionAttribute.array.set(currentPositions);
+    positionAttribute.needsUpdate = true;
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[currentPositions, 3]}
+          usage={THREE.DynamicDrawUsage}
+        />
+        <bufferAttribute
+          ref={colorAttributeRef}
+          attach="attributes-color"
+          args={[colors, 3]}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.03}
+        vertexColors
+        transparent
+        opacity={0.8}
+        blending={THREE.AdditiveBlending}
+        sizeAttenuation={true}
+        depthWrite={false}
+      />
+    </points>
+  );
+};
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
@@ -221,16 +1072,11 @@ export default function GardenScreen() {
   const miniKitPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const miniKitLoggedMissingRef = useRef(false);
   const pauseMiniKitAutoSubscribeRef = useRef(false);
-  const {
-    selectedAmbientSound,
-    setSelectedAmbientSound,
-    ambientVolume,
-    setAmbientVolume,
-    showSoundPicker,
-    setShowSoundPicker,
-    syncMeditatingState,
-    playGiftSendSound,
-  } = useAmbientAudio(AMBIENT_SOUND_CATEGORIES);
+  const giftSoundRef = useRef<Audio.Sound | null>(null);
+  const ambientSoundRef = useRef<Audio.Sound | null>(null);
+  const [selectedAmbientSound, setSelectedAmbientSound] = useState<string | null>(null);
+  const [ambientVolume, setAmbientVolume] = useState(0.5);
+  const [showSoundPicker, setShowSoundPicker] = useState(false);
   const useShareContactsAsyncOnly = true;
 
   useEffect(() => {
@@ -550,8 +1396,80 @@ export default function GardenScreen() {
   }, []);
 
   useEffect(() => {
-    void syncMeditatingState(isMeditating);
-  }, [isMeditating, syncMeditatingState]);
+    return () => {
+      const cleanup = async () => {
+        try {
+          if (giftSoundRef.current) {
+            await giftSoundRef.current.unloadAsync();
+            giftSoundRef.current = null;
+          }
+          if (ambientSoundRef.current) {
+            await ambientSoundRef.current.unloadAsync();
+            ambientSoundRef.current = null;
+          }
+        } catch (e) {
+          console.warn("[DEBUG_GIFT] Failed to unload sounds:", e);
+        }
+      };
+
+      void cleanup();
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadAmbientSound = async () => {
+      try {
+        if (ambientSoundRef.current) {
+          await ambientSoundRef.current.unloadAsync();
+          ambientSoundRef.current = null;
+        }
+
+        if (selectedAmbientSound) {
+          let soundUrl: string | null = null;
+          for (const category of AMBIENT_SOUND_CATEGORIES) {
+            const sound = category.sounds.find(s => s.id === selectedAmbientSound);
+            if (sound) {
+              soundUrl = sound.url;
+              break;
+            }
+          }
+
+          if (soundUrl) {
+            const { sound: audioSound } = await Audio.Sound.createAsync(
+              { uri: soundUrl },
+              { shouldPlay: true, isLooping: true, volume: ambientVolume }
+            );
+            ambientSoundRef.current = audioSound;
+            console.log("[GARDEN] Ambient sound loaded and playing:", selectedAmbientSound);
+          }
+        }
+      } catch (error) {
+        console.error('[GARDEN] Error loading ambient sound:', error);
+      }
+    };
+
+    loadAmbientSound();
+  }, [selectedAmbientSound, ambientVolume]);
+
+  useEffect(() => {
+    const updateAmbientVolume = async () => {
+      if (ambientSoundRef.current) {
+        await ambientSoundRef.current.setVolumeAsync(ambientVolume);
+      }
+    };
+    updateAmbientVolume();
+  }, [ambientVolume]);
+
+  useEffect(() => {
+    const controlAmbientPlayback = async () => {
+      if (ambientSoundRef.current) {
+        if (isMeditating) {
+          await ambientSoundRef.current.playAsync();
+        }
+      }
+    };
+    controlAmbientPlayback();
+  }, [isMeditating]);
   
   const panelPanResponder = useRef(
     PanResponder.create({
@@ -616,13 +1534,69 @@ export default function GardenScreen() {
 
   
   const { walletAddress } = useUser();
-  const { uploadGiftOrbToCloud } = useGiftSync({
-    walletAddress,
-    receiveGiftOrb,
-    language: settings.language,
-  });
 
+  const giftPollInFlightRef = useRef<boolean>(false);
 
+  useEffect(() => {
+    if (!walletAddress) {
+      console.log("[DEBUG_GIFT_CLOUD] Polling disabled (no walletAddress)");
+      return;
+    }
+
+    console.log("[DEBUG_GIFT_CLOUD] Starting Firebase gift poll for:", walletAddress);
+
+    const interval = setInterval(() => {
+      const run = async () => {
+        if (giftPollInFlightRef.current) return;
+        giftPollInFlightRef.current = true;
+
+        try {
+          const gifts = await fetchAndConsumeGifts({ myWalletAddress: walletAddress, max: 5 });
+          if (gifts.length > 0) {
+            console.log("[DEBUG_GIFT_CLOUD] Received gifts:", gifts.length);
+          }
+
+          for (const g of gifts) {
+            console.log("[DEBUG_GIFT_CLOUD] Consuming gift:", JSON.stringify(g, null, 2));
+            await receiveGiftOrb({
+              fromDisplayName: g.fromDisplayName,
+              fromWalletAddress: g.from,
+              blessing: g.blessing,
+              orb: {
+                id: g.orb.id,
+                level: g.orb.level,
+                layers: g.orb.layers,
+                isAwakened: g.orb.isAwakened,
+                createdAt: g.orb.createdAt,
+                completedAt: g.orb.completedAt,
+                shape: (g.orb.shape as OrbShape | undefined) ?? undefined,
+              },
+            });
+
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            Alert.alert(
+              settings.language === "zh" ? "🎁 收到光球" : "🎁 Gift Received",
+              settings.language === "zh"
+                ? `你收到來自 ${g.fromDisplayName || "朋友"} 的光球`
+                : `You received an orb from ${g.fromDisplayName || "Friend"}`
+            );
+          }
+        } catch (e) {
+          console.error("[DEBUG_GIFT_CLOUD] Gift poll failed:", e);
+          Alert.alert(settings.language === "zh" ? "傳送失敗，請重試" : "Send failed, please retry");
+        } finally {
+          giftPollInFlightRef.current = false;
+        }
+      };
+
+      void run();
+    }, 6000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [walletAddress, receiveGiftOrb, settings.language]);
   
   // Chakra Collection Logic
   const collectionProgress = useMemo(() => {
@@ -1027,7 +2001,7 @@ export default function GardenScreen() {
     });
 
     try {
-      const uploaded = await uploadGiftOrbToCloud({
+      const uploaded = await uploadGiftOrb({
         toWalletAddress: params.toWalletAddress,
         fromWalletAddress: params.fromWalletAddress,
         fromDisplayName: walletAddress ? `0x${walletAddress.slice(2, 6)}…` : undefined,
@@ -1098,11 +2072,64 @@ export default function GardenScreen() {
     }
   };
 
+  const extractContactsFromPayload = (payload: any) => {
+    const contacts =
+      payload?.contacts ||
+      payload?.finalPayload?.contacts ||
+      payload?.data?.contacts ||
+      payload?.response?.contacts ||
+      payload?.result?.contacts ||
+      payload?.data?.result?.contacts ||
+      payload?.response?.result?.contacts ||
+      payload?.payload?.result?.contacts ||
+      payload?.data?.payload?.result?.contacts;
+    if (Array.isArray(contacts)) return contacts;
+    if (payload?.contact) return [payload.contact];
+    if (payload?.finalPayload?.contact) return [payload.finalPayload.contact];
+    return [];
+  };
+
+  const extractContactWalletAddress = (contact: any): string => {
+    if (!contact) return "";
+    const directAddress = contact.walletAddress || contact.wallet_address || contact.address;
+    if (directAddress) return directAddress;
+
+    if (Array.isArray(contact.wallets)) {
+      const walletEntry = contact.wallets.find(
+        (entry: any) => entry?.address || entry?.walletAddress || entry?.wallet_address
+      );
+      const walletEntryAddress =
+        walletEntry?.address || walletEntry?.walletAddress || walletEntry?.wallet_address;
+      if (walletEntryAddress) return walletEntryAddress;
+    }
+
+    if (contact?.wallet && typeof contact.wallet === "object") {
+      const walletAddress =
+        contact.wallet.address || contact.wallet.walletAddress || contact.wallet.wallet_address;
+      if (walletAddress) return walletAddress;
+    }
+
+    if (typeof contact.wallet === "string") return contact.wallet;
+    return contact?.account?.address || "";
+  };
+
+  const formatContactName = (contact: any, fallbackWallet?: string) => {
+    const display =
+      contact?.name ||
+      contact?.displayName ||
+      contact?.username ||
+      contact?.handle ||
+      "";
+    if (display) return display;
+    if (fallbackWallet) return `User ${fallbackWallet.slice(0, 4)}`;
+    return settings.language === "zh" ? "好友" : "Friend";
+  };
+
   const handleGiftSuccess = async (contact: any) => {
     console.log("[DEBUG_GIFT] handleGiftSuccess called with:", toSafeJson(contact));
 
     const toWalletAddress = extractContactWalletAddress(contact);
-    const friendName = formatContactName(contact, toWalletAddress, settings.language);
+    const friendName = formatContactName(contact, toWalletAddress);
     console.log("[DEBUG_GIFT] Selected contact walletAddress:", toWalletAddress);
     console.log(`[DEBUG_GIFT] ShareContacts success: wallet = ${toWalletAddress || ""}`);
     console.log("[DEBUG_GIFT] Processing Gift Success for:", friendName);
@@ -1134,7 +2161,20 @@ export default function GardenScreen() {
 
   const playHolyGiftSound = async () => {
     try {
-      await playGiftSendSound();
+      const uri = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b6a66f4db.mp3?filename=magic-2-16764.mp3";
+
+      if (giftSoundRef.current) {
+        await giftSoundRef.current.unloadAsync();
+        giftSoundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true, volume: 0.9 }
+      );
+
+      giftSoundRef.current = sound;
+      await sound.playAsync();
     } catch (e) {
       console.warn("[DEBUG_GIFT] playHolyGiftSound failed:", e);
     }
@@ -1425,7 +2465,7 @@ export default function GardenScreen() {
         pendingShareContactsRef.current = false;
         clearShareContactsTimeout();
         const fromWalletAddress = walletAddress;
-        const friendName = formatContactName(contact, toWalletAddress, settings.language);
+        const friendName = formatContactName(contact, toWalletAddress);
         console.log("Attempting gift upload", toWalletAddress, fromWalletAddress);
 
         console.log("[DEBUG_GIFT_CLOUD] Uploading gift orb to Firebase...", {
