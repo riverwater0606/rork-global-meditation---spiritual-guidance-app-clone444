@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IS_LOCAL_DEV } from '@/constants/env';
 
 interface VerifyButtonProps {
   appId: string;
@@ -27,6 +28,7 @@ export function getMiniKit(): any | undefined {
 }
 
 export async function ensureMiniKitLoaded(): Promise<any | undefined> {
+  if (IS_LOCAL_DEV) return undefined;
   let mk = getMiniKit();
   if (mk) return mk;
   if (Platform.OS !== 'web') return undefined;
@@ -107,6 +109,7 @@ export async function ensureMiniKitLoaded(): Promise<any | undefined> {
 }
 
 export async function isMiniKitInstalled(mk: any): Promise<boolean> {
+  if (IS_LOCAL_DEV) return true;
   try {
     if (!mk) return false;
     const val = typeof mk.isInstalled === 'function' ? mk.isInstalled() : mk.isInstalled;
@@ -129,6 +132,10 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
 
   const onPress = useCallback(async () => {
     setError(null);
+    if (IS_LOCAL_DEV) {
+      Alert.alert('Local Dev Mode', 'Local Dev Mode');
+      return;
+    }
     console.log('[WorldIDVerifyButton] Pressed. Platform:', Platform.OS);
     if (Platform.OS !== 'web') {
       setError('Please open inside World App');
@@ -261,6 +268,10 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
 }
 
 export async function runWorldVerify({ mk, action, signal }: { mk: any; action: string; signal: string }) {
+  if (IS_LOCAL_DEV) {
+    Alert.alert('Local Dev Mode', 'Local Dev Mode');
+    return { status: 'success', action, signal, source: 'local-dev' };
+  }
   const fn = (
     mk?.commandsAsync?.verify ||
     mk?.commands?.verify ||
@@ -280,6 +291,10 @@ export async function runWorldVerify({ mk, action, signal }: { mk: any; action: 
 }
 
 export async function runWalletAuth({ mk, nonce, statement }: { mk: any; nonce: string; statement: string }) {
+  if (IS_LOCAL_DEV) {
+    Alert.alert('Local Dev Mode', 'Local Dev Mode');
+    return { status: 'success', address: '0xFakeDevWallet', nonce, statement, source: 'local-dev' };
+  }
   const fn = (
     mk?.commandsAsync?.walletAuth ||
     mk?.commands?.walletAuth ||

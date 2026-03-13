@@ -11,6 +11,7 @@ import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
+import { IS_LOCAL_DEV } from "@/constants/env";
 
 const queryClient = new QueryClient();
 
@@ -132,6 +133,11 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (IS_LOCAL_DEV) {
+      console.log('[RootLayout] Local Dev Mode enabled - skipping MiniKit install');
+      return;
+    }
+
     if (MiniKit?.install) {
       try {
         MiniKit.install(APP_ID);
@@ -151,7 +157,16 @@ export default function RootLayout() {
               <SettingsProvider>
                 <UserProvider>
                   <MeditationProvider>
-                    <RootLayoutNav />
+                    <View style={styles.appContainer}>
+                      {IS_LOCAL_DEV ? (
+                        <View style={styles.debugBanner}>
+                          <Text style={styles.debugBannerText}>Local Dev Mode - World App bypassed</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.contentContainer}>
+                        <RootLayoutNav />
+                      </View>
+                    </View>
                   </MeditationProvider>
                 </UserProvider>
               </SettingsProvider>
@@ -165,6 +180,23 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  appContainer: {
+    flex: 1,
+  },
+  debugBanner: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  debugBannerText: {
+    color: '#111827',
+    fontWeight: '700' as const,
+    fontSize: 12,
+  },
+  contentContainer: {
     flex: 1,
   },
 });
