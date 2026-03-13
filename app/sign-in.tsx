@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ensureMiniKitLoaded, getMiniKit, runWalletAuth } from '@/components/worldcoin/IDKitWeb';
 import { useUser } from '@/providers/UserProvider';
 import { useRouter } from 'expo-router';
+import { IS_LOCAL_DEV } from '@/constants/env';
 
 const MINIKIT_TIMEOUT_MS = 8000;
 
@@ -14,6 +15,15 @@ export default function SignInScreen() {
 
   const handleSignIn = useCallback(async () => {
     try {
+      if (IS_LOCAL_DEV) {
+        const fakeWalletAddress = '0xFakeDevWallet';
+        await connectWallet(fakeWalletAddress);
+        await setVerified({ status: 'success', address: fakeWalletAddress, source: 'local-dev' } as any);
+        Alert.alert('Local Dev Mode', 'Local Dev Mode: 模擬登入成功');
+        router.replace('/(tabs)');
+        return;
+      }
+
       await Promise.race([
         ensureMiniKitLoaded(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('MiniKit load timeout')), MINIKIT_TIMEOUT_MS)),

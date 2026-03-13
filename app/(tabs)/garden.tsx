@@ -20,6 +20,7 @@ import { MiniKit, ResponseEvent } from "@/constants/minikit";
 import { APP_ID } from "@/constants/world";
 import * as firebaseDiagnostics from "@/constants/firebase";
 import * as Haptics from "expo-haptics";
+import { IS_LOCAL_DEV } from "@/constants/env";
 
 interface AmbientSound {
   id: string;
@@ -2263,6 +2264,22 @@ export default function GardenScreen() {
 
     const run = async () => {
       try {
+        if (IS_LOCAL_DEV) {
+          pendingShareContactsRef.current = false;
+          clearShareContactsTimeout();
+          const fakeFriendName = "朋友";
+          void attemptGiftUpload({
+            fromWalletAddress: walletAddress || "0xFakeDevWallet",
+            toWalletAddress: "0xFakeFriendWallet",
+            source: "local-dev",
+          }).catch((uploadErr) => {
+            console.error("[gift] local-dev upload simulation failed", uploadErr);
+          });
+          Alert.alert("Local Dev Mode", "Local Dev Mode");
+          finishGifting(fakeFriendName);
+          return;
+        }
+
         const mk = (await ensureMiniKitLoaded()) ?? getMiniKit() ?? MiniKit;
         const getPermissionsFn = mk?.commandsAsync?.getPermissions;
         const requestPermissionFn = mk?.commandsAsync?.requestPermission;
