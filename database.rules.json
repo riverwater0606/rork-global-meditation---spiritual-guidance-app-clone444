@@ -1,0 +1,87 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "userBindings": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "uid": {
+          ".validate": "newData.isString() && newData.val() === $uid"
+        },
+        "walletAddress": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^0x[0-9a-fA-F]{40}$/))"
+        },
+        "walletGiftId": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[a-z0-9_-]+$/))"
+        },
+        "walletMeditationId": {
+          ".validate": "!newData.exists() || newData.isString()"
+        },
+        "username": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[A-Za-z0-9._-]{3,64}(\\.world)?$/))"
+        },
+        "usernameGiftId": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[a-z0-9_-]+$/))"
+        },
+        "updatedAt": {
+          ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "meditations": {
+      "$userId": {
+        ".read": "auth != null && (auth.uid === $userId || root.child('userBindings/' + auth.uid + '/walletMeditationId').val() === $userId)",
+        "$recordId": {
+          ".write": "auth != null && (auth.uid === $userId || root.child('userBindings/' + auth.uid + '/walletMeditationId').val() === $userId)",
+          ".validate": "newData.hasChildren(['id', 'date', 'courseName', 'duration', 'createdAt', 'createdByUid']) && newData.child('id').isString() && newData.child('date').isString() && newData.child('courseName').isString() && newData.child('duration').isNumber() && newData.child('createdAt').isString() && newData.child('createdByUid').val() === auth.uid"
+        }
+      }
+    },
+    "gifts": {
+      "$recipientId": {
+        ".read": "auth != null && (root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $recipientId || root.child('userBindings/' + auth.uid + '/usernameGiftId').val() === $recipientId)",
+        "$giftId": {
+          ".write": "auth != null && ((!newData.exists() && (root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $recipientId || root.child('userBindings/' + auth.uid + '/usernameGiftId').val() === $recipientId)) || (newData.exists() && newData.child('senderGiftId').val() === root.child('userBindings/' + auth.uid + '/walletGiftId').val() && ($recipientId === newData.child('recipientWalletId').val() || $recipientId === newData.child('recipientUsernameId').val())))",
+          ".validate": "newData.hasChildren(['v', 'createdAt', 'giftKind', 'viewOnly', 'canMeditate', 'canUnlockMissions', 'to', 'from', 'orb', 'senderGiftId']) && newData.child('giftKind').val() === 'blessing-copy' && newData.child('viewOnly').val() === true && newData.child('canMeditate').val() === false && newData.child('canUnlockMissions').val() === false"
+        }
+      }
+    },
+    "giftHistory": {
+      "sent": {
+        "$senderId": {
+          ".read": "auth != null && root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $senderId",
+          "$giftId": {
+            ".write": "auth != null && newData.child('senderGiftId').val() === $senderId && (root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $senderId || root.child('userBindings/' + auth.uid + '/walletGiftId').val() === newData.child('recipientWalletId').val() || root.child('userBindings/' + auth.uid + '/usernameGiftId').val() === newData.child('recipientUsernameId').val())",
+            ".validate": "newData.hasChildren(['giftId', 'createdAt', 'giftKind', 'from', 'to', 'role', 'status', 'viewOnly', 'orb', 'senderGiftId']) && newData.child('role').val() === 'sender' && newData.child('senderGiftId').val() === $senderId"
+          }
+        }
+      },
+      "received": {
+        "$recipientId": {
+          ".read": "auth != null && (root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $recipientId || root.child('userBindings/' + auth.uid + '/usernameGiftId').val() === $recipientId)",
+          "$giftId": {
+            ".write": "auth != null && ((newData.exists() && ($recipientId === newData.child('recipientWalletId').val() || $recipientId === newData.child('recipientUsernameId').val())) || (!newData.exists() && (root.child('userBindings/' + auth.uid + '/walletGiftId').val() === $recipientId || root.child('userBindings/' + auth.uid + '/usernameGiftId').val() === $recipientId)))",
+            ".validate": "newData.hasChildren(['giftId', 'createdAt', 'giftKind', 'from', 'to', 'role', 'status', 'viewOnly', 'orb', 'senderGiftId']) && newData.child('role').val() === 'receiver'"
+          }
+        }
+      }
+    },
+    "giftAudit": {
+      "$giftId": {
+        ".read": false,
+        ".write": "auth != null && ((!data.exists() && newData.child('audit/createdByUid').val() === auth.uid && newData.child('senderGiftId').val() === root.child('userBindings/' + auth.uid + '/walletGiftId').val()) || (data.exists() && (data.child('audit/createdByUid').val() === auth.uid || data.child('recipientWalletId').val() === root.child('userBindings/' + auth.uid + '/walletGiftId').val() || data.child('recipientUsernameId').val() === root.child('userBindings/' + auth.uid + '/usernameGiftId').val())))",
+        ".validate": "newData.hasChildren(['v', 'createdAt', 'giftKind', 'viewOnly', 'canMeditate', 'canUnlockMissions', 'to', 'from', 'orb', 'senderGiftId', 'audit']) && newData.child('audit').hasChildren(['status'])"
+      }
+    },
+    "debug": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}

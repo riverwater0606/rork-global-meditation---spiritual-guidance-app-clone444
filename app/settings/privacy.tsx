@@ -5,48 +5,100 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Switch,
+  Platform,
+  Share,
 } from "react-native";
+import * as FileSystem from "expo-file-system";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
 import { 
   ArrowLeft, 
-  Shield, 
-  Eye, 
-  BarChart3, 
-  Share2, 
   Download,
   Trash2,
-  AlertTriangle
 } from "lucide-react-native";
 import { useSettings } from "@/providers/SettingsProvider";
 import CustomModal from "@/components/CustomModal";
 
+const EXPORT_DRAFT_STORAGE_KEY = "privacyExportDraft";
+
 export default function PrivacyScreen() {
-  const { settings, updatePrivacySettings, exportData, clearAllData, currentTheme } = useSettings();
+  const { settings, exportData, clearAllData, currentTheme } = useSettings();
+  const tr = (zh: string, en: string, es: string) => {
+    if (settings.language === "zh") return zh;
+    if (settings.language === "es") return es;
+    return en;
+  };
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: () => {}, destructive: false });
-
-  const handleToggle = async (key: keyof typeof settings.privacy, value: boolean) => {
-    await updatePrivacySettings({ [key]: value });
-  };
 
   const handleExportData = async () => {
     try {
       const data = await exportData();
+      const filename = `psig-export-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+
+      await AsyncStorage.setItem(
+        EXPORT_DRAFT_STORAGE_KEY,
+        JSON.stringify({ filename, content: data })
+      );
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([data], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+
+        router.push("/settings/export-preview");
+      } else if (FileSystem.documentDirectory) {
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(fileUri, data, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        try {
+          await Share.share({
+            url: fileUri,
+            message: tr(
+              "PSI-G 資料匯出已準備好。",
+              "Your PSI-G export is ready.",
+              "Tu exportación de PSI-G está lista."
+            ),
+            title: filename,
+          });
+        } catch {
+          // Fall through to success modal with file location guidance.
+        }
+
+        router.push("/settings/export-preview");
+      }
+
       setModalConfig({
-        title: "Data Export",
-        message: "Your data has been prepared for export. In a production app, this would be saved to your device or shared via email.",
+        title: tr("資料匯出", "Data Export", "Exportación de datos"),
+        message: Platform.OS === "web"
+          ? tr(
+              `匯出檔案 ${filename} 已開始下載。`,
+              `The export file ${filename} should now be downloading.`,
+              `El archivo ${filename} debería estar descargándose ahora.`
+            )
+          : tr(
+              `匯出檔案 ${filename} 已準備好，已嘗試打開分享/儲存流程。`,
+              `The export file ${filename} is ready and the share/save flow has been opened.`,
+              `El archivo ${filename} está listo y se abrió el flujo para compartir o guardar.`
+            ),
         onConfirm: () => setModalVisible(false),
         destructive: false,
       });
       setModalVisible(true);
-      console.log("Exported data:", data);
     } catch {
       setModalConfig({
-        title: "Error",
-        message: "Failed to export data. Please try again.",
+        title: tr("錯誤", "Error", "Error"),
+        message: tr("匯出資料失敗，請再試一次。", "Failed to export data. Please try again.", "No se pudo exportar la información. Inténtalo de nuevo."),
         onConfirm: () => setModalVisible(false),
         destructive: false,
       });
@@ -56,15 +108,15 @@ export default function PrivacyScreen() {
 
   const handleClearData = () => {
     setModalConfig({
-      title: "Clear All Data",
-      message: "This will permanently delete all your meditation progress, settings, and personal data. This action cannot be undone.",
+      title: tr("清除所有資料", "Clear All Data", "Borrar todos los datos"),
+      message: tr("這會清除這部裝置上的資料，並刪除已接上的雲端狀態快照（課程、光球、能量、VIP 等）。已送出的禮物與既有歷史記錄不一定全部一併移除。", "This clears data on this device and deletes connected cloud state snapshots such as courses, orb state, resonance, and VIP. Delivered gifts and historical records may not all be removed.", "Esto borra los datos de este dispositivo y elimina los estados conectados en la nube, como cursos, esfera, Resonance y VIP. Los regalos ya enviados y ciertos historiales pueden no eliminarse por completo."),
       onConfirm: async () => {
         try {
           await clearAllData();
           setModalVisible(false);
           setModalConfig({
-            title: "Success",
-            message: "All data has been cleared.",
+            title: tr("完成", "Success", "Éxito"),
+            message: tr("本機資料與可用的雲端狀態快照已清除。", "Local data and available cloud state snapshots were cleared.", "Se borraron los datos locales y los estados disponibles en la nube."),
             onConfirm: () => setModalVisible(false),
             destructive: false,
           });
@@ -72,8 +124,8 @@ export default function PrivacyScreen() {
         } catch {
           setModalVisible(false);
           setModalConfig({
-            title: "Error",
-            message: "Failed to clear data. Please try again.",
+            title: tr("錯誤", "Error", "Error"),
+            message: tr("清除資料失敗，請再試一次。", "Failed to clear data. Please try again.", "No se pudieron borrar los datos. Inténtalo de nuevo."),
             onConfirm: () => setModalVisible(false),
             destructive: false,
           });
@@ -85,69 +137,10 @@ export default function PrivacyScreen() {
     setModalVisible(true);
   };
 
-  const privacySettings = [
-    {
-      key: "analytics" as const,
-      icon: BarChart3,
-      title: "Analytics",
-      subtitle: "Help improve the app with usage analytics",
-      value: settings.privacy.analytics,
-    },
-    {
-      key: "crashReporting" as const,
-      icon: AlertTriangle,
-      title: "Crash Reporting",
-      subtitle: "Send crash reports to help fix bugs",
-      value: settings.privacy.crashReporting,
-    },
-    {
-      key: "personalizedContent" as const,
-      icon: Eye,
-      title: "Personalized Content",
-      subtitle: "Customize content based on your preferences",
-      value: settings.privacy.personalizedContent,
-    },
-    {
-      key: "dataSharing" as const,
-      icon: Share2,
-      title: "Data Sharing",
-      subtitle: "Share anonymized data for research",
-      value: settings.privacy.dataSharing,
-    },
-  ];
-
   const themedStyles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: currentTheme.background,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: currentTheme.text,
-    },
-    settingItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: currentTheme.card,
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 12,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.03,
-      shadowRadius: 4,
-      elevation: 1,
-    },
-    settingTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: currentTheme.text,
-    },
-    settingSubtitle: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      marginTop: 2,
     },
     actionItem: {
       flexDirection: "row",
@@ -172,24 +165,10 @@ export default function PrivacyScreen() {
       color: currentTheme.textSecondary,
       marginTop: 2,
     },
-    infoCard: {
-      backgroundColor: currentTheme.surface,
-      marginHorizontal: 20,
-      padding: 16,
-      borderRadius: 12,
-      borderLeftWidth: 4,
-      borderLeftColor: "#8B5CF6",
-    },
-    infoTitle: {
-      fontSize: 16,
-      fontWeight: "600",
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
       color: currentTheme.text,
-      marginBottom: 8,
-    },
-    infoText: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      lineHeight: 20,
     },
   });
 
@@ -200,8 +179,8 @@ export default function PrivacyScreen() {
         onClose={() => setModalVisible(false)}
         title={modalConfig.title}
         message={modalConfig.message}
-        cancelText="Cancel"
-        confirmText={modalConfig.destructive ? "Delete All" : "OK"}
+        cancelText={tr("取消", "Cancel", "Cancelar")}
+        confirmText={modalConfig.destructive ? tr("全部刪除", "Delete All", "Borrar todo") : tr("知道了", "OK", "OK")}
         onConfirm={modalConfig.onConfirm}
         confirmDestructive={modalConfig.destructive}
       />
@@ -226,7 +205,7 @@ export default function PrivacyScreen() {
             >
               <ArrowLeft size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.title}>Privacy & Security</Text>
+            <Text style={styles.title}>{tr("私隱與安全", "Privacy & Security", "Privacidad y seguridad")}</Text>
             <View style={styles.placeholder} />
           </View>
         </SafeAreaView>
@@ -234,36 +213,7 @@ export default function PrivacyScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Shield size={20} color="#8B5CF6" />
-            <Text style={themedStyles.sectionTitle}>Privacy Settings</Text>
-          </View>
-
-          {privacySettings.map((setting) => {
-            const Icon = setting.icon;
-            return (
-              <View key={setting.key} style={themedStyles.settingItem}>
-                <View style={styles.settingIcon}>
-                  <Icon size={20} color={currentTheme.textSecondary} />
-                </View>
-                <View style={styles.settingInfo}>
-                  <Text style={themedStyles.settingTitle}>{setting.title}</Text>
-                  <Text style={themedStyles.settingSubtitle}>{setting.subtitle}</Text>
-                </View>
-                <Switch
-                  value={setting.value}
-                  onValueChange={(value) => handleToggle(setting.key, value)}
-                  trackColor={{ false: "#E5E7EB", true: "#8B5CF6" }}
-                  thumbColor="#FFFFFF"
-                  testID={`privacy-${setting.key}-switch`}
-                />
-              </View>
-            );
-          })}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={themedStyles.sectionTitle}>Data Management</Text>
+          <Text style={themedStyles.sectionTitle}>{tr("資料管理", "Data Management", "Gestión de datos")}</Text>
 
           <TouchableOpacity
             style={themedStyles.actionItem}
@@ -274,9 +224,9 @@ export default function PrivacyScreen() {
               <Download size={20} color="#059669" />
             </View>
             <View style={styles.actionInfo}>
-              <Text style={themedStyles.actionTitle}>Export My Data</Text>
+              <Text style={themedStyles.actionTitle}>{tr("匯出我的資料", "Export My Data", "Exportar mis datos")}</Text>
               <Text style={themedStyles.actionSubtitle}>
-                Download a copy of all your data
+                {tr("下載你所有資料的副本", "Download a copy of all your data", "Descarga una copia de todos tus datos")}
               </Text>
             </View>
           </TouchableOpacity>
@@ -291,21 +241,13 @@ export default function PrivacyScreen() {
             </View>
             <View style={styles.actionInfo}>
               <Text style={[themedStyles.actionTitle, styles.dangerText]}>
-                Clear All Data
+                {tr("清除所有資料", "Clear All Data", "Borrar todos los datos")}
               </Text>
               <Text style={themedStyles.actionSubtitle}>
-                Permanently delete all your data
+                {tr("永久刪除你的所有資料", "Permanently delete all your data", "Elimina permanentemente todos tus datos")}
               </Text>
             </View>
           </TouchableOpacity>
-        </View>
-
-        <View style={themedStyles.infoCard}>
-          <Text style={themedStyles.infoTitle}>Your Privacy Matters</Text>
-          <Text style={themedStyles.infoText}>
-            We are committed to protecting your privacy. All meditation data is stored locally on your device. 
-            You have full control over what information is shared and can export or delete your data at any time.
-          </Text>
         </View>
 
         <View style={styles.spacer} />
@@ -364,41 +306,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#1F2937",
-  },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  settingInfo: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  settingSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 2,
   },
   actionItem: {
     flexDirection: "row",

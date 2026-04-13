@@ -118,7 +118,7 @@ export async function isMiniKitInstalled(mk: any): Promise<boolean> {
     const hasApi = Boolean(mk?.commandsAsync || mk?.commands || mk?.actions || mk?.verify);
     return hasApi;
   } catch (e) {
-    console.log('[WorldIDVerifyButton] isInstalled check failed', e);
+    console.warn('[WorldIDVerifyButton] isInstalled check failed', e);
     return false;
   }
 }
@@ -136,7 +136,6 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
       Alert.alert('Local Dev Mode', 'Local Dev Mode');
       return;
     }
-    console.log('[WorldIDVerifyButton] Pressed. Platform:', Platform.OS);
     if (Platform.OS !== 'web') {
       setError('Please open inside World App');
       return;
@@ -152,7 +151,6 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         }
       }
       if (!mk) {
-        console.log('[WorldIDVerifyButton] MiniKit not found after load attempt');
         // Try deep-linking to World App as a fallback
         try {
           const actionId = action || 'psig';
@@ -160,23 +158,19 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
           const verification = 'orb';
           const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
           const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link');
           // Attempt deep link, then fallback to universal link
           window.location.assign(deeplink);
           setTimeout(() => {
             try { window.location.assign(universal); } catch {}
           }, 800);
           return;
-        } catch {
-          console.log('[WorldIDVerifyButton] Deep link failed');
-        }
+        } catch {}
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
       }
       const installed = await isMiniKitInstalled(mk);
       if (!installed && !isWorldAppUA) {
-        console.log('[WorldIDVerifyButton] mk.isInstalled returned false and UA not WorldApp');
         // Try deep-linking to World App
         try {
           const actionId = action || 'psig';
@@ -184,15 +178,12 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
           const verification = 'orb';
           const deeplink = `worldapp://v1/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
           const universal = `https://app.worldcoin.org/verify?app_id=${encodeURIComponent(appId)}&action=${encodeURIComponent(actionId)}&signal=${encodeURIComponent(signal)}&verification_level=${encodeURIComponent(verification)}&callback_url=${encodeURIComponent(callbackUrl)}`;
-          console.log('[WorldIDVerifyButton] Redirecting to World App via deep-link (not installed)');
           window.location.assign(deeplink);
           setTimeout(() => {
             try { window.location.assign(universal); } catch {}
           }, 800);
           return;
-        } catch {
-          console.log('[WorldIDVerifyButton] Deep link (not installed) failed');
-        }
+        } catch {}
         setError('請在 World App 中開啟 | Please open inside World App');
         setBusy(false);
         return;
@@ -209,18 +200,15 @@ export function WorldIDVerifyButton({ appId, action, callbackUrl, testID, label 
         return;
       }
       const actionId = action || 'psig';
-      console.log('[WorldIDVerifyButton] Calling verify with action:', actionId);
       const result: any = await verifyFn({
         action: actionId,
         signal: '0x12312',
         verification_level: 'orb',
       }).catch(async (err: any) => {
-        console.log('[WorldIDVerifyButton] verify threw, retrying once after 500ms', err);
         await new Promise((r) => setTimeout(r, 500));
         return verifyFn({ action: actionId, signal: '0x12312', verification_level: 'orb' });
       });
       const finalPayload = (result?.finalPayload ?? result) as any;
-      console.log('[WorldIDVerifyButton] verify result:', finalPayload?.status);
       if (finalPayload?.status === 'error') {
         setBusy(false);
         setError(finalPayload?.error_code ?? 'Verification failed');

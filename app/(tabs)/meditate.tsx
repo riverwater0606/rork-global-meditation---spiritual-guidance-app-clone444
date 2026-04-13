@@ -9,15 +9,18 @@ import {
   Dimensions,
   Modal,
   TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Search, Clock, MoreHorizontal, Trash2, Palette, X } from "lucide-react-native";
+import { Search, Clock, MoreHorizontal, Trash2, Palette, X, ChevronDown, ChevronUp } from "lucide-react-native";
 import { router } from "expo-router";
-import { MEDITATION_SESSIONS, CATEGORIES } from "@/constants/meditations";
+import { MEDITATION_SESSIONS, CATEGORIES, getCategoryName, getMeditationDescription, getMeditationTitle } from "@/constants/meditations";
 import { useSettings } from "@/providers/SettingsProvider";
 import { useMeditation } from "@/providers/MeditationProvider";
+import { useUser } from "@/providers/UserProvider";
 import CustomModal from "@/components/CustomModal";
+import { localize, meditateCopy } from "@/lib/i18n";
 
 const { width } = Dimensions.get("window");
 
@@ -34,8 +37,19 @@ const COLOR_OPTIONS = [
 
 export default function MeditateScreen() {
   const { currentTheme, settings } = useSettings();
-  const { customMeditations, deleteCustomMeditation, updateCustomMeditation } = useMeditation();
+  const {
+    customMeditations,
+    deleteCustomMeditation,
+    updateCustomMeditation,
+    missionStats,
+  } = useMeditation();
+  const { hasActiveVIP } = useUser();
   const lang = settings.language;
+  const tr = (zh: string, en: string, es: string) => {
+    if (lang === "zh") return zh;
+    if (lang === "es") return es;
+    return en;
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   
@@ -44,22 +58,27 @@ export default function MeditateScreen() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showColorModal, setShowColorModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isCoreJourneyExpanded, setIsCoreJourneyExpanded] = useState(false);
 
   const customSessionsFormatted = customMeditations.map(m => ({
     id: m.id,
+    isCustom: m.isCustom ?? true,
     title: m.title,
     description: m.script.substring(0, 50) + '...',
     duration: m.duration,
-    narrator: lang === 'zh' ? 'AI 生成' : 'AI Generated',
+    narrator: tr('AI 生成', 'AI Generated', 'Generado por IA'),
     category: 'custom',
     gradient: m.gradient || ['#8B5CF6', '#6366F1'],
+    featured: false,
+    accessTier: 'free' as const,
   }));
 
   const allSessions = [...customSessionsFormatted, ...MEDITATION_SESSIONS];
+  const customSessionIds = new Set(customMeditations.filter((m) => m.isCustom ?? true).map((m) => m.id));
+  const latestCustomMeditation = customMeditations[customMeditations.length - 1];
 
   const handleLongPress = (id: string) => {
-    // Only allow editing custom sessions
-    if (id.startsWith('custom-')) {
+    if (customSessionIds.has(id)) {
       setSelectedSessionId(id);
       setShowActionModal(true);
     }
@@ -89,6 +108,40 @@ export default function MeditateScreen() {
     const matchesCategory = selectedCategory === "all" || session.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+  const coreJourneySessions = filteredSessions.filter((session) => session.isCoreJourney);
+  const standardSessions = filteredSessions.filter((session) => !session.isCoreJourney);
+
+  const remainingCategories = CATEGORIES
+    .filter((category) => category.id !== "all" && !missionStats.uniqueCategories.includes(category.id))
+    .map((category) => getCategoryName(category, lang));
+  const recommendedCategory = remainingCategories[0] ?? null;
+  const aiCreationPending = missionStats.customMeditationsCreated === 0;
+  const aiCompletionPending = missionStats.customMeditationsCreated > 0 && missionStats.customMeditationsCompleted === 0;
+
+  const handleOpenSession = (session: (typeof filteredSessions)[number]) => {
+    if (session.accessTier === "vip" && !hasActiveVIP) {
+      Alert.alert(
+        tr("VIP 專屬內容", "VIP Content", "Contenido VIP"),
+        tr(
+          "升級 VIP 後可解鎖全部音頻與進階靈性內容。",
+          "Upgrade to VIP to unlock all audio content and premium spiritual sessions.",
+          "Hazte VIP para desbloquear todo el audio y las sesiones espirituales premium."
+        ),
+        [
+          { text: tr("稍後", "Later", "Más tarde"), style: "cancel" },
+          { text: tr("前往升級", "Go VIP", "Ir a VIP"), onPress: () => router.push("/profile") },
+        ]
+      );
+      return;
+    }
+
+    router.push(`/meditation/${session.id}`);
+  };
+
+  const getSessionTitle = (session: (typeof filteredSessions)[number]) =>
+    customSessionIds.has(session.id) ? session.title : getMeditationTitle(session, lang);
+  const getSessionDescription = (session: (typeof filteredSessions)[number]) =>
+    customSessionIds.has(session.id) ? session.description : getMeditationDescription(session, lang);
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
@@ -99,13 +152,13 @@ export default function MeditateScreen() {
         end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={["top"]}>
-          <Text style={styles.title}>{lang === "zh" ? "冥想圖書館" : "Meditation Library"}</Text>
+          <Text style={styles.title}>{localize(lang, meditateCopy.title)}</Text>
           
           <View style={[styles.searchContainer, { backgroundColor: currentTheme.surface }]}>
             <Search size={20} color="#9CA3AF" />
             <TextInput
               style={[styles.searchInput, { color: currentTheme.text }]}
-              placeholder={lang === "zh" ? "搜尋冥想..." : "Search meditations..."}
+              placeholder={localize(lang, meditateCopy.searchPlaceholder)}
               placeholderTextColor={currentTheme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -144,22 +197,153 @@ export default function MeditateScreen() {
                   selectedCategory === category.id && { color: "#FFFFFF" },
                 ]}
               >
-                {category.name}
+                {getCategoryName(category, lang)}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
+        {(recommendedCategory || aiCreationPending || aiCompletionPending) && (
+          <View style={[styles.guidanceCard, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
+            <Text style={[styles.guidanceTitle, { color: currentTheme.text }]}>
+              {localize(lang, meditateCopy.suggestedNextStep)}
+            </Text>
+            {recommendedCategory ? (
+              <TouchableOpacity
+                style={[styles.guidanceAction, { borderColor: currentTheme.primary }]}
+                onPress={() => setSelectedCategory(CATEGORIES.find((category) => getCategoryName(category, lang) === recommendedCategory)?.id ?? "all")}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.guidanceActionTitle, { color: currentTheme.primary }]}>
+                  {tr(`試試 ${recommendedCategory}`, `Try ${recommendedCategory}`, `Prueba ${recommendedCategory}`)}
+                </Text>
+                <Text style={[styles.guidanceActionBody, { color: currentTheme.textSecondary }]}>
+                  {tr("探索未試過的主題，任務進度會直接增加。", "Explore a new category and your mission progress will move immediately.", "Explora una categoría nueva y el progreso de tu misión avanzará enseguida.")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            {aiCreationPending ? (
+              <TouchableOpacity
+                style={[styles.guidanceAction, { borderColor: currentTheme.primary }]}
+                onPress={() => router.push("/assistant")}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.guidanceActionTitle, { color: currentTheme.primary }]}>
+                  {tr("生成第一個 AI 冥想", "Generate Your First AI Meditation", "Genera tu primera meditación IA")}
+                </Text>
+                <Text style={[styles.guidanceActionBody, { color: currentTheme.textSecondary }]}>
+                  {tr("生成後它會直接出現在圖書館，並解鎖新的光球任務。", "It will appear in your library right away and unlock a new orb mission.", "Aparecerá enseguida en tu biblioteca y desbloqueará una nueva misión del orbe.")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            {aiCompletionPending ? (
+              <TouchableOpacity
+                style={[styles.guidanceAction, { borderColor: currentTheme.primary }]}
+                onPress={() => {
+                  if (latestCustomMeditation) {
+                    router.push(`/meditation/${latestCustomMeditation.id}`);
+                    return;
+                  }
+                  setSelectedCategory("custom");
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.guidanceActionTitle, { color: currentTheme.primary }]}>
+                  {tr("完成 1 個 AI 課程", "Complete 1 AI Session", "Completa 1 sesión de IA")}
+                </Text>
+                <Text style={[styles.guidanceActionBody, { color: currentTheme.textSecondary }]}>
+                  {tr(
+                    "直接打開最新 AI 課程完成一次；如果還未選好，就先切到 AI 類別。",
+                    "Open your latest AI session and finish it once; if not, jump into the AI category first.",
+                    "Abre tu última sesión de IA y complétala una vez; si no, entra primero en la categoría IA."
+                  )}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
+        {coreJourneySessions.length > 0 && (
+          <View style={[styles.coreJourneyCard, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
+            <TouchableOpacity
+              style={styles.coreJourneyHeader}
+              activeOpacity={0.85}
+              onPress={() => setIsCoreJourneyExpanded((prev) => !prev)}
+            >
+              <View style={styles.coreJourneyHeaderCopy}>
+                <Text style={[styles.coreJourneyEyebrow, { color: currentTheme.primary }]}>
+                  {localize(lang, meditateCopy.coreJourneyEyebrow)}
+                </Text>
+                <Text style={[styles.coreJourneyTitle, { color: currentTheme.text }]}>
+                  {localize(lang, meditateCopy.coreJourneyTitle)}
+                </Text>
+                <Text style={[styles.coreJourneyBody, { color: currentTheme.textSecondary }]}>
+                  {localize(lang, meditateCopy.coreJourneyBody)}
+                </Text>
+              </View>
+              <View style={[styles.coreJourneyCountPill, { backgroundColor: currentTheme.primary }]}>
+                <Text style={styles.coreJourneyCountText}>{coreJourneySessions.length}/10</Text>
+              </View>
+              <View style={[styles.coreJourneyChevron, { borderColor: currentTheme.border }]}>
+                {isCoreJourneyExpanded ? (
+                  <ChevronUp size={18} color={currentTheme.text} />
+                ) : (
+                  <ChevronDown size={18} color={currentTheme.text} />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {isCoreJourneyExpanded ? (
+              <View style={styles.coreJourneyList}>
+                {coreJourneySessions.map((session, index) => (
+                  <TouchableOpacity
+                    key={session.id}
+                    style={[styles.coreJourneyItem, { borderColor: currentTheme.border }]}
+                    activeOpacity={0.88}
+                    onPress={() => handleOpenSession(session)}
+                    testID={`core-journey-${session.id}`}
+                  >
+                    <LinearGradient
+                      colors={session.gradient as [string, string]}
+                      style={styles.coreJourneyStepBadge}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.coreJourneyStepText}>{index + 1}</Text>
+                    </LinearGradient>
+                    <View style={styles.coreJourneyItemCopy}>
+                      <Text style={[styles.coreJourneyItemTitle, { color: currentTheme.text }]} numberOfLines={1}>
+                        {getSessionTitle(session)}
+                      </Text>
+                      <Text style={[styles.coreJourneyItemBody, { color: currentTheme.textSecondary }]} numberOfLines={2}>
+                        {getSessionDescription(session)}
+                      </Text>
+                    </View>
+                    <View style={styles.coreJourneyMeta}>
+                      <View style={styles.coreJourneyMetaRow}>
+                        <Clock size={13} color={currentTheme.textSecondary} />
+                        <Text style={[styles.coreJourneyMetaText, { color: currentTheme.textSecondary }]}>
+                          {session.duration} min
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        )}
+
         {/* Sessions Grid */}
         <View style={styles.sessionsGrid}>
-          {filteredSessions.map((session, index) => (
+          {standardSessions.map((session, index) => (
             <TouchableOpacity
               key={session.id}
               style={[
                 styles.sessionCard,
                 index % 2 === 0 ? styles.sessionCardLeft : styles.sessionCardRight,
+                session.accessTier === "vip" && !hasActiveVIP && styles.sessionCardLocked,
               ]}
-              onPress={() => router.push(`/meditation/${session.id}`)}
+              onPress={() => handleOpenSession(session)}
               onLongPress={() => handleLongPress(session.id)}
               delayLongPress={500}
               testID={`meditation-${session.id}`}
@@ -172,8 +356,13 @@ export default function MeditateScreen() {
               >
                 <View style={styles.sessionCardContent}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.sessionCardTitle} numberOfLines={2}>{session.title}</Text>
-                    {session.id.startsWith('custom-') && (
+                    <Text style={styles.sessionCardTitle} numberOfLines={2}>{getSessionTitle(session)}</Text>
+                    {session.accessTier === "vip" && (
+                      <View style={styles.vipChip}>
+                        <Text style={styles.vipChipText}>VIP</Text>
+                      </View>
+                    )}
+                    {customSessionIds.has(session.id) && (
                        <TouchableOpacity 
                          onPress={() => handleLongPress(session.id)}
                          style={styles.moreButton}
@@ -183,8 +372,13 @@ export default function MeditateScreen() {
                     )}
                   </View>
                   <Text style={styles.sessionCardDescription} numberOfLines={2}>
-                    {session.description}
+                    {getSessionDescription(session)}
                   </Text>
+                  {session.accessTier === "vip" && !hasActiveVIP && (
+                    <Text style={styles.lockHint}>
+                      {localize(lang, meditateCopy.vipUnlockHint)}
+                    </Text>
+                  )}
                   
                   <View style={styles.sessionCardMeta}>
                     <View style={styles.sessionCardMetaItem}>
@@ -194,6 +388,13 @@ export default function MeditateScreen() {
 
                   </View>
                 </View>
+                {session.accessTier === "vip" && !hasActiveVIP && (
+                  <View style={styles.lockOverlay}>
+                    <Text style={styles.lockOverlayText}>
+                      {localize(lang, meditateCopy.vipLocked)}
+                    </Text>
+                  </View>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           ))}
@@ -215,7 +416,7 @@ export default function MeditateScreen() {
               <View style={styles.actionSheet}>
                 <View style={styles.actionHeader}>
                   <Text style={styles.actionTitle}>
-                    {lang === 'zh' ? '管理冥想' : 'Manage Meditation'}
+                    {localize(lang, meditateCopy.manageMeditation)}
                   </Text>
                   <TouchableOpacity onPress={() => setShowActionModal(false)}>
                     <X size={24} color="#6B7280" />
@@ -233,7 +434,7 @@ export default function MeditateScreen() {
                     <Palette size={20} color="#6366F1" />
                   </View>
                   <Text style={styles.actionText}>
-                    {lang === 'zh' ? '更換顏色' : 'Change Color'}
+                    {localize(lang, meditateCopy.changeColor)}
                   </Text>
                 </TouchableOpacity>
 
@@ -248,7 +449,7 @@ export default function MeditateScreen() {
                     <Trash2 size={20} color="#EF4444" />
                   </View>
                   <Text style={[styles.actionText, styles.actionTextDestructive]}>
-                    {lang === 'zh' ? '刪除冥想' : 'Delete Meditation'}
+                    {localize(lang, meditateCopy.deleteMeditation)}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -270,7 +471,7 @@ export default function MeditateScreen() {
               <View style={styles.colorSheet}>
                 <View style={styles.actionHeader}>
                   <Text style={styles.actionTitle}>
-                    {lang === 'zh' ? '選擇顏色主題' : 'Select Theme'}
+                    {localize(lang, meditateCopy.selectTheme)}
                   </Text>
                   <TouchableOpacity onPress={() => setShowColorModal(false)}>
                     <X size={24} color="#6B7280" />
@@ -303,10 +504,10 @@ export default function MeditateScreen() {
       <CustomModal
         isVisible={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
-        title={lang === 'zh' ? '刪除冥想' : 'Delete Meditation'}
-        message={lang === 'zh' ? '確定要刪除這個專屬冥想嗎？此操作無法撤銷。' : 'Are you sure you want to delete this meditation? This action cannot be undone.'}
-        cancelText={lang === 'zh' ? '取消' : 'Cancel'}
-        confirmText={lang === 'zh' ? '刪除' : 'Delete'}
+        title={localize(lang, meditateCopy.deleteMeditation)}
+        message={localize(lang, meditateCopy.deleteMeditationBody)}
+        cancelText={localize(lang, meditateCopy.cancel)}
+        confirmText={localize(lang, meditateCopy.delete)}
         onConfirm={handleDelete}
         confirmDestructive
       />
@@ -319,23 +520,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "800",
     color: "#FFFFFF",
     paddingHorizontal: 20,
     marginTop: 20,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   searchInput: {
     flex: 1,
@@ -349,16 +552,147 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   categoriesContainer: {
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 18,
+    marginBottom: 18,
   },
   categoriesContent: {
     paddingHorizontal: 20,
   },
+  guidanceCard: {
+    marginHorizontal: 20,
+    marginBottom: 18,
+    padding: 18,
+    borderRadius: 22,
+    borderWidth: 0.5,
+  },
+  guidanceTitle: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    marginBottom: 10,
+  },
+  guidanceAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  guidanceActionTitle: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    marginBottom: 4,
+  },
+  guidanceActionBody: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  coreJourneyCard: {
+    marginHorizontal: 20,
+    marginBottom: 18,
+    padding: 18,
+    borderRadius: 22,
+    borderWidth: 0.5,
+  },
+  coreJourneyHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  coreJourneyHeaderCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  coreJourneyEyebrow: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  coreJourneyTitle: {
+    fontSize: 18,
+    fontWeight: "800" as const,
+    marginBottom: 6,
+  },
+  coreJourneyBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    maxWidth: "95%",
+  },
+  coreJourneyCountPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginRight: 8,
+    alignSelf: "flex-start",
+  },
+  coreJourneyCountText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#FFFFFF",
+    letterSpacing: 0.4,
+  },
+  coreJourneyChevron: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coreJourneyList: {
+    marginTop: 14,
+  },
+  coreJourneyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    marginTop: 10,
+  },
+  coreJourneyStepBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  coreJourneyStepText: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#FFFFFF",
+  },
+  coreJourneyItemCopy: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  coreJourneyItemTitle: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    marginBottom: 4,
+  },
+  coreJourneyItemBody: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  coreJourneyMeta: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  coreJourneyMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  coreJourneyMetaText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    marginLeft: 4,
+  },
   categoryChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 9,
+    borderRadius: 999,
     marginRight: 10,
     borderWidth: 1,
   },
@@ -373,9 +707,12 @@ const styles = StyleSheet.create({
   },
   sessionCard: {
     width: (width - 50) / 2,
-    marginBottom: 15,
-    borderRadius: 12,
+    marginBottom: 14,
+    borderRadius: 16,
     overflow: "hidden",
+  },
+  sessionCardLocked: {
+    opacity: 0.92,
   },
   sessionCardLeft: {
     marginRight: 10,
@@ -384,8 +721,24 @@ const styles = StyleSheet.create({
     marginLeft: 0,
   },
   sessionCardGradient: {
-    padding: 16,
-    minHeight: 160,
+    padding: 18,
+    minHeight: 172,
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.38)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockOverlayText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    backgroundColor: "rgba(17,24,39,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    overflow: "hidden",
   },
   sessionCardContent: {
     flex: 1,
@@ -393,7 +746,7 @@ const styles = StyleSheet.create({
   },
   sessionCardTitle: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#FFFFFF",
     marginBottom: 8,
     flex: 1,
@@ -412,8 +765,26 @@ const styles = StyleSheet.create({
   sessionCardDescription: {
     fontSize: 12,
     color: "#E0E7FF",
-    lineHeight: 18,
-    marginBottom: 12,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  vipChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(17,24,39,0.32)",
+  },
+  vipChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.4,
+  },
+  lockHint: {
+    fontSize: 11,
+    color: "#FEF3C7",
+    marginBottom: 10,
+    lineHeight: 16,
   },
   sessionCardMeta: {
     marginTop: "auto",

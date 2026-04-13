@@ -175,6 +175,15 @@ let authUser: User | null = null;
 let lastAuthError: { code?: string; message?: string } | null = null;
 let lastWriteError: { code?: string; message?: string } | null = null;
 
+export function isAutomatedWebRuntime(): boolean {
+  if (Platform.OS !== "web") return false;
+  try {
+    return typeof navigator !== "undefined" && Boolean(navigator.webdriver);
+  } catch {
+    return false;
+  }
+}
+
 function syncCachedUser(user: User | null) {
   if (cached) {
     cached.user = user;
@@ -197,6 +206,8 @@ export function getFirebaseDiagnostics(): {
   authIsAnonymous: boolean | null;
   lastAuthError: { code?: string; message?: string } | null;
   lastWriteError: { code?: string; message?: string } | null;
+  projectId: string | null;
+  authDomain: string | null;
   databaseURL: string | null;
 } {
   return {
@@ -207,6 +218,8 @@ export function getFirebaseDiagnostics(): {
     authIsAnonymous: typeof authUser?.isAnonymous === "boolean" ? authUser.isAnonymous : null,
     lastAuthError,
     lastWriteError,
+    projectId: firebaseConfig?.projectId ?? null,
+    authDomain: firebaseConfig?.authDomain ?? null,
     databaseURL: firebaseConfig?.databaseURL ?? null,
   };
 }
@@ -216,6 +229,13 @@ async function ensureAnonymousAuth(auth: Auth): Promise<User | null> {
     authReady = true;
     authUser = auth.currentUser;
     return auth.currentUser;
+  }
+
+  if (isAutomatedWebRuntime()) {
+    authReady = true;
+    authUser = null;
+    syncCachedUser(null);
+    return null;
   }
 
   if (!authInitPromise) {

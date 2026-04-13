@@ -11,7 +11,7 @@ import { MeditationProvider } from "@/providers/MeditationProvider";
 import { UserProvider, useUser } from "@/providers/UserProvider";
 import { SettingsProvider } from "@/providers/SettingsProvider";
 import MiniKitProvider from "@/components/worldcoin/MiniKitProvider";
-import { IS_LOCAL_DEV } from "@/constants/env";
+import { IS_DEV_FULL_MOCK, IS_LOCAL_DEV } from "@/constants/env";
 
 const queryClient = new QueryClient();
 
@@ -101,10 +101,13 @@ const errorStyles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
-  const { isVerified, verification } = useUser();
+  const { isVerified, verification, isHydrated } = useUser();
   const pathname = usePathname();
   const onAuthScreen = pathname === "/sign-in" || pathname === "/callback";
-  const canAccess = isVerified && Boolean(verification);
+  if (!isHydrated) {
+    return null;
+  }
+  const canAccess = IS_DEV_FULL_MOCK ? true : isVerified && Boolean(verification);
   if (!canAccess && !onAuthScreen) {
     return <Redirect href="/sign-in" />;
   }
@@ -114,7 +117,6 @@ function RootLayoutNav() {
       <Stack.Screen name="meditation/[id]" options={{ presentation: "modal" }} />
       <Stack.Screen name="breathing" options={{ presentation: "modal" }} />
       <Stack.Screen name="timer" options={{ presentation: "modal" }} />
-      <Stack.Screen name="guided-session" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/notifications" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/theme" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings/language" options={{ presentation: "modal" }} />
@@ -128,22 +130,20 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync().catch((error) => {
-      console.log('[RootLayout] SplashScreen.hideAsync failed', error);
+      console.warn('[RootLayout] SplashScreen.hideAsync failed', error);
     });
   }, []);
 
   useEffect(() => {
     if (IS_LOCAL_DEV) {
-      console.log('[RootLayout] Local Dev Mode enabled - skipping MiniKit install');
       return;
     }
 
     if (MiniKit?.install) {
       try {
         MiniKit.install(APP_ID);
-        console.log('[RootLayout] MiniKit installed');
       } catch (error) {
-        console.log('[RootLayout] MiniKit install failed', error);
+        console.warn('[RootLayout] MiniKit install failed', error);
       }
     }
   }, []);
@@ -158,9 +158,13 @@ export default function RootLayout() {
                 <UserProvider>
                   <MeditationProvider>
                     <View style={styles.appContainer}>
-                      {IS_LOCAL_DEV ? (
+                      {IS_DEV_FULL_MOCK ? (
                         <View style={styles.debugBanner}>
-                          <Text style={styles.debugBannerText}>Local Dev Mode - World App bypassed</Text>
+                          <Text style={styles.debugBannerText}>DEV FULL MOCK MODE - Wallet, Awakened Orb, and VIP access are simulated</Text>
+                        </View>
+                      ) : IS_LOCAL_DEV ? (
+                        <View style={styles.debugBanner}>
+                          <Text style={styles.debugBannerText}>LOCAL DEV MODE - Some World App features may be bypassed on this device</Text>
                         </View>
                       ) : null}
                       <View style={styles.contentContainer}>

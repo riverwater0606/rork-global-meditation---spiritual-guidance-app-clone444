@@ -15,6 +15,19 @@ const randomInSphere = () => {
     );
 };
 
+const randomOnSphere = () => randomInSphere().normalize();
+
+const clampUnit = (value: number) => Math.max(-1, Math.min(1, value));
+
+const getLatitude = (p: THREE.Vector3) => Math.asin(clampUnit(p.y));
+
+const getLongitude = (p: THREE.Vector3) => Math.atan2(p.z, p.x);
+
+const softNoise = (p: THREE.Vector3, sx = 3.1, sy = 2.7, sz = 3.7) =>
+  Math.sin(p.x * sx) * 0.5 +
+  Math.cos(p.y * sy) * 0.3 +
+  Math.sin(p.z * sz + p.x * 1.2) * 0.2;
+
 // --- MERKABA ---
 export function generateMerkabaData() {
   const positions = new Float32Array(PARTICLE_COUNT * 3);
@@ -573,6 +586,396 @@ export function generateEarthData() {
      groups[i] = g;
   }
 
+  return { positions, colors, groups };
+}
+
+export function generateMarsData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const rust = new THREE.Color('#C2410C');
+  const red = new THREE.Color('#DC2626');
+  const orange = new THREE.Color('#FB923C');
+  const dust = new THREE.Color('#FDE68A');
+  const ice = new THREE.Color('#F8FAFC');
+  const dark = new THREE.Color('#7C2D12');
+  const atmosphere = new THREE.Color('#FDBA74');
+  const radius = 1.0;
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    let p = randomOnSphere();
+    let c = rust.clone();
+    let g = 0;
+    const lat = getLatitude(p);
+    const lon = getLongitude(p);
+    const noise = softNoise(p, 4.4, 3.5, 4.1);
+    const stormBand = Math.sin(lon * 2.6 + lat * 5.5) * 0.5 + 0.5;
+
+    if (Math.abs(lat) > 1.12) {
+      c.copy(ice).lerp(dust, 0.25);
+      g = 2;
+    } else if (stormBand > 0.74 && noise > 0.08) {
+      c.copy(dust).lerp(orange, 0.35);
+      p.multiplyScalar(1.01);
+      g = 1;
+    } else {
+      const canyon = Math.sin(lon * 3.2 - lat * 1.4) * 0.5 + 0.5;
+      c.copy(rust).lerp(red, Math.max(0, noise) * 0.55).lerp(dark, canyon * 0.28);
+      c.lerp(orange, Math.max(0, stormBand - 0.45) * 0.35);
+    }
+
+    positions[i * 3] = p.x * radius;
+    positions[i * 3 + 1] = p.y * radius;
+    positions[i * 3 + 2] = p.z * radius;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = g;
+  }
+
+  fillAmbientParticles(positions, colors, groups, Math.floor(PARTICLE_COUNT * 0.92), atmosphere, dust, 1.22);
+  return { positions, colors, groups };
+}
+
+export function generateVenusData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const cream = new THREE.Color('#FEF3C7');
+  const gold = new THREE.Color('#F59E0B');
+  const amber = new THREE.Color('#FBBF24');
+  const brown = new THREE.Color('#92400E');
+  const white = new THREE.Color('#FFFFFF');
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = randomOnSphere();
+    const lat = getLatitude(p);
+    const lon = getLongitude(p);
+    const band = Math.sin(lat * 8 + Math.sin(lon * 2.2) * 1.5) * 0.5 + 0.5;
+    const swirl = Math.sin(lon * 5.6 - lat * 3.2) * 0.5 + 0.5;
+    const haze = Math.max(0, softNoise(p, 2.6, 4.5, 2.9));
+    const c = cream.clone()
+      .lerp(amber, band * 0.45)
+      .lerp(gold, swirl * 0.32)
+      .lerp(brown, haze * 0.22)
+      .lerp(white, 0.08 + Math.max(0, band - 0.65) * 0.18);
+
+    positions[i * 3] = p.x * 1.01;
+    positions[i * 3 + 1] = p.y * 1.01;
+    positions[i * 3 + 2] = p.z * 1.01;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = band > 0.7 ? 1 : 0;
+  }
+
+  fillAmbientParticles(positions, colors, groups, Math.floor(PARTICLE_COUNT * 0.9), cream, amber, 1.18);
+  return { positions, colors, groups };
+}
+
+export function generateJupiterData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const cream = new THREE.Color('#FFF7ED');
+  const tan = new THREE.Color('#D6A77A');
+  const brown = new THREE.Color('#8B5E3C');
+  const red = new THREE.Color('#C2410C');
+  const salmon = new THREE.Color('#FB7185');
+  const stormCenter = new THREE.Vector3().setFromSphericalCoords(1, Math.PI / 2 - 0.28, Math.PI * 1.15);
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = randomOnSphere();
+    const lat = getLatitude(p);
+    const lon = getLongitude(p);
+    const band = Math.sin(lat * 14 + Math.sin(lon * 1.5) * 1.6) * 0.5 + 0.5;
+    const turbulence = Math.sin(lon * 4.8 + lat * 2.1) * 0.5 + 0.5;
+    const stormDot = p.dot(stormCenter);
+    const c = cream.clone()
+      .lerp(tan, band * 0.55)
+      .lerp(brown, turbulence * 0.3);
+    let g = 0;
+    let scale = 1.03;
+
+    if (stormDot > 0.935) {
+      c.copy(red).lerp(salmon, (stormDot - 0.935) / 0.065).lerp(cream, 0.12);
+      scale = 1.035;
+      g = 2;
+    } else if (band > 0.72) {
+      c.lerp(brown, 0.15);
+      g = 1;
+    }
+
+    positions[i * 3] = p.x * scale;
+    positions[i * 3 + 1] = p.y * scale;
+    positions[i * 3 + 2] = p.z * scale;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = g;
+  }
+
+  fillAmbientParticles(positions, colors, groups, Math.floor(PARTICLE_COUNT * 0.9), tan, cream, 1.24);
+  return { positions, colors, groups };
+}
+
+export function generateSaturnData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const cream = new THREE.Color('#F8E7C9');
+  const sand = new THREE.Color('#E9C46A');
+  const brown = new THREE.Color('#A16207');
+  const ringLight = new THREE.Color('#FDE68A');
+  const ringDark = new THREE.Color('#C08457');
+  let idx = 0;
+  const bodyCount = Math.floor(PARTICLE_COUNT * 0.66);
+  const ringCount = Math.floor(PARTICLE_COUNT * 0.24);
+
+  for (; idx < bodyCount; idx++) {
+    const p = randomOnSphere();
+    const lat = getLatitude(p);
+    const lon = getLongitude(p);
+    const band = Math.sin(lat * 11 + Math.sin(lon * 1.3)) * 0.5 + 0.5;
+    const c = cream.clone().lerp(sand, band * 0.45).lerp(brown, Math.max(0, band - 0.76) * 0.24);
+    positions[idx * 3] = p.x * 0.96;
+    positions[idx * 3 + 1] = p.y * 0.96;
+    positions[idx * 3 + 2] = p.z * 0.96;
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = band > 0.73 ? 1 : 0;
+  }
+
+  for (; idx < bodyCount + ringCount; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const radius = 1.18 + Math.random() * 0.74;
+    const thickness = (Math.random() - 0.5) * 0.035;
+    const x = Math.cos(theta) * radius;
+    const z = Math.sin(theta) * radius;
+    const y = Math.sin(theta * 2.2) * 0.03 + thickness;
+    const band = Math.sin(radius * 18 + theta * 2) * 0.5 + 0.5;
+    const c = ringLight.clone().lerp(ringDark, band * 0.55).lerp(cream, Math.random() * 0.08);
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  fillAmbientParticles(positions, colors, groups, idx, sand, ringLight, 2.0);
+  return { positions, colors, groups };
+}
+
+export function generateNeptuneData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const deepBlue = new THREE.Color('#1D4ED8');
+  const cobalt = new THREE.Color('#2563EB');
+  const cyan = new THREE.Color('#38BDF8');
+  const white = new THREE.Color('#E0F2FE');
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = randomOnSphere();
+    const lat = getLatitude(p);
+    const lon = getLongitude(p);
+    const band = Math.sin(lat * 10 - lon * 0.8) * 0.5 + 0.5;
+    const storm = Math.sin(lon * 6.2 + lat * 3.4) * 0.5 + 0.5;
+    const c = deepBlue.clone()
+      .lerp(cobalt, band * 0.45)
+      .lerp(cyan, Math.max(0, storm - 0.52) * 0.55)
+      .lerp(white, Math.max(0, band - 0.86) * 0.18);
+
+    positions[i * 3] = p.x * 1.02;
+    positions[i * 3 + 1] = p.y * 1.02;
+    positions[i * 3 + 2] = p.z * 1.02;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+    groups[i] = storm > 0.82 ? 1 : 0;
+  }
+
+  fillAmbientParticles(positions, colors, groups, Math.floor(PARTICLE_COUNT * 0.9), cobalt, cyan, 1.24);
+  return { positions, colors, groups };
+}
+
+export function generateAkashicGalaxyData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const violet = new THREE.Color('#A78BFA');
+  const indigo = new THREE.Color('#6366F1');
+  const cyan = new THREE.Color('#67E8F9');
+  let idx = 0;
+  const armCount = Math.floor(PARTICLE_COUNT * 0.72);
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.1);
+
+  for (; idx < armCount; idx++) {
+    const arm = idx % 4;
+    const t = Math.random();
+    const base = (arm / 4) * Math.PI * 2;
+    const spiral = base + t * 4.8 * Math.PI;
+    const radius = 0.14 + Math.pow(t, 0.78) * 1.1;
+    const drift = (Math.random() - 0.5) * 0.16;
+    positions[idx * 3] = Math.cos(spiral) * (radius + drift * 0.2);
+    positions[idx * 3 + 1] = (Math.random() - 0.5) * 0.14 + Math.sin(spiral * 0.5) * 0.06;
+    positions[idx * 3 + 2] = Math.sin(spiral) * (radius + drift * 0.2);
+    const c = violet.clone().lerp(indigo, t * 0.45).lerp(cyan, Math.max(0, t - 0.45) * 0.7).lerp(white, Math.random() * 0.12);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+  for (; idx < armCount + coreCount; idx++) {
+    const p = randomInSphere().multiplyScalar(0.24);
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    colors[idx * 3] = white.r; colors[idx * 3 + 1] = white.g; colors[idx * 3 + 2] = white.b;
+    groups[idx] = 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, indigo, cyan, 1.5);
+  return { positions, colors, groups };
+}
+
+export function generateSoulNebulaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const rose = new THREE.Color('#FB7185');
+  const magenta = new THREE.Color('#F472B6');
+  const violet = new THREE.Color('#A78BFA');
+  const white = new THREE.Color('#FFFFFF');
+  let idx = 0;
+  const cloudCount = Math.floor(PARTICLE_COUNT * 0.76);
+  const sparkCount = Math.floor(PARTICLE_COUNT * 0.08);
+
+  while (idx < cloudCount) {
+    const x = (Math.random() - 0.5) * 2.2;
+    const y = (Math.random() - 0.5) * 1.8;
+    const z = (Math.random() - 0.5) * 1.5;
+    const radial = Math.sqrt(x * x * 0.72 + y * y * 1.08 + z * z * 0.86);
+    const density = Math.sin(x * 3.2) * 0.18 + Math.cos(y * 4.3) * 0.16 + Math.sin(z * 3.7 + x * 1.4) * 0.12;
+    if (radial + density > 1.05) continue;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    const c = magenta.clone().lerp(violet, (z + 0.75) / 1.5).lerp(rose, (y + 0.9) / 1.8).lerp(white, Math.max(0, 1 - radial) * 0.16);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = radial < 0.32 ? 2 : 0;
+    idx++;
+  }
+  for (; idx < cloudCount + sparkCount; idx++) {
+    const p = randomInSphere().multiplyScalar(0.9 + Math.random() * 0.42);
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    const c = white.clone().lerp(violet, Math.random() * 0.35);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, violet, magenta, 1.72);
+  return { positions, colors, groups };
+}
+
+export function generateLotusGalaxyData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const pink = new THREE.Color('#FDA4AF');
+  const violet = new THREE.Color('#C084FC');
+  const cyan = new THREE.Color('#67E8F9');
+  let idx = 0;
+  const petals = 8;
+  const petalCount = Math.floor(PARTICLE_COUNT * 0.68);
+
+  for (; idx < petalCount; idx++) {
+    const petal = idx % petals;
+    const t = Math.random();
+    const angle = (petal / petals) * Math.PI * 2;
+    const radius = 0.12 + t * 1.02;
+    const bloom = Math.sin(t * Math.PI) * 0.32;
+    positions[idx * 3] = Math.cos(angle) * radius + Math.cos(angle + Math.PI / 2) * bloom * 0.24;
+    positions[idx * 3 + 1] = Math.sin(t * Math.PI) * 0.22 * (petal % 2 === 0 ? 1 : -1);
+    positions[idx * 3 + 2] = Math.sin(angle) * radius + Math.sin(angle + Math.PI / 2) * bloom * 0.24;
+    const c = pink.clone().lerp(violet, t * 0.5).lerp(cyan, petal / petals * 0.2).lerp(white, Math.random() * 0.14);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = petal % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, violet, cyan, 1.45);
+  return { positions, colors, groups };
+}
+
+export function generateOracleConstellationData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const gold = new THREE.Color('#FDE68A');
+  const blue = new THREE.Color('#60A5FA');
+  const nodeCount = Math.floor(PARTICLE_COUNT * 0.18);
+  const lineCount = Math.floor(PARTICLE_COUNT * 0.52);
+  const nodes: THREE.Vector3[] = [];
+  let idx = 0;
+
+  for (let i = 0; i < 12; i++) {
+    const theta = (i / 12) * Math.PI * 2;
+    const radius = i % 3 === 0 ? 0.95 : 0.58 + (i % 2) * 0.18;
+    nodes.push(new THREE.Vector3(Math.cos(theta) * radius, Math.sin(theta * 1.5) * 0.34, Math.sin(theta) * radius));
+  }
+
+  for (; idx < nodeCount; idx++) {
+    const center = nodes[idx % nodes.length];
+    const p = center.clone().add(randomInSphere().multiplyScalar(0.06));
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    const c = white.clone().lerp(gold, Math.random() * 0.28);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+  for (; idx < nodeCount + lineCount; idx++) {
+    const a = nodes[idx % nodes.length];
+    const b = nodes[(idx * 5 + 3) % nodes.length];
+    const p = new THREE.Vector3().lerpVectors(a, b, Math.random()).add(randomInSphere().multiplyScalar(0.018));
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    const c = blue.clone().lerp(gold, Math.random() * 0.45).lerp(white, Math.random() * 0.08);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, gold, 1.5);
+  return { positions, colors, groups };
+}
+
+export function generateAscensionSpiralData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#67E8F9');
+  const blue = new THREE.Color('#3B82F6');
+  const violet = new THREE.Color('#A78BFA');
+  let idx = 0;
+  const strandCount = Math.floor(PARTICLE_COUNT * 0.74);
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.08);
+
+  for (; idx < strandCount; idx++) {
+    const strand = idx % 3;
+    const t = Math.random();
+    const angle = t * Math.PI * 7 + strand * (Math.PI * 2 / 3);
+    const radius = 0.12 + (1 - t) * 0.68;
+    positions[idx * 3] = Math.cos(angle) * radius;
+    positions[idx * 3 + 1] = -1.05 + t * 2.1;
+    positions[idx * 3 + 2] = Math.sin(angle) * radius;
+    const c = cyan.clone().lerp(blue, strand / 2).lerp(violet, t * 0.5).lerp(white, Math.max(0, t - 0.78) * 0.4);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = strand;
+  }
+  for (; idx < strandCount + coreCount; idx++) {
+    const t = Math.random();
+    const p = new THREE.Vector3((Math.random() - 0.5) * 0.15, -0.9 + t * 1.9, (Math.random() - 0.5) * 0.15);
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    colors[idx * 3] = white.r; colors[idx * 3 + 1] = white.g; colors[idx * 3 + 2] = white.b;
+    groups[idx] = 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, violet, 1.55);
   return { positions, colors, groups };
 }
 
@@ -1336,6 +1739,88 @@ export function generateTriquetraData() {
     groups[idx] = 5;
   }
 
+  return { positions, colors, groups };
+}
+
+export function generateRingTorusData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FBBF24');
+  const amber = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#67E8F9');
+  const deepBlue = new THREE.Color('#0F172A');
+  const major = 0.72;
+  const minor = 0.22;
+  let idx = 0;
+  const surfaceCount = Math.floor(PARTICLE_COUNT * 0.6);
+  const fieldCount = Math.floor(PARTICLE_COUNT * 0.16);
+  const meridianCount = Math.floor(PARTICLE_COUNT * 0.06);
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.06);
+
+  for (let i = 0; i < surfaceCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (i / surfaceCount) * Math.PI * 2;
+    const v = ((i * 11) % surfaceCount) / surfaceCount * Math.PI * 2;
+    const thickness = 0.82 + Math.random() * 0.24;
+    const radius = major + minor * Math.cos(v) * thickness;
+    const x = radius * Math.cos(u);
+    const y = minor * Math.sin(v) * 0.92;
+    const z = radius * Math.sin(u);
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    const depth = (Math.cos(v) + 1) / 2;
+    const color = gold.clone().lerp(amber, depth * 0.42).lerp(white, 0.12 + Math.pow(Math.abs(Math.sin(u * 2)), 1.4) * 0.2);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 0;
+  }
+
+  for (let i = 0; i < fieldCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (i / fieldCount) * Math.PI * 2;
+    const lane = i % 3;
+    const minorAngle = u * 2 + lane * ((Math.PI * 2) / 3);
+    const radius = major + Math.cos(minorAngle) * minor * 0.7;
+    positions[idx * 3] = radius * Math.cos(u);
+    positions[idx * 3 + 1] = Math.sin(minorAngle) * minor * 0.65;
+    positions[idx * 3 + 2] = radius * Math.sin(u);
+    const color = cyan.clone().lerp(white, 0.35).lerp(gold, lane * 0.08);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 1;
+  }
+
+  for (let i = 0; i < meridianCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const v = (i / meridianCount) * Math.PI * 2;
+    const side = i < meridianCount / 2 ? -1 : 1;
+    positions[idx * 3] = side * major + Math.cos(v) * minor * 0.72;
+    positions[idx * 3 + 1] = Math.sin(v) * minor * 0.72;
+    positions[idx * 3 + 2] = side * 0.03;
+    const color = cyan.clone().lerp(white, 0.3);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 2;
+  }
+
+  for (let i = 0; i < edgeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (i / edgeCount) * Math.PI * 2;
+    const inner = i % 2 === 0;
+    const radius = inner ? major - minor * 0.94 : major + minor * 0.92;
+    positions[idx * 3] = Math.cos(u) * radius;
+    positions[idx * 3 + 1] = Math.sin(u * 2) * 0.015;
+    positions[idx * 3 + 2] = Math.sin(u) * radius;
+    const color = (inner ? amber : gold).clone().lerp(cyan, inner ? 0.08 : 0.04).multiplyScalar(inner ? 0.7 : 0.82);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 2;
+  }
+
+  fillAmbientParticles(positions, colors, groups, idx, amber, deepBlue.lerp(cyan, 0.5), 1.34);
   return { positions, colors, groups };
 }
 
@@ -2418,94 +2903,77 @@ export function generateQuantumOrbitalsData() {
   const violet = new THREE.Color('#8B5CF6');
   const purple = new THREE.Color('#A855F7');
   const white = new THREE.Color('#FFFFFF');
-
-  const pOrbitalDensity = (x: number, y: number, z: number, axis: 'x' | 'y' | 'z') => {
-    const r = Math.sqrt(x * x + y * y + z * z);
-    if (r < 0.01) return 0;
-    let cosTheta = 0;
-    if (axis === 'x') cosTheta = x / r;
-    else if (axis === 'y') cosTheta = y / r;
-    else cosTheta = z / r;
-    return Math.abs(cosTheta) * Math.exp(-r * 2.5);
-  };
-
-  const dOrbitalDensity = (x: number, y: number, z: number, type: 'xy' | 'xz' | 'yz' | 'z2') => {
-    const r = Math.sqrt(x * x + y * y + z * z);
-    if (r < 0.01) return 0;
-    let angular = 0;
-    if (type === 'xy') angular = (x * y) / (r * r);
-    else if (type === 'xz') angular = (x * z) / (r * r);
-    else if (type === 'yz') angular = (y * z) / (r * r);
-    else angular = (2 * z * z - x * x - y * y) / (r * r);
-    return Math.abs(angular) * Math.exp(-r * 2.0);
-  };
-
-  const pOrbitalCount = Math.floor(PARTICLE_COUNT * 0.30);
-  const dOrbitalCount = Math.floor(PARTICLE_COUNT * 0.35);
-  const nucleusCount = Math.floor(PARTICLE_COUNT * 0.10);
-  const shellCount = Math.floor(PARTICLE_COUNT * 0.15);
+  const pOrbitalCount = Math.floor(PARTICLE_COUNT * 0.34);
+  const dOrbitalCount = Math.floor(PARTICLE_COUNT * 0.30);
+  const nucleusCount = Math.floor(PARTICLE_COUNT * 0.08);
+  const shellCount = Math.floor(PARTICLE_COUNT * 0.16);
   let idx = 0;
 
-  const pAxes: ('x' | 'y' | 'z')[] = ['x', 'y', 'z'];
-  const pColors = [electricBlue, cyan, lightCyan];
-  const particlesPerPAxis = Math.floor(pOrbitalCount / 3);
-
-  for (let axisIdx = 0; axisIdx < 3; axisIdx++) {
-    const axis = pAxes[axisIdx];
-    const baseColor = pColors[axisIdx];
-    let placed = 0;
-    let attempts = 0;
-    while (placed < particlesPerPAxis && attempts < particlesPerPAxis * 10 && idx < pOrbitalCount) {
-      attempts++;
-      const x = (Math.random() - 0.5) * 2.0 * scale;
-      const y = (Math.random() - 0.5) * 2.0 * scale;
-      const z = (Math.random() - 0.5) * 2.0 * scale;
-      const density = pOrbitalDensity(x, y, z, axis);
-      if (Math.random() < density * 3) {
-        positions[idx * 3] = x;
-        positions[idx * 3 + 1] = y;
-        positions[idx * 3 + 2] = z;
-        const c = baseColor.clone().lerp(white, density * 0.5);
-        c.lerp(violet, Math.random() * 0.15);
-        colors[idx * 3] = c.r;
-        colors[idx * 3 + 1] = c.g;
-        colors[idx * 3 + 2] = c.b;
-        groups[idx] = axisIdx;
-        idx++;
-        placed++;
-      }
+  const sampleEllipsoid = (
+    center: THREE.Vector3,
+    spread: THREE.Vector3,
+    baseColor: THREE.Color,
+    group: number,
+    count: number
+  ) => {
+    for (let i = 0; i < count && idx < PARTICLE_COUNT; i++, idx++) {
+      const r = Math.pow(Math.random(), 0.65);
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[idx * 3] = center.x + Math.sin(phi) * Math.cos(theta) * spread.x * r;
+      positions[idx * 3 + 1] = center.y + Math.sin(phi) * Math.sin(theta) * spread.y * r;
+      positions[idx * 3 + 2] = center.z + Math.cos(phi) * spread.z * r;
+      const c = baseColor.clone().lerp(white, 0.2 + Math.random() * 0.28);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = group;
     }
+  };
+
+  const pAxisCount = Math.floor(pOrbitalCount / 6);
+  const pLobes = [
+    { center: new THREE.Vector3(0.46, 0, 0), spread: new THREE.Vector3(0.2, 0.1, 0.14), color: electricBlue, group: 0 },
+    { center: new THREE.Vector3(-0.46, 0, 0), spread: new THREE.Vector3(0.2, 0.1, 0.14), color: electricBlue, group: 0 },
+    { center: new THREE.Vector3(0, 0.48, 0), spread: new THREE.Vector3(0.11, 0.22, 0.14), color: cyan, group: 1 },
+    { center: new THREE.Vector3(0, -0.48, 0), spread: new THREE.Vector3(0.11, 0.22, 0.14), color: cyan, group: 1 },
+    { center: new THREE.Vector3(0, 0, 0.48), spread: new THREE.Vector3(0.14, 0.1, 0.22), color: lightCyan, group: 2 },
+    { center: new THREE.Vector3(0, 0, -0.48), spread: new THREE.Vector3(0.14, 0.1, 0.22), color: lightCyan, group: 2 },
+  ];
+  for (const lobe of pLobes) {
+    sampleEllipsoid(lobe.center.multiplyScalar(scale), lobe.spread.multiplyScalar(scale), lobe.color, lobe.group, pAxisCount);
   }
 
-  const dTypes: ('xy' | 'xz' | 'yz' | 'z2')[] = ['xy', 'xz', 'yz', 'z2'];
-  const dColorBase = [violet, purple, electricBlue, cyan];
-  const particlesPerDType = Math.floor(dOrbitalCount / 4);
+  const z2RingCount = Math.max(1, Math.floor(dOrbitalCount * 0.14));
+  const dCloudCount = Math.max(0, dOrbitalCount - z2RingCount);
+  const dLobeCount = Math.floor(dCloudCount / 10);
+  const dLobes = [
+    { center: new THREE.Vector3(0.34, 0.34, 0), spread: new THREE.Vector3(0.15, 0.15, 0.09), color: violet, group: 3 },
+    { center: new THREE.Vector3(-0.34, 0.34, 0), spread: new THREE.Vector3(0.15, 0.15, 0.09), color: violet, group: 3 },
+    { center: new THREE.Vector3(0.34, -0.34, 0), spread: new THREE.Vector3(0.15, 0.15, 0.09), color: violet, group: 3 },
+    { center: new THREE.Vector3(-0.34, -0.34, 0), spread: new THREE.Vector3(0.15, 0.15, 0.09), color: violet, group: 3 },
+    { center: new THREE.Vector3(0.34, 0, 0.34), spread: new THREE.Vector3(0.15, 0.09, 0.15), color: purple, group: 4 },
+    { center: new THREE.Vector3(-0.34, 0, -0.34), spread: new THREE.Vector3(0.15, 0.09, 0.15), color: purple, group: 4 },
+    { center: new THREE.Vector3(-0.34, 0, 0.34), spread: new THREE.Vector3(0.15, 0.09, 0.15), color: purple, group: 4 },
+    { center: new THREE.Vector3(0.34, 0, -0.34), spread: new THREE.Vector3(0.15, 0.09, 0.15), color: purple, group: 4 },
+    { center: new THREE.Vector3(0, 0, 0.56), spread: new THREE.Vector3(0.11, 0.11, 0.19), color: cyan, group: 5 },
+    { center: new THREE.Vector3(0, 0, -0.56), spread: new THREE.Vector3(0.11, 0.11, 0.19), color: cyan, group: 5 },
+  ];
+  for (const lobe of dLobes) {
+    sampleEllipsoid(lobe.center.multiplyScalar(scale), lobe.spread.multiplyScalar(scale), lobe.color, lobe.group, dLobeCount);
+  }
 
-  for (let typeIdx = 0; typeIdx < 4; typeIdx++) {
-    const dType = dTypes[typeIdx];
-    const baseColor = dColorBase[typeIdx];
-    let placed = 0;
-    let attempts = 0;
-    while (placed < particlesPerDType && attempts < particlesPerDType * 12 && idx < pOrbitalCount + dOrbitalCount) {
-      attempts++;
-      const x = (Math.random() - 0.5) * 1.8 * scale;
-      const y = (Math.random() - 0.5) * 1.8 * scale;
-      const z = (Math.random() - 0.5) * 1.8 * scale;
-      const density = dOrbitalDensity(x, y, z, dType);
-      if (Math.random() < density * 4) {
-        positions[idx * 3] = x;
-        positions[idx * 3 + 1] = y;
-        positions[idx * 3 + 2] = z;
-        const c = baseColor.clone().lerp(lightCyan, density * 0.4);
-        c.lerp(white, Math.random() * 0.2);
-        colors[idx * 3] = c.r;
-        colors[idx * 3 + 1] = c.g;
-        colors[idx * 3 + 2] = c.b;
-        groups[idx] = 3 + typeIdx;
-        idx++;
-        placed++;
-      }
-    }
+  for (let i = 0; i < z2RingCount && idx < pOrbitalCount + dOrbitalCount; i++, idx++) {
+    const a = (i / z2RingCount) * Math.PI * 2;
+    const radius = 0.34 * scale + (Math.random() - 0.5) * 0.045;
+    positions[idx * 3] = Math.cos(a) * radius;
+    positions[idx * 3 + 1] = Math.sin(a) * radius;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.045;
+    const c = lightCyan.clone().lerp(white, 0.25 + Math.random() * 0.2);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 6;
   }
 
   for (let i = 0; i < nucleusCount && idx < pOrbitalCount + dOrbitalCount + nucleusCount; i++, idx++) {
@@ -2572,7 +3040,7 @@ export function generateCelticKnotData() {
   const colors = new Float32Array(PARTICLE_COUNT * 3);
   const groups = new Float32Array(PARTICLE_COUNT);
 
-  const scale = 0.9;
+  const scale = 0.92;
   const deepGold = new THREE.Color('#B8860B');
   const gold = new THREE.Color('#FFD700');
   const amber = new THREE.Color('#FFBF00');
@@ -2580,100 +3048,66 @@ export function generateCelticKnotData() {
   const copper = new THREE.Color('#B87333');
   const white = new THREE.Color('#FFFFFF');
   const emerald = new THREE.Color('#10B981');
-
-  const trefoilPoint = (t: number, knotScale: number) => ({
-    x: (Math.sin(t) + 2 * Math.sin(2 * t)) * knotScale * 0.25,
-    y: (Math.cos(t) - 2 * Math.cos(2 * t)) * knotScale * 0.25,
-    z: -Math.sin(3 * t) * knotScale * 0.15
-  });
-
-  const figure8Point = (t: number, knotScale: number) => ({
-    x: (2 + Math.cos(2 * t)) * Math.cos(3 * t) * knotScale * 0.18,
-    y: (2 + Math.cos(2 * t)) * Math.sin(3 * t) * knotScale * 0.18,
-    z: Math.sin(4 * t) * knotScale * 0.12
-  });
-
-  const trefoilCount = Math.floor(PARTICLE_COUNT * 0.35);
-  const figure8Count = Math.floor(PARTICLE_COUNT * 0.30);
-  const intersectionCount = Math.floor(PARTICLE_COUNT * 0.15);
-  const glowCount = Math.floor(PARTICLE_COUNT * 0.12);
+  const strandCount = Math.floor(PARTICLE_COUNT * 0.6);
+  const crossingCount = Math.floor(PARTICLE_COUNT * 0.12);
+  const haloCount = Math.floor(PARTICLE_COUNT * 0.12);
   let idx = 0;
 
-  for (let i = 0; i < trefoilCount && idx < PARTICLE_COUNT; i++, idx++) {
-    const t = (i / trefoilCount) * Math.PI * 2;
-    const pos = trefoilPoint(t, scale);
-    const thickness = 0.04;
-    const tubeAngle = Math.random() * Math.PI * 2;
-    const dt = 0.01;
-    const posNext = trefoilPoint(t + dt, scale);
-    const tangent = new THREE.Vector3(posNext.x - pos.x, posNext.y - pos.y, posNext.z - pos.z).normalize();
-    const up = new THREE.Vector3(0, 1, 0);
-    const perp1 = new THREE.Vector3().crossVectors(tangent, up).normalize();
-    if (perp1.length() < 0.1) perp1.set(1, 0, 0);
-    const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize();
-    const tubeRadius = thickness * Math.random();
-    positions[idx * 3] = pos.x + perp1.x * Math.cos(tubeAngle) * tubeRadius + perp2.x * Math.sin(tubeAngle) * tubeRadius;
-    positions[idx * 3 + 1] = pos.y + perp1.y * Math.cos(tubeAngle) * tubeRadius + perp2.y * Math.sin(tubeAngle) * tubeRadius;
-    positions[idx * 3 + 2] = pos.z + perp1.z * Math.cos(tubeAngle) * tubeRadius + perp2.z * Math.sin(tubeAngle) * tubeRadius;
-    const colorT = t / (Math.PI * 2);
-    const c = gold.clone().lerp(amber, Math.sin(colorT * Math.PI * 3) * 0.5 + 0.5);
-    c.lerp(white, Math.random() * 0.15);
-    colors[idx * 3] = c.r;
-    colors[idx * 3 + 1] = c.g;
-    colors[idx * 3 + 2] = c.b;
-    groups[idx] = 0;
-  }
+  const loops = [
+    new THREE.Vector2(0, 0.34),
+    new THREE.Vector2(-0.3, -0.18),
+    new THREE.Vector2(0.3, -0.18),
+  ];
+  const loopRadius = 0.44 * scale;
+  const particlesPerLoop = Math.floor(strandCount / loops.length);
 
-  for (let i = 0; i < figure8Count && idx < PARTICLE_COUNT; i++, idx++) {
-    const t = (i / figure8Count) * Math.PI * 2;
-    const pos = figure8Point(t, scale);
-    const thickness = 0.035;
-    positions[idx * 3] = pos.x + (Math.random() - 0.5) * thickness;
-    positions[idx * 3 + 1] = pos.y + (Math.random() - 0.5) * thickness;
-    positions[idx * 3 + 2] = pos.z + (Math.random() - 0.5) * thickness;
-    const colorT = t / (Math.PI * 2);
-    const c = bronze.clone().lerp(copper, Math.sin(colorT * Math.PI * 4) * 0.5 + 0.5);
-    c.lerp(gold, Math.random() * 0.2);
-    c.lerp(white, Math.random() * 0.1);
-    colors[idx * 3] = c.r;
-    colors[idx * 3 + 1] = c.g;
-    colors[idx * 3 + 2] = c.b;
-    groups[idx] = 1;
-  }
+  const loopPoint = (loopIdx: number, t: number) => {
+    const center = loops[loopIdx];
+    const x = center.x * scale + Math.cos(t) * loopRadius;
+    const y = center.y * scale + Math.sin(t) * loopRadius;
+    const weavePhase = t * 3 + loopIdx * ((Math.PI * 2) / 3);
+    const z = Math.sin(weavePhase) * 0.12;
+    return new THREE.Vector3(x, y, z);
+  };
 
-  const intersectionPoints: THREE.Vector3[] = [];
-  for (let i = 0; i < 50; i++) {
-    const t1 = (i / 50) * Math.PI * 2;
-    const pos1 = trefoilPoint(t1, scale);
-    for (let j = 0; j < 50; j++) {
-      const t2 = (j / 50) * Math.PI * 2;
-      const pos2 = figure8Point(t2, scale);
-      const dist = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2));
-      if (dist < 0.15) {
-        const midpoint = new THREE.Vector3((pos1.x + pos2.x) / 2, (pos1.y + pos2.y) / 2, (pos1.z + pos2.z) / 2);
-        let isUnique = true;
-        for (const existing of intersectionPoints) {
-          if (midpoint.distanceTo(existing) < 0.1) { isUnique = false; break; }
-        }
-        if (isUnique) intersectionPoints.push(midpoint);
-      }
+  for (let loopIdx = 0; loopIdx < loops.length; loopIdx++) {
+    for (let i = 0; i < particlesPerLoop && idx < PARTICLE_COUNT; i++, idx++) {
+      const t = (i / particlesPerLoop) * Math.PI * 2;
+      const pos = loopPoint(loopIdx, t);
+      const next = loopPoint(loopIdx, t + 0.01);
+      const tangent = next.clone().sub(pos).normalize();
+      const normal = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+      const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+      const radius = Math.random() * 0.022;
+      const a = Math.random() * Math.PI * 2;
+      const offset = normal.multiplyScalar(Math.cos(a) * radius).add(binormal.multiplyScalar(Math.sin(a) * radius));
+      positions[idx * 3] = pos.x + offset.x;
+      positions[idx * 3 + 1] = pos.y + offset.y;
+      positions[idx * 3 + 2] = pos.z + offset.z;
+      const c = gold.clone().lerp(amber, loopIdx * 0.22).lerp(white, Math.random() * 0.16);
+      c.lerp(emerald, Math.max(0, Math.sin(t * 3)) * 0.08);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = loopIdx === 0 ? 0 : 1;
     }
   }
 
-  const particlesPerIntersection = Math.max(1, Math.floor(intersectionCount / Math.max(intersectionPoints.length, 1)));
-  for (let p = 0; p < intersectionPoints.length && idx < trefoilCount + figure8Count + intersectionCount; p++) {
-    const point = intersectionPoints[p];
-    for (let i = 0; i < particlesPerIntersection && idx < trefoilCount + figure8Count + intersectionCount; i++, idx++) {
+  const crossings = [
+    new THREE.Vector3(0, 0.17, 0),
+    new THREE.Vector3(-0.26, -0.16, 0),
+    new THREE.Vector3(0.26, -0.16, 0),
+    new THREE.Vector3(0, -0.42, 0),
+  ];
+  const perCrossing = Math.max(1, Math.floor(crossingCount / crossings.length));
+  for (const crossing of crossings) {
+    for (let i = 0; i < perCrossing && idx < PARTICLE_COUNT; i++, idx++) {
       const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = Math.pow(Math.random(), 0.4) * 0.06;
-      positions[idx * 3] = point.x + r * Math.sin(phi) * Math.cos(theta);
-      positions[idx * 3 + 1] = point.y + r * Math.sin(phi) * Math.sin(theta);
-      positions[idx * 3 + 2] = point.z + r * Math.cos(phi);
-      const brightness = 1.0 - (r / 0.06) * 0.4;
-      const c = white.clone().lerp(gold, 0.3);
-      c.lerp(emerald, Math.random() * 0.15);
-      c.multiplyScalar(0.8 + brightness * 0.2);
+      const r = Math.pow(Math.random(), 0.45) * 0.06;
+      positions[idx * 3] = crossing.x + Math.cos(theta) * r;
+      positions[idx * 3 + 1] = crossing.y + Math.sin(theta) * r * 0.78;
+      positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.05;
+      const c = white.clone().lerp(gold, 0.4).lerp(emerald, Math.random() * 0.12);
       colors[idx * 3] = c.r;
       colors[idx * 3 + 1] = c.g;
       colors[idx * 3 + 2] = c.b;
@@ -2681,17 +3115,13 @@ export function generateCelticKnotData() {
     }
   }
 
-  for (let i = 0; i < glowCount && idx < trefoilCount + figure8Count + intersectionCount + glowCount; i++, idx++) {
-    const knotT = Math.random() * Math.PI * 2;
-    const knotPos = Math.random() > 0.5 ? trefoilPoint(knotT, scale) : figure8Point(knotT, scale);
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const expandRadius = 0.1 + Math.random() * 0.15;
-    positions[idx * 3] = knotPos.x + expandRadius * Math.sin(phi) * Math.cos(theta);
-    positions[idx * 3 + 1] = knotPos.y + expandRadius * Math.sin(phi) * Math.sin(theta);
-    positions[idx * 3 + 2] = knotPos.z + expandRadius * Math.cos(phi);
-    const glowColor = deepGold.clone().lerp(gold, Math.random());
-    glowColor.multiplyScalar(0.25 + Math.random() * 0.15);
+  for (let i = 0; i < haloCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 0.82 + Math.pow(Math.random(), 1.6) * 0.26;
+    positions[idx * 3] = Math.cos(angle) * radius;
+    positions[idx * 3 + 1] = Math.sin(angle) * radius * 0.82;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.2;
+    const glowColor = deepGold.clone().lerp(bronze, Math.random()).multiplyScalar(0.26 + Math.random() * 0.14);
     colors[idx * 3] = glowColor.r;
     colors[idx * 3 + 1] = glowColor.g;
     colors[idx * 3 + 2] = glowColor.b;
@@ -3264,5 +3694,1097 @@ export function generateSacredFlameData() {
     groups[idx] = 4;
   }
 
+  return { positions, colors, groups };
+}
+
+const fillAmbientParticles = (
+  positions: Float32Array,
+  colors: Float32Array,
+  groups: Float32Array,
+  startIdx: number,
+  innerColor: THREE.Color,
+  outerColor: THREE.Color,
+  radiusScale = 1.4
+) => {
+  for (let idx = startIdx; idx < PARTICLE_COUNT; idx++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = radiusScale + Math.pow(Math.random(), 2) * 0.6;
+    positions[idx * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = r * Math.cos(phi);
+    const ambient = innerColor.clone().lerp(outerColor, Math.random());
+    ambient.multiplyScalar(0.08 + Math.random() * 0.08);
+    colors[idx * 3] = ambient.r;
+    colors[idx * 3 + 1] = ambient.g;
+    colors[idx * 3 + 2] = ambient.b;
+    groups[idx] = 4;
+  }
+};
+
+// --- METATRON'S CUBE ---
+export function generateMetatronsCubeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#67E8F9');
+  const blue = new THREE.Color('#3B82F6');
+  const gold = new THREE.Color('#FDE68A');
+  const centers: THREE.Vector3[] = [new THREE.Vector3(0, 0, 0)];
+  const radius = 0.62;
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    centers.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+  }
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    centers.push(new THREE.Vector3(Math.cos(angle) * radius * 1.73, Math.sin(angle) * radius * 1.73, 0));
+  }
+  const edgePairs: Array<[number, number]> = [];
+  for (let i = 0; i < centers.length; i++) {
+    for (let j = i + 1; j < centers.length; j++) {
+      if (centers[i].distanceTo(centers[j]) < 1.25) edgePairs.push([i, j]);
+    }
+  }
+  const nodeCount = Math.floor(PARTICLE_COUNT * 0.2);
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.65);
+  let idx = 0;
+  for (let i = 0; i < nodeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const center = centers[i % centers.length];
+    const p = center.clone().add(randomInSphere().multiplyScalar(0.05));
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z;
+    const c = white.clone().lerp(gold, Math.random() * 0.35);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+  for (let i = 0; i < edgeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const [a, b] = edgePairs[i % edgePairs.length];
+    const p = new THREE.Vector3().lerpVectors(centers[a], centers[b], Math.random()).add(randomInSphere().multiplyScalar(0.016));
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z + (Math.random() - 0.5) * 0.04;
+    const c = cyan.clone().lerp(blue, Math.random() * 0.5).lerp(white, Math.random() * 0.1);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, cyan, 1.35);
+  return { positions, colors, groups };
+}
+
+// --- TORUS FLOWER ---
+export function generateTorusFlowerData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const pink = new THREE.Color('#F9A8D4');
+  const cyan = new THREE.Color('#67E8F9');
+  const violet = new THREE.Color('#A78BFA');
+  const rose = new THREE.Color('#FB7185');
+  let idx = 0;
+  const petalLoops = 8;
+  const petalCount = Math.floor(PARTICLE_COUNT * 0.52);
+  const ringCount = Math.floor(PARTICLE_COUNT * 0.18);
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.1);
+
+  for (let i = 0; i < petalCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const petal = i % petalLoops;
+    const t = ((i / petalLoops) / Math.ceil(petalCount / petalLoops)) * Math.PI * 2;
+    const baseAngle = (petal / petalLoops) * Math.PI * 2;
+    const petalRadius = 0.42 + 0.14 * Math.sin(t);
+    const orbit = 0.38 + 0.36 * (Math.sin(t * 0.5) * 0.5 + 0.5);
+    const cx = Math.cos(baseAngle) * orbit;
+    const cy = Math.sin(baseAngle) * orbit;
+    const x = cx + Math.cos(baseAngle) * Math.cos(t) * petalRadius - Math.sin(baseAngle) * Math.sin(t) * 0.16;
+    const y = cy + Math.sin(baseAngle) * Math.cos(t) * petalRadius + Math.cos(baseAngle) * Math.sin(t) * 0.16;
+    const z = Math.sin(t) * 0.18 + Math.cos(t * 2) * 0.05;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    const c = pink.clone().lerp(violet, petal / petalLoops).lerp(white, Math.max(0, Math.cos(t)) * 0.16);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = petal % 2 === 0 ? 0 : 2;
+  }
+
+  for (let i = 0; i < ringCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (i / ringCount) * Math.PI * 2;
+    const radius = 0.54 + Math.sin(u * petalLoops) * 0.06;
+    positions[idx * 3] = Math.cos(u) * radius;
+    positions[idx * 3 + 1] = Math.sin(u) * radius;
+    positions[idx * 3 + 2] = Math.cos(u * petalLoops) * 0.08;
+    const c = cyan.clone().lerp(violet, 0.35).lerp(white, 0.18);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 1;
+  }
+
+  for (let i = 0; i < coreCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const u = (i / coreCount) * Math.PI * 2;
+    const r = Math.pow(Math.random(), 0.6) * 0.18;
+    positions[idx * 3] = Math.cos(u) * r;
+    positions[idx * 3 + 1] = Math.sin(u) * r;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.08;
+    const c = rose.clone().lerp(white, 0.35 + Math.random() * 0.25);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+
+  fillAmbientParticles(positions, colors, groups, idx, violet, cyan, 1.38);
+  return { positions, colors, groups };
+}
+
+// --- LOTUS MANDALA ---
+export function generateLotusMandalaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const rose = new THREE.Color('#FDA4AF');
+  const magenta = new THREE.Color('#F472B6');
+  const violet = new THREE.Color('#C084FC');
+  let idx = 0;
+  const petals = 12;
+  const petalCount = Math.floor(PARTICLE_COUNT * 0.7);
+  for (let i = 0; i < petalCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const petal = i % petals;
+    const t = Math.random();
+    const petalAngle = (petal / petals) * Math.PI * 2;
+    const spread = Math.sin(t * Math.PI) * 0.38;
+    const radius = 0.18 + t * 0.95;
+    const x = Math.cos(petalAngle) * radius + Math.cos(petalAngle + Math.PI / 2) * spread * 0.3;
+    const y = Math.sin(petalAngle) * radius + Math.sin(petalAngle + Math.PI / 2) * spread * 0.3;
+    const z = Math.sin(t * Math.PI) * 0.18 * (petal % 2 === 0 ? 1 : -1);
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    const c = rose.clone().lerp(magenta, t * 0.5).lerp(violet, petal / petals).lerp(white, Math.random() * 0.12);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = petal % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, magenta, violet, 1.3);
+  return { positions, colors, groups };
+}
+
+// --- PHOENIX SPIRAL ---
+export function generatePhoenixSpiralData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const ember = new THREE.Color('#FB7185');
+  const orange = new THREE.Color('#FB923C');
+  const gold = new THREE.Color('#FDE68A');
+  const blue = new THREE.Color('#38BDF8');
+  let idx = 0;
+  const wingCount = Math.floor(PARTICLE_COUNT * 0.78);
+  for (let i = 0; i < wingCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = Math.random();
+    const side = i % 2 === 0 ? 1 : -1;
+    const angle = t * Math.PI * 1.8 + side * 0.35;
+    const radius = 0.18 + t * 1.25;
+    positions[idx * 3] = side * radius * Math.cos(angle) * 0.9;
+    positions[idx * 3 + 1] = t * 1.9 - 0.7;
+    positions[idx * 3 + 2] = radius * Math.sin(angle) * 0.45;
+    const c = orange.clone().lerp(gold, 1 - t).lerp(ember, t * 0.7).lerp(blue, Math.max(0, t - 0.8) * 0.7);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = side > 0 ? 0 : 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, orange, blue, 1.45);
+  return { positions, colors, groups };
+}
+
+// --- VESICA PISCIS ---
+export function generateVesicaPiscisData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#7DD3FC');
+  const teal = new THREE.Color('#2DD4BF');
+  const left = new THREE.Vector3(-0.33, 0, 0);
+  const right = new THREE.Vector3(0.33, 0, 0);
+  const r = 0.7;
+  let idx = 0;
+  const circlePointsPerSide = Math.floor(PARTICLE_COUNT * 0.28);
+  const lensCount = Math.floor(PARTICLE_COUNT * 0.22);
+
+  for (let side = 0; side < 2 && idx < PARTICLE_COUNT; side++) {
+    const center = side === 0 ? left : right;
+    for (let i = 0; i < circlePointsPerSide && idx < PARTICLE_COUNT; i++, idx++) {
+      const theta = (i / circlePointsPerSide) * Math.PI * 2;
+      const jitter = (Math.sin(i * 12.37) * 0.5 + 0.5) * 0.01;
+      positions[idx * 3] = center.x + Math.cos(theta) * (r + jitter);
+      positions[idx * 3 + 1] = center.y + Math.sin(theta) * (r + jitter);
+      positions[idx * 3 + 2] = Math.sin(theta * 2) * 0.06;
+      const c = (side === 0 ? cyan : teal).clone().lerp(white, 0.12 + 0.12 * Math.sin(theta * 2) ** 2);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = side;
+    }
+  }
+
+  let attempts = 0;
+  while (idx < circlePointsPerSide * 2 + lensCount && idx < PARTICLE_COUNT && attempts < lensCount * 20) {
+    attempts++;
+    const x = (Math.random() - 0.5) * 0.9;
+    const y = (Math.random() - 0.5) * 1.15;
+    const p = new THREE.Vector3(x, y, (Math.random() - 0.5) * 0.08);
+    if (p.distanceTo(left) <= r && p.distanceTo(right) <= r) {
+      positions[idx * 3] = p.x;
+      positions[idx * 3 + 1] = p.y;
+      positions[idx * 3 + 2] = p.z;
+      const c = white.clone().lerp(cyan, Math.abs(y) * 0.25).lerp(teal, Math.abs(x) * 0.25);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 2;
+      idx++;
+    }
+  }
+  fillAmbientParticles(positions, colors, groups, idx, cyan, teal, 1.25);
+  return { positions, colors, groups };
+}
+
+// --- CROWN CHAKRA ---
+export function generateCrownChakraData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const violet = new THREE.Color('#A855F7');
+  const indigo = new THREE.Color('#6366F1');
+  const white = new THREE.Color('#FFFFFF');
+  let idx = 0;
+  const ringCount = Math.floor(PARTICLE_COUNT * 0.7);
+  for (let i = 0; i < ringCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const layer = i % 7;
+    const theta = Math.random() * Math.PI * 2;
+    const radius = 0.25 + layer * 0.1;
+    positions[idx * 3] = Math.cos(theta) * radius;
+    positions[idx * 3 + 1] = 0.85 - layer * 0.12 + (Math.random() - 0.5) * 0.03;
+    positions[idx * 3 + 2] = Math.sin(theta) * radius;
+    const c = white.clone().lerp(violet, layer / 7).lerp(indigo, Math.random() * 0.35);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = layer % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, violet, white, 1.35);
+  return { positions, colors, groups };
+}
+
+// --- COSMIC SERPENT ---
+export function generateCosmicSerpentData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const emerald = new THREE.Color('#34D399');
+  const teal = new THREE.Color('#14B8A6');
+  const gold = new THREE.Color('#FDE68A');
+  let idx = 0;
+  const bodyCount = Math.floor(PARTICLE_COUNT * 0.78);
+  for (let i = 0; i < bodyCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = i / bodyCount;
+    const angle = t * Math.PI * 10;
+    const radius = 0.3 + 0.45 * Math.sin(t * Math.PI);
+    positions[idx * 3] = Math.cos(angle) * radius;
+    positions[idx * 3 + 1] = t * 2.2 - 1.1;
+    positions[idx * 3 + 2] = Math.sin(angle) * radius * 0.75;
+    const c = emerald.clone().lerp(teal, t * 0.6).lerp(gold, Math.max(0, t - 0.78) * 2.5);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = t > 0.82 ? 1 : 0;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, teal, emerald, 1.4);
+  return { positions, colors, groups };
+}
+
+// --- PRISM FIELD ---
+export function generatePrismFieldData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const spectrum = ['#F87171', '#FBBF24', '#4ADE80', '#38BDF8', '#818CF8', '#F472B6'].map((c) => new THREE.Color(c));
+  let idx = 0;
+  const gridCount = Math.floor(PARTICLE_COUNT * 0.74);
+  for (let i = 0; i < gridCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const x = (Math.floor(Math.random() * 9) - 4) * 0.22;
+    const y = (Math.floor(Math.random() * 9) - 4) * 0.22;
+    const z = (Math.floor(Math.random() * 9) - 4) * 0.22;
+    positions[idx * 3] = x + (Math.random() - 0.5) * 0.04;
+    positions[idx * 3 + 1] = y + (Math.random() - 0.5) * 0.04;
+    positions[idx * 3 + 2] = z + (Math.random() - 0.5) * 0.04;
+    const color = spectrum[Math.floor(Math.abs(x + y + z) * 10) % spectrum.length];
+    colors[idx * 3] = color.r; colors[idx * 3 + 1] = color.g; colors[idx * 3 + 2] = color.b;
+    groups[idx] = Math.floor(Math.abs(z) * 10) % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, spectrum[3], spectrum[5], 1.45);
+  return { positions, colors, groups };
+}
+
+// --- HALO BLOOM ---
+export function generateHaloBloomData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#A5F3FC');
+  const violet = new THREE.Color('#C4B5FD');
+  let idx = 0;
+  const bloomCount = Math.floor(PARTICLE_COUNT * 0.75);
+  for (let i = 0; i < bloomCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const ring = i % 5;
+    const theta = Math.random() * Math.PI * 2;
+    const radius = 0.18 + ring * 0.18;
+    const lift = Math.sin(theta * 3) * 0.12;
+    positions[idx * 3] = Math.cos(theta) * radius;
+    positions[idx * 3 + 1] = lift;
+    positions[idx * 3 + 2] = Math.sin(theta) * radius;
+    const c = white.clone().lerp(cyan, ring / 5).lerp(violet, Math.sin(theta * 3) * 0.25 + 0.25);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = ring % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, cyan, violet, 1.35);
+  return { positions, colors, groups };
+}
+
+// --- INFINITY PRAYER ---
+export function generateInfinityPrayerData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FDE68A');
+  const sky = new THREE.Color('#7DD3FC');
+  const white = new THREE.Color('#FFFFFF');
+  let idx = 0;
+  const loopCount = Math.floor(PARTICLE_COUNT * 0.72);
+  const half = Math.floor(loopCount / 2);
+  for (let i = 0; i < half && idx + 1 < PARTICLE_COUNT; i++, idx += 2) {
+    const t = (i / half) * Math.PI;
+    const x = -0.92 * Math.sin(t);
+    const y = 0.58 * Math.sin(t) * Math.cos(t);
+    const z = 0.18 * Math.cos(t * 2);
+    const jitterX = Math.sin(i * 5.73) * 0.015;
+    const jitterY = Math.cos(i * 4.91) * 0.015;
+
+    positions[idx * 3] = x + jitterX;
+    positions[idx * 3 + 1] = y + jitterY;
+    positions[idx * 3 + 2] = z;
+    positions[(idx + 1) * 3] = -x - jitterX;
+    positions[(idx + 1) * 3 + 1] = y + jitterY;
+    positions[(idx + 1) * 3 + 2] = -z;
+
+    const cLeft = gold.clone().lerp(white, Math.sin(t) * 0.16);
+    const cRight = sky.clone().lerp(white, Math.sin(t) * 0.16);
+    colors[idx * 3] = cLeft.r;
+    colors[idx * 3 + 1] = cLeft.g;
+    colors[idx * 3 + 2] = cLeft.b;
+    colors[(idx + 1) * 3] = cRight.r;
+    colors[(idx + 1) * 3 + 1] = cRight.g;
+    colors[(idx + 1) * 3 + 2] = cRight.b;
+    groups[idx] = 0;
+    groups[idx + 1] = 1;
+  }
+  const knotCount = Math.floor(PARTICLE_COUNT * 0.08);
+  for (let i = 0; i < knotCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const angle = (i / Math.max(1, knotCount)) * Math.PI * 2;
+    positions[idx * 3] = Math.cos(angle) * 0.12;
+    positions[idx * 3 + 1] = Math.sin(angle) * 0.12;
+    positions[idx * 3 + 2] = Math.sin(angle * 2) * 0.04;
+    const c = white.clone().lerp(gold, 0.2).lerp(sky, 0.2);
+    colors[idx * 3] = c.r;
+    colors[idx * 3 + 1] = c.g;
+    colors[idx * 3 + 2] = c.b;
+    groups[idx] = 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, gold, sky, 1.45);
+  return { positions, colors, groups };
+}
+
+export function generateSeedOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const cyan = new THREE.Color('#67E8F9');
+  const blue = new THREE.Color('#60A5FA');
+  const white = new THREE.Color('#FFFFFF');
+  const centers = [new THREE.Vector3(0, 0, 0)];
+  const r = 0.42;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    centers.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+  }
+  let idx = 0;
+  const circleCount = Math.floor(PARTICLE_COUNT * 0.75);
+  for (let i = 0; i < circleCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const cIdx = i % centers.length;
+    const theta = Math.random() * Math.PI * 2;
+    const center = centers[cIdx];
+    positions[idx * 3] = center.x + Math.cos(theta) * r + (Math.random() - 0.5) * 0.01;
+    positions[idx * 3 + 1] = center.y + Math.sin(theta) * r + (Math.random() - 0.5) * 0.01;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * 0.05;
+    const color = cyan.clone().lerp(blue, cIdx / centers.length).lerp(white, Math.random() * 0.15);
+    colors[idx * 3] = color.r; colors[idx * 3 + 1] = color.g; colors[idx * 3 + 2] = color.b;
+    groups[idx] = cIdx === 0 ? 0 : 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, cyan, 1.2);
+  return { positions, colors, groups };
+}
+
+export function generateEggOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const violet = new THREE.Color('#A78BFA');
+  const pink = new THREE.Color('#F9A8D4');
+  const white = new THREE.Color('#FFFFFF');
+  const nodes: THREE.Vector3[] = [];
+  const layers = [-0.35, 0.35];
+  for (const y of layers) {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + (y > 0 ? Math.PI / 4 : 0);
+      nodes.push(new THREE.Vector3(Math.cos(a) * 0.48, y, Math.sin(a) * 0.48));
+    }
+  }
+  let idx = 0;
+  const shellCount = Math.floor(PARTICLE_COUNT * 0.78);
+  for (let i = 0; i < shellCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const n = nodes[i % nodes.length];
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const rr = 0.22;
+    positions[idx * 3] = n.x + rr * Math.sin(phi) * Math.cos(theta);
+    positions[idx * 3 + 1] = n.y + rr * Math.sin(phi) * Math.sin(theta);
+    positions[idx * 3 + 2] = n.z + rr * Math.cos(phi);
+    const c = pink.clone().lerp(violet, (n.y + 0.35) / 0.7).lerp(white, Math.random() * 0.12);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = n.y > 0 ? 1 : 0;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, violet, pink, 1.35);
+  return { positions, colors, groups };
+}
+
+export function generateFruitOfLifeData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FDE68A');
+  const cyan = new THREE.Color('#67E8F9');
+  const white = new THREE.Color('#FFFFFF');
+  const centers: THREE.Vector3[] = [new THREE.Vector3(0, 0, 0)];
+  const ringR = 0.55;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    centers.push(new THREE.Vector3(Math.cos(a) * ringR, Math.sin(a) * ringR, 0));
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    centers.push(new THREE.Vector3(Math.cos(a) * ringR * 1.75, Math.sin(a) * ringR * 1.75, 0));
+  }
+  let idx = 0;
+  const nodeCount = Math.floor(PARTICLE_COUNT * 0.8);
+  for (let i = 0; i < nodeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const center = centers[i % centers.length];
+    const p = center.clone().add(randomInSphere().multiplyScalar(0.07));
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    const c = gold.clone().lerp(cyan, (i % centers.length) / centers.length).lerp(white, Math.random() * 0.12);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = i % centers.length === 0 ? 0 : 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, gold, cyan, 1.4);
+  return { positions, colors, groups };
+}
+
+export function generateGoldenSpiralData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FBBF24');
+  const amber = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const phi = (1 + Math.sqrt(5)) / 2;
+  let idx = 0;
+  const spiralCount = Math.floor(PARTICLE_COUNT * 0.82);
+  for (let i = 0; i < spiralCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = i / spiralCount;
+    const angle = t * Math.PI * 8;
+    const radius = 0.08 * Math.pow(phi, t * 3.6);
+    positions[idx * 3] = Math.cos(angle) * radius;
+    positions[idx * 3 + 1] = Math.sin(angle) * radius;
+    positions[idx * 3 + 2] = (t - 0.5) * 0.35;
+    const c = gold.clone().lerp(amber, t).lerp(white, Math.random() * 0.1);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = t < 0.25 ? 0 : t < 0.65 ? 1 : 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, gold, amber, 1.35);
+  return { positions, colors, groups };
+}
+
+export function generateVectorEquilibriumData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const cyan = new THREE.Color('#22D3EE');
+  const blue = new THREE.Color('#3B82F6');
+  const white = new THREE.Color('#FFFFFF');
+  const gold = new THREE.Color('#FDE68A');
+  const vertices = [
+    new THREE.Vector3(1, 1, 0), new THREE.Vector3(1, -1, 0),
+    new THREE.Vector3(-1, 1, 0), new THREE.Vector3(-1, -1, 0),
+    new THREE.Vector3(1, 0, 1), new THREE.Vector3(1, 0, -1),
+    new THREE.Vector3(-1, 0, 1), new THREE.Vector3(-1, 0, -1),
+    new THREE.Vector3(0, 1, 1), new THREE.Vector3(0, 1, -1),
+    new THREE.Vector3(0, -1, 1), new THREE.Vector3(0, -1, -1),
+  ].map((v) => v.normalize().multiplyScalar(0.95));
+  const edges: Array<[number, number]> = [];
+  for (let i = 0; i < vertices.length; i++) {
+    for (let j = i + 1; j < vertices.length; j++) {
+      const d = vertices[i].distanceTo(vertices[j]);
+      if (d > 0.95 && d < 1.45) edges.push([i, j]);
+    }
+  }
+  let idx = 0;
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.5);
+  const ringCount = Math.floor(PARTICLE_COUNT * 0.18);
+  const nodeCount = Math.floor(PARTICLE_COUNT * 0.12);
+  for (let i = 0; i < edgeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const [a, b] = edges[i % edges.length];
+    const p = new THREE.Vector3().lerpVectors(vertices[a], vertices[b], (i % 160) / 159).add(randomInSphere().multiplyScalar(0.012));
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    const c = cyan.clone().lerp(blue, (i % edges.length) / edges.length).lerp(white, 0.08);
+    colors[idx * 3] = c.r; colors[idx * 3 + 1] = c.g; colors[idx * 3 + 2] = c.b;
+    groups[idx] = 0;
+  }
+  const circles = [
+    (a: number) => new THREE.Vector3(Math.cos(a) * 0.95, Math.sin(a) * 0.95, 0),
+    (a: number) => new THREE.Vector3(Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95),
+    (a: number) => new THREE.Vector3(0, Math.cos(a) * 0.95, Math.sin(a) * 0.95),
+  ];
+  const perRing = Math.floor(ringCount / circles.length);
+  for (let ring = 0; ring < circles.length; ring++) {
+    for (let i = 0; i < perRing && idx < PARTICLE_COUNT; i++, idx++) {
+      const a = (i / perRing) * Math.PI * 2;
+      const p = circles[ring](a).add(randomInSphere().multiplyScalar(0.012));
+      positions[idx * 3] = p.x;
+      positions[idx * 3 + 1] = p.y;
+      positions[idx * 3 + 2] = p.z;
+      const c = gold.clone().lerp(white, 0.15).lerp(cyan, ring * 0.1);
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+      groups[idx] = 1;
+    }
+  }
+  for (let i = 0; i < nodeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const p = vertices[i % vertices.length].clone().add(randomInSphere().multiplyScalar(0.035));
+    positions[idx * 3] = p.x; positions[idx * 3 + 1] = p.y; positions[idx * 3 + 2] = p.z;
+    colors[idx * 3] = white.r; colors[idx * 3 + 1] = white.g; colors[idx * 3 + 2] = white.b;
+    groups[idx] = 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, cyan, 1.45);
+  return { positions, colors, groups };
+}
+
+export function generateCurvedMerkabaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#67E8F9');
+  const violet = new THREE.Color('#A78BFA');
+  const gold = new THREE.Color('#FDE68A');
+  let idx = 0;
+  const tetraA = [
+    new THREE.Vector3(0, 0.95, 0),
+    new THREE.Vector3(-0.82, -0.42, 0.48),
+    new THREE.Vector3(0.82, -0.42, 0.48),
+    new THREE.Vector3(0, -0.42, -0.95),
+  ];
+  const tetraB = tetraA.map((v) => v.clone().multiplyScalar(-1));
+  const edgeIndices: Array<[number, number]> = [[0,1],[0,2],[0,3],[1,2],[2,3],[3,1]];
+  const faceIndices: Array<[number, number, number]> = [[0,1,2],[0,2,3],[0,3,1],[1,3,2]];
+  const edgeCount = Math.floor(PARTICLE_COUNT * 0.5);
+  const orbitCount = Math.floor(PARTICLE_COUNT * 0.2);
+  const coreCount = Math.floor(PARTICLE_COUNT * 0.06);
+
+  for (let set = 0; set < 2; set++) {
+    const vertices = set === 0 ? tetraA : tetraB;
+    const perSet = Math.floor(edgeCount / 2);
+    for (let i = 0; i < perSet && idx < PARTICLE_COUNT; i++, idx++) {
+      const [a, b] = edgeIndices[i % edgeIndices.length];
+      const t = (i % 90) / 89;
+      const p = new THREE.Vector3().lerpVectors(vertices[a], vertices[b], t);
+      const center = new THREE.Vector3().addVectors(vertices[a], vertices[b]).multiplyScalar(0.5);
+      const bowDir = center.clone().normalize().multiplyScalar(Math.sin(t * Math.PI) * 0.06);
+      p.add(bowDir);
+      positions[idx * 3] = p.x;
+      positions[idx * 3 + 1] = p.y;
+      positions[idx * 3 + 2] = p.z;
+      const color = (set === 0 ? cyan : violet).clone().lerp(white, Math.sin(t * Math.PI) * 0.18);
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = set;
+    }
+  }
+
+  const allFaces = [
+    ...faceIndices.map((face) => ({ face, vertices: tetraA, color: gold })),
+    ...faceIndices.map((face) => ({ face, vertices: tetraB, color: white.clone().lerp(violet, 0.45) })),
+  ];
+  const perFace = Math.floor(orbitCount / allFaces.length);
+  for (const entry of allFaces) {
+    const [a, b, c] = entry.face;
+    const va = entry.vertices[a];
+    const vb = entry.vertices[b];
+    const vc = entry.vertices[c];
+    const center = new THREE.Vector3().add(va).add(vb).add(vc).multiplyScalar(1 / 3);
+    const axis1 = vb.clone().sub(va).normalize();
+    const normal = new THREE.Vector3().crossVectors(vb.clone().sub(va), vc.clone().sub(va)).normalize();
+    const axis2 = new THREE.Vector3().crossVectors(normal, axis1).normalize();
+    for (let i = 0; i < perFace && idx < PARTICLE_COUNT; i++, idx++) {
+      const t = (i / perFace) * Math.PI * 2;
+      const radius = 0.22 + Math.sin(t * 3) * 0.03;
+      const p = center.clone()
+        .add(axis1.clone().multiplyScalar(Math.cos(t) * radius))
+        .add(axis2.clone().multiplyScalar(Math.sin(t) * radius))
+        .add(normal.clone().multiplyScalar(0.05));
+      positions[idx * 3] = p.x;
+      positions[idx * 3 + 1] = p.y;
+      positions[idx * 3 + 2] = p.z;
+      const color = entry.color.clone().lerp(white, 0.15 + Math.sin(t * 2) * 0.08 + 0.08);
+      colors[idx * 3] = color.r;
+      colors[idx * 3 + 1] = color.g;
+      colors[idx * 3 + 2] = color.b;
+      groups[idx] = 3;
+    }
+  }
+
+  for (let i = 0; i < coreCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const p = randomInSphere().multiplyScalar(0.18);
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z;
+    colors[idx * 3] = white.r;
+    colors[idx * 3 + 1] = white.g;
+    colors[idx * 3 + 2] = white.b;
+    groups[idx] = 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, cyan, violet, 1.35);
+  return { positions, colors, groups };
+}
+
+export function generateCurvedMetatronData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const blue = new THREE.Color('#60A5FA');
+  const cyan = new THREE.Color('#67E8F9');
+  const gold = new THREE.Color('#FDE68A');
+  const centers: THREE.Vector3[] = [new THREE.Vector3(0, 0, 0)];
+  const innerRadius = 0.56;
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    centers.push(new THREE.Vector3(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius, Math.sin(angle * 2) * 0.16));
+  }
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    centers.push(new THREE.Vector3(Math.cos(angle) * innerRadius * 1.72, Math.sin(angle) * innerRadius * 1.72, Math.cos(angle * 2) * 0.22));
+  }
+  const edgePairs: Array<[number, number]> = [];
+  for (let i = 0; i < centers.length; i++) {
+    for (let j = i + 1; j < centers.length; j++) {
+      if (centers[i].distanceTo(centers[j]) < 1.45) edgePairs.push([i, j]);
+    }
+  }
+  let idx = 0;
+  const nodeCount = Math.floor(PARTICLE_COUNT * 0.18);
+  const lineCount = Math.floor(PARTICLE_COUNT * 0.6);
+  for (let i = 0; i < nodeCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const center = centers[i % centers.length];
+    const p = center.clone().add(randomInSphere().multiplyScalar(0.05));
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z;
+    const color = white.clone().lerp(gold, Math.random() * 0.35);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 0;
+  }
+  for (let i = 0; i < lineCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const [a, b] = edgePairs[i % edgePairs.length];
+    const tt = Math.random();
+    const curve = Math.sin(tt * Math.PI) * 0.12;
+    const p = new THREE.Vector3().lerpVectors(centers[a], centers[b], tt);
+    p.z += curve;
+    p.add(randomInSphere().multiplyScalar(0.015));
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z;
+    const color = cyan.clone().lerp(blue, Math.random() * 0.55).lerp(white, Math.random() * 0.08);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 1;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, cyan, 1.45);
+  return { positions, colors, groups };
+}
+
+export function generateUnicursalHexagramData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const purple = new THREE.Color('#A855F7');
+  const cyan = new THREE.Color('#22D3EE');
+  const path: THREE.Vector3[] = [];
+  const points = 720;
+  for (let i = 0; i < points; i++) {
+    const t = (i / points) * Math.PI * 2;
+    const r = 0.78 + 0.24 * Math.sin(6 * t);
+    path.push(new THREE.Vector3(Math.cos(t) * r, Math.sin(t) * r, Math.sin(3 * t) * 0.16));
+  }
+  let idx = 0;
+  const pathCount = Math.floor(PARTICLE_COUNT * 0.8);
+  for (let i = 0; i < pathCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const p = path[i % path.length].clone().add(randomInSphere().multiplyScalar(0.02));
+    positions[idx * 3] = p.x;
+    positions[idx * 3 + 1] = p.y;
+    positions[idx * 3 + 2] = p.z;
+    const blend = (Math.sin((i / pathCount) * Math.PI * 4) + 1) / 2;
+    const color = purple.clone().lerp(cyan, blend).lerp(white, Math.random() * 0.1);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = i % 6 === 0 ? 1 : 0;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, purple, cyan, 1.32);
+  return { positions, colors, groups };
+}
+
+export function generateYinYangFlowData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const pearl = new THREE.Color('#F8FAFC');
+  const silver = new THREE.Color('#DBEAFE');
+  const midnight = new THREE.Color('#0B1220');
+  const indigo = new THREE.Color('#1E3A8A');
+  const moon = new THREE.Color('#EFF6FF');
+  let idx = 0;
+
+  const boundaryAt = (y: number) => {
+    const yy = Math.max(-1, Math.min(1, y));
+    if (yy >= 0) {
+      return Math.sqrt(Math.max(0, 0.25 - Math.pow(yy - 0.5, 2)));
+    }
+    return -Math.sqrt(Math.max(0, 0.25 - Math.pow(yy + 0.5, 2)));
+  };
+
+  const addPoint = (x: number, y: number, z: number, color: THREE.Color, group: number) => {
+    if (idx >= PARTICLE_COUNT) return;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = group;
+    idx++;
+  };
+
+  const shellCount = Math.floor(PARTICLE_COUNT * 0.64);
+  let attempts = 0;
+  while (idx < shellCount && attempts < PARTICLE_COUNT * 8) {
+    attempts++;
+    const dir = randomOnSphere();
+    const y = dir.y;
+    const x = dir.x;
+    const boundary = boundaryAt(y);
+    const topSeedZone = x * x + (y - 0.52) * (y - 0.52) < 0.085;
+    const bottomSeedZone = x * x + (y + 0.52) * (y + 0.52) < 0.085;
+    let isYang = x >= boundary;
+    if (topSeedZone) isYang = false;
+    if (bottomSeedZone) isYang = true;
+
+    const radius = 0.98 + (Math.random() - 0.5) * 0.035;
+    const p = dir.clone().multiplyScalar(radius);
+    const boundaryDistance = Math.abs(x - boundary);
+    const bulge = Math.max(0, 0.12 - boundaryDistance) * 0.04;
+    p.z += (isYang ? 1 : -1) * bulge;
+    if (boundaryDistance < 0.075) {
+      p.z *= 0.12;
+    }
+    const c = (isYang ? pearl : midnight)
+      .clone()
+      .lerp(isYang ? silver : indigo, Math.abs(y) * 0.34)
+      .lerp(moon, isYang ? Math.max(0, p.z) * 0.06 : 0);
+    addPoint(p.x, p.y, p.z, c, isYang ? 1 : 0);
+  }
+
+  const boundaryCount = Math.floor(PARTICLE_COUNT * 0.1);
+  for (let i = 0; i < boundaryCount && idx < PARTICLE_COUNT; i++) {
+    const y = -0.98 + (i / Math.max(1, boundaryCount - 1)) * 1.96;
+    const x = boundaryAt(y);
+    const ringRadius = Math.sqrt(Math.max(0, 1 - x * x - y * y));
+    const theta = Math.random() * Math.PI * 2;
+    const px = x + Math.cos(theta) * ringRadius * 0.008;
+    const py = y + Math.sin(theta) * 0.004;
+    const pz = Math.sin(theta) * ringRadius * 0.0008;
+    const c = silver.clone().lerp(indigo, (y + 1) / 2).lerp(pearl, 0.2);
+    addPoint(px, py, pz, c, 4);
+  }
+
+  const outerRingCount = Math.floor(PARTICLE_COUNT * 0.08);
+  for (let i = 0; i < outerRingCount && idx < PARTICLE_COUNT; i++) {
+    const theta = (i / Math.max(1, outerRingCount)) * Math.PI * 2;
+    const x = Math.cos(theta);
+    const y = Math.sin(theta);
+    const boundary = boundaryAt(y);
+    const isYang = x >= boundary;
+    const color = (isYang ? pearl : midnight).clone().lerp(isYang ? silver : indigo, 0.22);
+    addPoint(x, y, 0, color, 4);
+  }
+
+  const focalConfigs = [
+    { center: new THREE.Vector3(0, 0.52, -0.24), radius: 0.18, colorA: midnight, colorB: indigo, group: 2 },
+    { center: new THREE.Vector3(0, -0.52, 0.24), radius: 0.18, colorA: pearl, colorB: silver, group: 3 },
+  ];
+  for (const focal of focalConfigs) {
+    const focalCount = Math.floor(PARTICLE_COUNT * 0.05);
+    for (let i = 0; i < focalCount && idx < PARTICLE_COUNT; i++) {
+      const theta = (i / focalCount) * Math.PI * 2;
+      const x = focal.center.x + Math.cos(theta) * focal.radius;
+      const y = focal.center.y + Math.sin(theta) * focal.radius;
+      const z = focal.center.z + Math.sin(theta * 3) * 0.014;
+      const color = focal.colorA.clone().lerp(focal.colorB, 0.45).lerp(new THREE.Color('#FFFFFF'), Math.random() * 0.12);
+      addPoint(x, y, z, color, focal.group);
+    }
+
+    const glowCount = Math.floor(PARTICLE_COUNT * 0.025);
+    for (let i = 0; i < glowCount && idx < PARTICLE_COUNT; i++) {
+      const p = randomInSphere().multiplyScalar(0.10).add(focal.center);
+      const color = focal.colorA.clone().lerp(new THREE.Color('#FFFFFF'), 0.25);
+      addPoint(p.x, p.y, p.z, color, focal.group);
+    }
+  }
+
+  fillAmbientParticles(positions, colors, groups, idx, silver, indigo, 1.34);
+  return { positions, colors, groups };
+}
+
+export function generateSevenWavesData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const aqua = new THREE.Color('#2DD4BF');
+  const blue = new THREE.Color('#3B82F6');
+  const violet = new THREE.Color('#8B5CF6');
+  let idx = 0;
+  const waveCount = Math.floor(PARTICLE_COUNT * 0.82);
+  for (let i = 0; i < waveCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const band = i % 7;
+    const t = ((i / 7) % 260) / 259;
+    const x = -1.15 + t * 2.3;
+    const amplitude = 0.06 + band * 0.012;
+    const y = Math.sin(t * Math.PI * 2 + band * 0.55) * amplitude;
+    const z = (band - 3) * 0.14;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z + Math.cos(t * Math.PI * 2 + band * 0.5) * 0.025;
+    const color = aqua.clone().lerp(blue, band / 6).lerp(violet, Math.abs(z) * 0.35);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = band % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, blue, violet, 1.42);
+  return { positions, colors, groups };
+}
+
+export function generateSnowflakeMandalaData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const ice = new THREE.Color('#BAE6FD');
+  const cyan = new THREE.Color('#67E8F9');
+  let idx = 0;
+  const branchCount = Math.floor(PARTICLE_COUNT * 0.8);
+  for (let i = 0; i < branchCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const branch = i % 6;
+    const t = Math.random();
+    const angle = (branch / 6) * Math.PI * 2;
+    const radius = 0.12 + t * 1.02;
+    const branchPulse = Math.sin(t * Math.PI * 3) * 0.14;
+    const x = Math.cos(angle) * radius + Math.cos(angle + Math.PI / 3) * branchPulse * 0.2;
+    const y = Math.sin(angle) * radius + Math.sin(angle + Math.PI / 3) * branchPulse * 0.2;
+    const z = Math.sin(t * Math.PI * 6) * 0.08;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    const color = ice.clone().lerp(cyan, t * 0.6).lerp(white, Math.sin(t * Math.PI) * 0.3);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = t > 0.72 ? 1 : 0;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, ice, cyan, 1.38);
+  return { positions, colors, groups };
+}
+
+export function generateGoldenCirclesData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FBBF24');
+  const amber = new THREE.Color('#F59E0B');
+  const white = new THREE.Color('#FFFFFF');
+  const phi = (1 + Math.sqrt(5)) / 2;
+  let idx = 0;
+  const circleCount = Math.floor(PARTICLE_COUNT * 0.8);
+  for (let i = 0; i < circleCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const ring = i % 5;
+    const theta = ((i / 5) % 320) / 319 * Math.PI * 2;
+    const radius = 0.18 * Math.pow(phi, ring * 0.38);
+    positions[idx * 3] = Math.cos(theta) * radius;
+    positions[idx * 3 + 1] = Math.sin(theta) * radius;
+    positions[idx * 3 + 2] = Math.sin(theta * 2 + ring * 0.7) * 0.035;
+    const color = gold.clone().lerp(amber, ring / 4).lerp(white, Math.random() * 0.1);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = ring % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, gold, amber, 1.34);
+  return { positions, colors, groups };
+}
+
+export function generateSphereOfCirclesData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const cyan = new THREE.Color('#67E8F9');
+  const blue = new THREE.Color('#2563EB');
+  let idx = 0;
+  const ringCount = Math.floor(PARTICLE_COUNT * 0.82);
+  for (let i = 0; i < ringCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const band = i % 9;
+    const theta = Math.random() * Math.PI * 2;
+    const lat = -0.95 + (band / 8) * 1.9;
+    const bandRadius = Math.sqrt(Math.max(0, 1 - lat * lat)) * 0.98;
+    positions[idx * 3] = Math.cos(theta) * bandRadius;
+    positions[idx * 3 + 1] = lat;
+    positions[idx * 3 + 2] = Math.sin(theta) * bandRadius;
+    const color = cyan.clone().lerp(blue, band / 8).lerp(white, Math.random() * 0.12);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = band % 3;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, cyan, blue, 1.3);
+  return { positions, colors, groups };
+}
+
+export function generateCaduceusData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const gold = new THREE.Color('#FDE68A');
+  const emerald = new THREE.Color('#34D399');
+  const blue = new THREE.Color('#38BDF8');
+  const white = new THREE.Color('#FFFFFF');
+  let idx = 0;
+  const staffCount = Math.floor(PARTICLE_COUNT * 0.14);
+  const serpentCount = Math.floor(PARTICLE_COUNT * 0.5);
+  const wingCount = Math.floor(PARTICLE_COUNT * 0.16);
+  const topCount = Math.floor(PARTICLE_COUNT * 0.04);
+  for (let i = 0; i < staffCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const t = i / Math.max(1, staffCount - 1);
+    positions[idx * 3] = 0;
+    positions[idx * 3 + 1] = -1.08 + t * 2.16;
+    positions[idx * 3 + 2] = 0;
+    colors[idx * 3] = gold.r;
+    colors[idx * 3 + 1] = gold.g;
+    colors[idx * 3 + 2] = gold.b;
+    groups[idx] = 2;
+  }
+  for (let i = 0; i < serpentCount && idx + 1 < PARTICLE_COUNT; i++, idx += 2) {
+    const t = i / Math.max(1, serpentCount - 1);
+    const y = -0.95 + t * 1.9;
+    const angle = t * Math.PI * 5;
+    const x = Math.sin(angle) * 0.3;
+    const z = Math.cos(angle) * 0.16;
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    positions[(idx + 1) * 3] = -x;
+    positions[(idx + 1) * 3 + 1] = y;
+    positions[(idx + 1) * 3 + 2] = -z;
+    const color = emerald.clone().lerp(gold, Math.max(0, t - 0.72) * 2.5);
+    const color2 = blue.clone().lerp(gold, Math.max(0, t - 0.72) * 2.5);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    colors[(idx + 1) * 3] = color2.r;
+    colors[(idx + 1) * 3 + 1] = color2.g;
+    colors[(idx + 1) * 3 + 2] = color2.b;
+    groups[idx] = 0;
+    groups[idx + 1] = 1;
+  }
+  for (let i = 0; i < wingCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    const t = ((i / 2) % Math.max(1, Math.floor(wingCount / 2))) / Math.max(1, Math.floor(wingCount / 2) - 1);
+    const spread = Math.sin(t * Math.PI) * 0.5;
+    positions[idx * 3] = side * (0.12 + spread);
+    positions[idx * 3 + 1] = 0.72 + t * 0.28;
+    positions[idx * 3 + 2] = Math.cos(t * Math.PI) * 0.18;
+    const color = gold.clone().lerp(white, 0.12);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 3;
+  }
+  for (let i = 0; i < topCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const theta = (i / Math.max(1, topCount)) * Math.PI * 2;
+    positions[idx * 3] = Math.cos(theta) * 0.12;
+    positions[idx * 3 + 1] = 1.02;
+    positions[idx * 3 + 2] = Math.sin(theta) * 0.12;
+    const color = gold.clone().lerp(blue, 0.05);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = 4;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, emerald, gold, 1.25);
+  return { positions, colors, groups };
+}
+
+export function generateOctagramStarData() {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const groups = new Float32Array(PARTICLE_COUNT);
+  const white = new THREE.Color('#FFFFFF');
+  const violet = new THREE.Color('#8B5CF6');
+  const pink = new THREE.Color('#F472B6');
+  let idx = 0;
+  const starCount = Math.floor(PARTICLE_COUNT * 0.82);
+  for (let i = 0; i < starCount && idx < PARTICLE_COUNT; i++, idx++) {
+    const arm = i % 8;
+    const t = Math.random();
+    const angle = (arm / 8) * Math.PI * 2;
+    const radius = 0.15 + t * (arm % 2 === 0 ? 1.1 : 0.72);
+    positions[idx * 3] = Math.cos(angle) * radius;
+    positions[idx * 3 + 1] = Math.sin(angle) * radius;
+    positions[idx * 3 + 2] = Math.sin(t * Math.PI * 2 + arm) * 0.12;
+    const color = violet.clone().lerp(pink, arm / 8).lerp(white, Math.sin(t * Math.PI) * 0.2);
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    groups[idx] = arm % 2;
+  }
+  fillAmbientParticles(positions, colors, groups, idx, violet, pink, 1.36);
   return { positions, colors, groups };
 }

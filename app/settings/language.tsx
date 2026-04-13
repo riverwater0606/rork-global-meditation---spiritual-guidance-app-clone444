@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
 import { ArrowLeft, Globe, Check } from "lucide-react-native";
 import { useSettings, Language } from "@/providers/SettingsProvider";
+import { languageScreenCopy, localize } from "@/lib/i18n";
 
 export default function LanguageScreen() {
   const { settings, updateLanguage, currentTheme } = useSettings();
@@ -19,14 +20,20 @@ export default function LanguageScreen() {
     {
       id: "en" as Language,
       title: "English",
-      subtitle: "Default language",
+      subtitle: localize(settings.language, languageScreenCopy.englishSubtitle),
       flag: "🇺🇸",
     },
     {
       id: "zh" as Language,
       title: "中文",
-      subtitle: "Chinese (Simplified)",
-      flag: "🇨🇳",
+      subtitle: localize(settings.language, languageScreenCopy.chineseSubtitle),
+      flag: "🇭🇰",
+    },
+    {
+      id: "es" as Language,
+      title: "Español",
+      subtitle: localize(settings.language, languageScreenCopy.spanishSubtitle),
+      flag: "🇪🇸",
     },
   ];
 
@@ -34,26 +41,8 @@ export default function LanguageScreen() {
     await updateLanguage(language);
   };
 
-  const texts = {
-    en: {
-      title: "Language",
-      chooseLanguage: "Choose Your Language",
-      subtitle: "Select your preferred language for the app interface",
-      languageSupport: "Language Support",
-      supportText: "The app supports multiple languages to make meditation accessible to everyone. When you change the language, the interface will update immediately, including meditation guidance and AI assistant responses."
-    },
-    zh: {
-      title: "語言",
-      chooseLanguage: "選擇您的語言",
-      subtitle: "選擇您偏好的應用程式介面語言",
-      languageSupport: "語言支援",
-      supportText: "應用程式支援多種語言，讓每個人都能輕鬆使用冥想功能。當您更改語言時，介面會立即更新，包括冥想指導和AI助手回應。"
-    }
-  };
-
-  const getLocalizedText = (key: keyof typeof texts.en) => {
-    return texts[settings.language]?.[key] || texts.en[key];
-  };
+  const getLocalizedText = (key: keyof typeof languageScreenCopy) =>
+    localize(settings.language, languageScreenCopy[key]);
 
   const themedStyles = StyleSheet.create({
     container: {

@@ -2,21 +2,59 @@ import { Tabs } from "expo-router";
 import { Home, Activity, User, Sparkles, MessageCircle, Sprout } from "lucide-react-native";
 import React from "react";
 import { useSettings } from "@/providers/SettingsProvider";
+import { localize, tabsCopy } from "@/lib/i18n";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity } from "react-native";
+
+const WEB_TAB_GUARD_STYLE =
+  Platform.OS === "web"
+    ? ({
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
+        touchAction: "manipulation",
+      } as any)
+    : null;
+
+function NoPreviewTabBarButton(props: any) {
+  const {
+    href: _href,
+    target: _target,
+    rel: _rel,
+    download: _download,
+    onLongPress,
+    onContextMenu,
+    style,
+    children,
+    ...touchableProps
+  } = props;
+
+  return (
+    <TouchableOpacity
+      {...touchableProps}
+      activeOpacity={1}
+      delayLongPress={1000000}
+      onLongPress={(event: any) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        onLongPress?.(event);
+      }}
+      onContextMenu={(event: any) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        onContextMenu?.(event);
+      }}
+      style={[style, WEB_TAB_GUARD_STYLE]}
+    >
+      {children}
+    </TouchableOpacity>
+  );
+}
 
 export default function TabLayout() {
   const { settings } = useSettings();
   const lang = settings.language;
-
-  const translations = {
-    home: { en: "Home", zh: "首頁" },
-    meditate: { en: "Meditate", zh: "冥想" },
-    progress: { en: "Progress", zh: "進度" },
-    profile: { en: "Profile", zh: "個人資料" },
-    assistant: { en: "AI Assistant", zh: "AI助手" },
-    garden: { en: "Garden", zh: "光球花園" },
-  };
 
   return (
     <Tabs
@@ -40,47 +78,48 @@ export default function TabLayout() {
         tabBarBackground: () => Platform.OS !== 'web' ? (
           <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
         ) : null,
+        tabBarButton: (props) => <NoPreviewTabBarButton {...props} />,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: translations.home[lang],
+          title: localize(lang, tabsCopy.home),
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="meditate"
         options={{
-          title: translations.meditate[lang],
+          title: localize(lang, tabsCopy.meditate),
           tabBarIcon: ({ color }) => <Sparkles size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="garden"
         options={{
-          title: translations.garden[lang],
+          title: localize(lang, tabsCopy.garden),
           tabBarIcon: ({ color }) => <Sprout size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="progress"
         options={{
-          title: translations.progress[lang],
+          title: localize(lang, tabsCopy.progress),
           tabBarIcon: ({ color }) => <Activity size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="assistant"
         options={{
-          title: translations.assistant[lang],
+          title: localize(lang, tabsCopy.assistant),
           tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: translations.profile[lang],
+          title: localize(lang, tabsCopy.profile),
           tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />

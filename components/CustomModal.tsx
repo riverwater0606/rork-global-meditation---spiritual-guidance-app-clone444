@@ -45,7 +45,9 @@ export default function CustomModal({
         {Platform.OS === "ios" ? (
           <BlurView intensity={80} tint="light" style={styles.blurContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{title}</Text>
+              <Text style={styles.modalTitle} accessibilityRole="header">
+                {title}
+              </Text>
               <Text style={styles.modalMessage}>{message}</Text>
               <View style={styles.buttonContainer}>
                 {cancelText && (
@@ -75,7 +77,9 @@ export default function CustomModal({
           </BlurView>
         ) : (
           <View style={[styles.modalContent, styles.androidModal]}>
-            <Text style={styles.modalTitle}>{title}</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              {title}
+            </Text>
             <Text style={styles.modalMessage}>{message}</Text>
             <View style={styles.buttonContainer}>
               {cancelText && (

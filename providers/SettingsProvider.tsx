@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform, Appearance, ColorSchemeName } from "react-native";
+import { Platform, Appearance, ColorSchemeName, Linking } from "react-native";
 import * as Notifications from "expo-notifications";
+import { APP_STORAGE_KEYS } from "@/constants/storageKeys";
+import { API_BASE_URL } from "@/constants/world";
+import { fetchCloudCustomMeditations } from "@/lib/customMeditationCloud";
+import { fetchCloudJourneyState } from "@/lib/journeyStateCloud";
+import { fetchCloudVipEntitlement } from "@/lib/vipEntitlementCloud";
+import { fetchCloudIdentityState } from "@/lib/identityStateCloud";
 
 export type Theme = "light" | "dark" | "system";
-export type Language = "en" | "zh";
+export type Language = "en" | "zh" | "es";
 
 interface ThemeColors {
   background: string;
@@ -64,6 +70,8 @@ interface AppSettings {
   privacy: PrivacySettings;
 }
 
+type NotificationPermissionStatus = "unknown" | "granted" | "denied" | "undetermined" | "unsupported";
+
 const defaultSettings: AppSettings = {
   theme: "dark",
   language: "en",
@@ -81,17 +89,64 @@ const defaultSettings: AppSettings = {
   },
 };
 
+const SUPPORTED_LANGUAGES: Language[] = ["en", "zh", "es"];
+
+function normalizeLanguage(value: unknown): Language {
+  return typeof value === "string" && SUPPORTED_LANGUAGES.includes(value as Language)
+    ? (value as Language)
+    : defaultSettings.language;
+}
+
+const EXTRA_STORAGE_KEYS = [
+  "customMeditationsBackup",
+  "customMeditationsCloudSync",
+  "journeyStateCloudSync",
+  "vipUpdatedAt",
+  "identityUpdatedAt",
+] as const;
+
+const getApiBaseUrl = () => {
+  const trimmed = API_BASE_URL.trim().replace(/\/$/, "");
+  if (!trimmed || trimmed.includes("mini-app-backend.example.com")) {
+    return null;
+  }
+  return trimmed;
+};
+
+const deleteCloudSnapshot = async (path: string, body: Record<string, unknown>) => {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return;
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText.slice(0, 300) || `Delete failed (${response.status})`);
+  }
+};
+
 export const [SettingsProvider, useSettings] = createContextHook(() => {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<NotificationPermissionStatus>(
+    Platform.OS === "web" ? "unsupported" : "unknown"
+  );
 
   const loadSettings = useCallback(async () => {
     try {
       const savedSettings = await AsyncStorage.getItem("appSettings");
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        setSettings({ ...defaultSettings, ...parsed });
+        setSettings({
+          ...defaultSettings,
+          ...parsed,
+          language: normalizeLanguage(parsed?.language),
+        });
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -109,13 +164,38 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
     }
   }, []);
 
-  const setupNotifications = useCallback(async () => {
-    if (Platform.OS === "web") return;
+  const refreshNotificationPermissionStatus = useCallback(async (): Promise<NotificationPermissionStatus> => {
+    if (Platform.OS === "web") {
+      setNotificationPermissionStatus("unsupported");
+      return "unsupported";
+    }
 
     try {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const permissions = await Notifications.getPermissionsAsync();
+      const status = (permissions.status || "unknown") as NotificationPermissionStatus;
+      setNotificationPermissionStatus(status);
+      return status;
+    } catch (error) {
+      console.error("Error checking notification permissions:", error);
+      setNotificationPermissionStatus("unknown");
+      return "unknown";
+    }
+  }, []);
+
+  const setupNotifications = useCallback(async () => {
+    if (Platform.OS === "web") {
+      setNotificationPermissionStatus("unsupported");
+      return;
+    }
+
+    try {
+      const existingStatus = await refreshNotificationPermissionStatus();
+      const { status } =
+        existingStatus === "undetermined"
+          ? await Notifications.requestPermissionsAsync()
+          : await Notifications.getPermissionsAsync();
+      setNotificationPermissionStatus((status || "unknown") as NotificationPermissionStatus);
       if (status !== "granted") {
-        console.log("Notification permissions not granted");
         return;
       }
 
@@ -131,6 +211,51 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
       });
     } catch (error) {
       console.error("Error setting up notifications:", error);
+    }
+  }, [refreshNotificationPermissionStatus]);
+
+  const requestNotificationPermission = useCallback(async (): Promise<NotificationPermissionStatus> => {
+    if (Platform.OS === "web") {
+      setNotificationPermissionStatus("unsupported");
+      return "unsupported";
+    }
+
+    try {
+      const currentStatus = await refreshNotificationPermissionStatus();
+      if (currentStatus === "granted") {
+        return "granted";
+      }
+
+      const { status } = await Notifications.requestPermissionsAsync();
+      const nextStatus = (status || "unknown") as NotificationPermissionStatus;
+      setNotificationPermissionStatus(nextStatus);
+
+      if (nextStatus === "granted") {
+        await Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+      }
+
+      return nextStatus;
+    } catch (error) {
+      console.error("Error requesting notification permissions:", error);
+      setNotificationPermissionStatus("unknown");
+      return "unknown";
+    }
+  }, [refreshNotificationPermissionStatus]);
+
+  const openNotificationSettings = useCallback(async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.error("Error opening settings:", error);
+      throw error;
     }
   }, []);
 
@@ -207,8 +332,32 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
 
   const exportData = useCallback(async () => {
     try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const dynamicKeys = allKeys.filter(
+        (key) => key.startsWith("vipEntitlement:") || key.startsWith("psig-voice-usage:")
+      );
+      const keysToRead = [...APP_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS, ...dynamicKeys];
+      const entries = await AsyncStorage.multiGet(keysToRead);
+      const localData = Object.fromEntries(entries.filter(([key, value]) => key && value != null));
+      const savedWallet = localData.walletAddress ? String(localData.walletAddress) : null;
+      const savedProfile = localData.userProfile ? JSON.parse(String(localData.userProfile)) : null;
+
       const allData = {
         settings,
+        localData,
+        cloudData: savedWallet
+          ? {
+              customMeditations: await fetchCloudCustomMeditations(savedWallet),
+              journeyState: await fetchCloudJourneyState(savedWallet),
+              vipEntitlement: await fetchCloudVipEntitlement(savedWallet),
+              identityState: await fetchCloudIdentityState(savedWallet),
+            }
+          : null,
+        metadata: {
+          walletAddress: savedWallet,
+          username: savedProfile?.username ?? null,
+          exportedAt: new Date().toISOString(),
+        },
         timestamp: new Date().toISOString(),
       };
       return JSON.stringify(allData, null, 2);
@@ -220,12 +369,44 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
 
   const clearAllData = useCallback(async () => {
     try {
-      await AsyncStorage.multiRemove([
-        "appSettings",
-        "userProfile",
-        "walletAddress",
-        "meditationProgress",
-      ]);
+      const savedWallet = await AsyncStorage.getItem("walletAddress");
+      const savedCustomMeditations = await AsyncStorage.getItem("customMeditations");
+      const allKeys = await AsyncStorage.getAllKeys();
+      const dynamicKeys = allKeys.filter(
+        (key) => key.startsWith("vipEntitlement:") || key.startsWith("psig-voice-usage:")
+      );
+
+      if (savedWallet) {
+        await Promise.allSettled([
+          deleteCloudSnapshot("/api/custom-meditations", { userId: savedWallet }),
+          deleteCloudSnapshot("/api/journey-state", { userId: savedWallet }),
+          deleteCloudSnapshot("/api/vip-entitlement", { walletAddress: savedWallet }),
+          deleteCloudSnapshot("/api/identity-state", { walletAddress: savedWallet }),
+        ]);
+      }
+
+      if (savedWallet && savedCustomMeditations) {
+        try {
+          const parsed = JSON.parse(savedCustomMeditations) as Array<{ id?: string }>;
+          const sessionIds = Array.isArray(parsed) ? parsed.map((item) => item?.id).filter(Boolean) as string[] : [];
+          const baseUrl = getApiBaseUrl();
+          if (baseUrl && sessionIds.length > 0) {
+            await Promise.allSettled(
+              sessionIds.map((sessionId) =>
+                fetch(`${baseUrl}/api/tts/elevenlabs`, {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ sessionId }),
+                })
+              )
+            );
+          }
+        } catch (error) {
+          console.error("Error clearing TTS cache snapshot:", error);
+        }
+      }
+
+      await AsyncStorage.multiRemove([...APP_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS, ...dynamicKeys]);
       setSettings(defaultSettings);
     } catch (error) {
       console.error("Error clearing data:", error);
@@ -252,6 +433,10 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
     isLoading,
     currentTheme,
     isDarkMode,
+    notificationPermissionStatus,
+    refreshNotificationPermissionStatus,
+    requestNotificationPermission,
+    openNotificationSettings,
     updateTheme,
     updateLanguage,
     updateNotificationSettings,
@@ -259,5 +444,21 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
     resetSettings,
     exportData,
     clearAllData,
-  }), [settings, isLoading, currentTheme, isDarkMode, updateTheme, updateLanguage, updateNotificationSettings, updatePrivacySettings, resetSettings, exportData, clearAllData]);
+  }), [
+    settings,
+    isLoading,
+    currentTheme,
+    isDarkMode,
+    notificationPermissionStatus,
+    refreshNotificationPermissionStatus,
+    requestNotificationPermission,
+    openNotificationSettings,
+    updateTheme,
+    updateLanguage,
+    updateNotificationSettings,
+    updatePrivacySettings,
+    resetSettings,
+    exportData,
+    clearAllData,
+  ]);
 });

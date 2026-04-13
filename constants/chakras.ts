@@ -1,0 +1,90 @@
+export const CHAKRA_COLORS = [
+  "#C44536",
+  "#E67E22",
+  "#D4AC0D",
+  "#27AE60",
+  "#3498DB",
+  "#5B4B8A",
+  "#9B59B6",
+] as const;
+
+export const AWAKENED_CORE_COLOR = "#F4F1FF";
+
+export const CHAKRA_JOURNEY = [
+  {
+    day: 1,
+    color: CHAKRA_COLORS[0],
+    zhTitle: "海底輪",
+    enTitle: "Root Chakra",
+    esTitle: "Chakra raíz",
+    zhTheme: "穩定、安全、扎根",
+    enTheme: "Grounding, safety, stability",
+    esTheme: "Arraigo, seguridad y estabilidad",
+  },
+  {
+    day: 2,
+    color: CHAKRA_COLORS[1],
+    zhTitle: "臍輪",
+    enTitle: "Sacral Chakra",
+    esTitle: "Chakra sacro",
+    zhTheme: "情感、流動、創造",
+    enTheme: "Emotion, flow, creativity",
+    esTheme: "Emoción, flujo y creatividad",
+  },
+  {
+    day: 3,
+    color: CHAKRA_COLORS[2],
+    zhTitle: "太陽神經叢",
+    enTitle: "Solar Plexus",
+    esTitle: "Plexo solar",
+    zhTheme: "意志、自信、行動",
+    enTheme: "Will, confidence, action",
+    esTheme: "Voluntad, confianza y acción",
+  },
+  {
+    day: 4,
+    color: CHAKRA_COLORS[3],
+    zhTitle: "心輪",
+    enTitle: "Heart Chakra",
+    esTitle: "Chakra del corazón",
+    zhTheme: "慈悲、愛、連結",
+    enTheme: "Compassion, love, connection",
+    esTheme: "Compasión, amor y conexión",
+  },
+  {
+    day: 5,
+    color: CHAKRA_COLORS[4],
+    zhTitle: "喉輪",
+    enTitle: "Throat Chakra",
+    esTitle: "Chakra de la garganta",
+    zhTheme: "表達、真實、共鳴",
+    enTheme: "Expression, truth, resonance",
+    esTheme: "Expresión, verdad y resonancia",
+  },
+  {
+    day: 6,
+    color: CHAKRA_COLORS[5],
+    zhTitle: "眉心輪",
+    enTitle: "Third Eye",
+    esTitle: "Tercer ojo",
+    zhTheme: "直覺、洞察、內觀",
+    enTheme: "Intuition, insight, inner vision",
+    esTheme: "Intuición, visión y percepción interior",
+  },
+  {
+    day: 7,
+    color: CHAKRA_COLORS[6],
+    zhTitle: "頂輪",
+    enTitle: "Crown Chakra",
+    esTitle: "Chakra corona",
+    zhTheme: "整合、覺知、超越",
+    enTheme: "Integration, awareness, transcendence",
+    esTheme: "Integración, conciencia y trascendencia",
+  },
+] as const;
+
+export const GIFTED_AWAKENED_ORB_LABEL = {
+  zh: "贈送覺醒球",
+  en: "Gifted Awakened Orb",
+  es: "Esfera despierta de regalo",
+} as const;

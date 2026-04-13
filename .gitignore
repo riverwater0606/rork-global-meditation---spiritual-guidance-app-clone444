@@ -31,10 +31,17 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.vercel
 
 # typescript
 *.tsbuildinfo
 .vercel
+playwright-report/
+test-results/
+.omx/
+.learnings/
+.codex-*
+.tmp-*
 
 ios/
 android/

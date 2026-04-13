@@ -1,18 +1,18 @@
 export interface GuidedMeditation {
   id: string;
-  title: { en: string; zh: string };
+  title: { en: string; zh: string; es?: string };
   duration: number;
-  category: { en: string; zh: string };
-  steps: { en: string[]; zh: string[] };
-  benefits: { en: string[]; zh: string[] };
+  category: { en: string; zh: string; es?: string };
+  steps: { en: string[]; zh: string[]; es?: string[] };
+  benefits: { en: string[]; zh: string[]; es?: string[] };
 }
 
 export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
   {
     id: "breathing-basic",
-    title: { en: "Basic Breathing Meditation", zh: "基礎呼吸冥想" },
+    title: { en: "Basic Breathing Meditation", zh: "基礎呼吸冥想", es: "Meditación básica de respiración" },
     duration: 5,
-    category: { en: "Breathing", zh: "呼吸" },
+    category: { en: "Breathing", zh: "呼吸", es: "Respiración" },
     steps: {
       en: [
         "Find a comfortable sitting position and gently close your eyes",
@@ -30,17 +30,26 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "緩緩呼氣，數到6",
         "重複這個過程5-10次",
       ],
+      es: [
+        "Encuentra una postura cómoda y cierra suavemente los ojos",
+        "Lleva tu atención a la respiración",
+        "Inhala profundamente contando hasta 4",
+        "Sostén la respiración contando hasta 4",
+        "Exhala lentamente contando hasta 6",
+        "Repite este ciclo de 5 a 10 veces",
+      ],
     },
     benefits: {
       en: ["Reduce stress", "Improve focus", "Calm the mind"],
       zh: ["減輕壓力", "提高專注力", "平靜心靈"],
+      es: ["Reduce el estrés", "Mejora el enfoque", "Calma la mente"],
     },
   },
   {
     id: "body-scan",
-    title: { en: "Body Scan Meditation", zh: "身體掃描冥想" },
+    title: { en: "Body Scan Meditation", zh: "身體掃描冥想", es: "Meditación de escaneo corporal" },
     duration: 10,
-    category: { en: "Mindfulness", zh: "正念" },
+    category: { en: "Mindfulness", zh: "正念", es: "Atención plena" },
     steps: {
       en: [
         "Lie down or sit in a comfortable position",
@@ -58,17 +67,26 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "逐漸向下掃描至腳趾",
         "最後感受整個身體的放鬆",
       ],
+      es: [
+        "Acuéstate o siéntate en una posición cómoda",
+        "Empieza desde la coronilla y siente cada parte lentamente",
+        "Observa cualquier tensión o incomodidad",
+        "Imagina que la respiración llega a esa zona",
+        "Sigue bajando poco a poco hasta los dedos de los pies",
+        "Al final siente la relajación en todo tu cuerpo",
+      ],
     },
     benefits: {
       en: ["Release body tension", "Improve body awareness", "Deep relaxation"],
       zh: ["釋放身體緊張", "提高身體覺察", "深度放鬆"],
+      es: ["Libera tensión corporal", "Aumenta la conciencia corporal", "Relajación profunda"],
     },
   },
   {
     id: "loving-kindness",
-    title: { en: "Loving-Kindness Meditation", zh: "慈心冥想" },
+    title: { en: "Loving-Kindness Meditation", zh: "慈心冥想", es: "Meditación de bondad amorosa" },
     duration: 15,
-    category: { en: "Compassion", zh: "慈悲" },
+    category: { en: "Compassion", zh: "慈悲", es: "Compasión" },
     steps: {
       en: [
         "Sit in a comfortable position and close your eyes",
@@ -86,17 +104,26 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "最後包括所有眾生",
         "感受這份慈愛的能量充滿你的心",
       ],
+      es: [
+        "Siéntate cómodamente y cierra los ojos",
+        "Empieza diciéndote: que yo sea feliz, que yo esté sano, que yo esté a salvo",
+        "Imagina a alguien que amas y envíale los mismos deseos",
+        "Extiéndelo a personas neutrales, como desconocidos",
+        "Por último incluye a todos los seres",
+        "Siente esa energía amorosa llenando tu corazón",
+      ],
     },
     benefits: {
       en: ["Enhance empathy", "Improve relationships", "Increase happiness"],
       zh: ["增強同理心", "改善人際關係", "提升幸福感"],
+      es: ["Fortalece la empatía", "Mejora las relaciones", "Aumenta la felicidad"],
     },
   },
   {
     id: "mindful-walking",
-    title: { en: "Mindful Walking", zh: "正念行走" },
+    title: { en: "Mindful Walking", zh: "正念行走", es: "Caminar con atención plena" },
     duration: 20,
-    category: { en: "Movement", zh: "動態冥想" },
+    category: { en: "Movement", zh: "動態冥想", es: "Movimiento" },
     steps: {
       en: [
         "Choose a quiet place to walk",
@@ -114,17 +141,26 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "如果思緒飄走，溫柔地帶回注意力",
         "保持自然的呼吸節奏",
       ],
+      es: [
+        "Elige un lugar tranquilo para caminar",
+        "Empieza caminando despacio y sintiendo cada paso",
+        "Observa el contacto entre tus pies y el suelo",
+        "Siente el movimiento y el equilibrio de tu cuerpo",
+        "Si tu mente se distrae, vuelve con suavidad",
+        "Mantén un ritmo de respiración natural",
+      ],
     },
     benefits: {
       en: ["Combine exercise with meditation", "Improve present awareness", "Release anxiety"],
       zh: ["結合運動與冥想", "提高當下覺察", "釋放焦慮"],
+      es: ["Une movimiento y meditación", "Mejora la presencia", "Libera ansiedad"],
     },
   },
   {
     id: "chakra-balance",
-    title: { en: "Chakra Balancing Meditation", zh: "脈輪平衡冥想" },
+    title: { en: "Chakra Balancing Meditation", zh: "脈輪平衡冥想", es: "Meditación de equilibrio de chakras" },
     duration: 25,
-    category: { en: "Energy", zh: "能量" },
+    category: { en: "Energy", zh: "能量", es: "Energía" },
     steps: {
       en: [
         "Sit upright, imagine your spine as an energy channel",
@@ -144,17 +180,27 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "頂輪-紫色或白色光芒",
         "感受所有脈輪和諧共振",
       ],
+      es: [
+        "Siéntate erguido e imagina tu columna como un canal de energía",
+        "Empieza con el chakra raíz y visualiza una luz roja",
+        "Sube al chakra sacro y visualiza una luz naranja",
+        "Plexo solar amarillo, corazón verde",
+        "Garganta azul, tercer ojo índigo",
+        "Corona violeta o luz blanca",
+        "Siente todos los chakras resonando en armonía",
+      ],
     },
     benefits: {
       en: ["Balance energy", "Enhance spiritual awareness", "Overall harmony"],
       zh: ["平衡能量", "提升靈性覺察", "整體和諧"],
+      es: ["Equilibra la energía", "Eleva la conciencia espiritual", "Armonía general"],
     },
   },
   {
     id: "sleep-meditation",
-    title: { en: "Deep Sleep Meditation", zh: "深度睡眠冥想" },
+    title: { en: "Deep Sleep Meditation", zh: "深度睡眠冥想", es: "Meditación para sueño profundo" },
     duration: 30,
-    category: { en: "Sleep", zh: "睡眠" },
+    category: { en: "Sleep", zh: "睡眠", es: "Sueño" },
     steps: {
       en: [
         "Lie in bed and adjust to the most comfortable position",
@@ -172,10 +218,19 @@ export const GUIDED_MEDITATIONS: GuidedMeditation[] = [
         "數息從10倒數到1，越來越放鬆",
         "讓思緒如雲朵般飄過，不執著",
       ],
+      es: [
+        "Recuéstate y encuentra la postura más cómoda",
+        "Empieza por los dedos de los pies y relaja cada parte poco a poco",
+        "Imagina que descansas sobre una nube, ligera y suave",
+        "Con cada exhalación deja que tu cuerpo se hunda más en el colchón",
+        "Cuenta las respiraciones de 10 a 1 mientras te relajas",
+        "Deja que los pensamientos pasen como nubes, sin aferrarte",
+      ],
     },
     benefits: {
       en: ["Improve sleep quality", "Reduce insomnia", "Deep rest"],
       zh: ["改善睡眠質量", "減少失眠", "深度休息"],
+      es: ["Mejora la calidad del sueño", "Reduce el insomnio", "Descanso profundo"],
     },
   },
 ];

@@ -6,7 +6,6 @@ import {
   isFirebaseEnabled,
   waitForFirebaseAuth,
 } from "@/constants/firebase";
-import { sanitizeUserId } from "@/lib/firebaseMeditations";
 
 export async function firebaseDebugPing(params: {
   walletAddress: string;
@@ -31,8 +30,7 @@ export async function firebaseDebugPing(params: {
   }
 
   const userId = authUser.uid;
-  const safeUserId = sanitizeUserId(userId);
-  const path = `meditations/${safeUserId}/debug`;
+  const path = `debug/${userId}`;
 
   const r = push(ref(fb.db, path));
   const key = r.key;
@@ -44,6 +42,7 @@ export async function firebaseDebugPing(params: {
     resolvedUserId: userId,
     resolvedSource: "auth",
     walletAddress: params.walletAddress,
+    note: "firebase-debug-ping",
     platform: "expo",
   };
 

@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "Global Meditation & Spiritual Guidance App Clone444",
-    "slug": "global-meditation-spiritual-guidance-app-zwxjndo7",
+    "name": "PSI-G",
+    "slug": "psig-spiritual-guidance",
+    "description": "PSI-G is a spiritual guidance and meditation mini app for daily practice, gifting, sacred geometry exploration, and mindful progress.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "psig",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.global-meditation-spiritual-guidance-app-zwxjndo7",
+      "bundleIdentifier": "app.psig.spiritual-guidance",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -28,7 +29,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.global-meditation-spiritual-guidance-app-zwxjndo7",
+      "package": "app.psig.spiritualguidance",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.SCHEDULE_EXACT_ALARM",

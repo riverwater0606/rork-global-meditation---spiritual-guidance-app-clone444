@@ -7,6 +7,7 @@ import {
   setFirebaseLastWriteError,
   waitForFirebaseAuth,
 } from "@/constants/firebase";
+import { syncFirebaseUserBinding } from "@/lib/firebaseIdentity";
 
 export interface MeditationRecord {
   id?: string;
@@ -15,6 +16,7 @@ export interface MeditationRecord {
   duration: number;
   energyRating?: number;
   createdAt: string;
+  createdByUid?: string;
 }
 
 export function sanitizeUserId(input: string): string {
@@ -68,6 +70,10 @@ export async function uploadMeditationRecord(params: {
       console.error("[firebaseMeditations] getFirebaseMaybe returned null", { missing });
       throw new Error(`Firebase disabled (missing env: ${missing.join(", ")})`);
     }
+    await syncFirebaseUserBinding({
+      walletAddress: params.userId.startsWith("0x") ? params.userId : null,
+    });
+
     const { db } = fb;
     console.log("[firebaseMeditations] Firebase DB obtained");
     
@@ -91,11 +97,13 @@ export async function uploadMeditationRecord(params: {
         duration: params.duration,
         energyRating: params.energyRating,
         createdAt: now,
+        createdByUid: authUser.uid,
       }).filter(([, value]) => value !== undefined)
     ) as MeditationRecord;
 
     console.log("[firebaseMeditations] Calling set() with record:", JSON.stringify(record));
     await set(recordRef, record);
+    setFirebaseLastWriteError(null);
 
     console.log("[firebaseMeditations] uploadMeditationRecord:success", { recordId, safeUserId });
     console.log("[firebaseMeditations] Upload success", { path, recordId });
@@ -152,6 +160,10 @@ export async function fetchMeditationHistory(params: {
       console.error("[firebaseMeditations] getFirebaseMaybe returned null (history)", { missing });
       return [];
     }
+    await syncFirebaseUserBinding({
+      walletAddress: params.userId.startsWith("0x") ? params.userId : null,
+    });
+
     const { db } = fb;
     const safeUserId = sanitizeUserId(params.userId);
     const meditationsRef = ref(db, `meditations/${safeUserId}`);
